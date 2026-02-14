@@ -7,6 +7,8 @@ import type { ParsedImplementationPlan } from "@/types/project"
 type PlanRendererProps = {
   plan: ParsedImplementationPlan | null
   isLoading: boolean
+  onToggleTask?: (phaseIndex: number, taskIndex: number, nextDone: boolean) => void
+  isSavingTask?: boolean
 }
 
 type StatusMeta = {
@@ -36,7 +38,12 @@ function percentage(done: number, total: number): number {
   return Math.round((done / total) * 100)
 }
 
-export function PlanRenderer({ plan, isLoading }: PlanRendererProps) {
+export function PlanRenderer({
+  plan,
+  isLoading,
+  onToggleTask,
+  isSavingTask = false,
+}: PlanRendererProps) {
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -103,7 +110,7 @@ export function PlanRenderer({ plan, isLoading }: PlanRendererProps) {
             </div>
           </div>
 
-          {plan.phases.map((phase) => {
+          {plan.phases.map((phase, phaseIndex) => {
             const isExpanded = expandedPhases.has(phase.name)
             const statusMeta = phaseStatusMeta[phase.status]
 
@@ -152,8 +159,8 @@ export function PlanRenderer({ plan, isLoading }: PlanRendererProps) {
                           <input
                             type="checkbox"
                             checked={task.done}
-                            readOnly
-                            disabled
+                            onChange={(event) => onToggleTask?.(phaseIndex, index, event.target.checked)}
+                            disabled={!onToggleTask || isSavingTask}
                             className="h-4 w-4 rounded border-slate-300 text-primary"
                           />
                           <span className={task.done ? "text-muted-foreground line-through" : ""}>
@@ -169,6 +176,10 @@ export function PlanRenderer({ plan, isLoading }: PlanRendererProps) {
             )
           })}
         </div>
+      )}
+
+      {isSavingTask && (
+        <p className="mt-3 text-xs text-muted-foreground">Saving plan task update...</p>
       )}
     </section>
   )

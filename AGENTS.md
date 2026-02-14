@@ -164,3 +164,4 @@ ralph-dashboard/
 - 2026-02-14: `RecentActivityFeed` now merges iteration-derived events (completion/tasks/errors) with `/notifications` history, sorts by timestamp descending, and renders the latest activity cards on Overview.
 - 2026-02-14: Overview charts now live-refresh via a project-scoped `useWebSocket` subscription in `ProjectPage`; relevant events are debounced (300ms) before reloading iterations/stats/notifications.
 - 2026-02-14: `PlanRenderer` is now available with collapsible phase cards, per-phase progress bars, read-only task checkboxes (with indentation), and pending/in-progress/complete badges sourced from `/plan`.
+- 2026-02-14: Plan checkboxes are now interactive; `ProjectPage` maps phase/task to checkbox ordinal in `plan.raw`, patches markdown safely, saves via `PUT /plan`, then refreshes overview data.
