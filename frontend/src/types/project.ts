@@ -33,6 +33,10 @@ export type IterationListResponse = {
   total: number
 }
 
+export type IterationDetail = IterationSummary & {
+  log_output: string
+}
+
 export type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number

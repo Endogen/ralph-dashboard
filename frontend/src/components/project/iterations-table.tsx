@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 
+import { apiFetch } from "@/api/client"
 import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
-import type { IterationSummary } from "@/types/project"
+import type { IterationDetail, IterationSummary } from "@/types/project"
 
 type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
 type SortDirection = "asc" | "desc"
@@ -162,6 +163,39 @@ export function IterationsTable({
 }: IterationsTableProps) {
   const [sortKey, setSortKey] = useState<IterationSortKey>("number")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
+  const [iterationDetails, setIterationDetails] = useState<Record<number, IterationDetail>>({})
+  const [detailLoading, setDetailLoading] = useState<Record<number, boolean>>({})
+  const [detailErrors, setDetailErrors] = useState<Record<number, string>>({})
+
+  useEffect(() => {
+    setExpandedRows({})
+    setIterationDetails({})
+    setDetailLoading({})
+    setDetailErrors({})
+  }, [projectId])
+
+  const loadIterationDetail = useCallback(
+    async (iterationNumber: number) => {
+      if (!projectId || iterationDetails[iterationNumber] || detailLoading[iterationNumber]) {
+        return
+      }
+
+      setDetailLoading((current) => ({ ...current, [iterationNumber]: true }))
+      setDetailErrors((current) => ({ ...current, [iterationNumber]: "" }))
+
+      try {
+        const detail = await apiFetch<IterationDetail>(`/projects/${projectId}/iterations/${iterationNumber}`)
+        setIterationDetails((current) => ({ ...current, [iterationNumber]: detail }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load iteration detail"
+        setDetailErrors((current) => ({ ...current, [iterationNumber]: message }))
+      } finally {
+        setDetailLoading((current) => ({ ...current, [iterationNumber]: false }))
+      }
+    },
+    [detailLoading, iterationDetails, projectId],
+  )
 
   const sortedIterations = useMemo(() => {
     const next = [...iterations]
@@ -211,12 +245,28 @@ export function IterationsTable({
     setSortDirection(nextSort === "number" ? "desc" : "asc")
   }
 
+  const toggleRow = (iterationNumber: number) => {
+    const currentlyExpanded = Boolean(expandedRows[iterationNumber])
+    setExpandedRows((current) => ({ ...current, [iterationNumber]: !current[iterationNumber] }))
+
+    if (!currentlyExpanded) {
+      if (!projectId) {
+        setDetailErrors((current) => ({
+          ...current,
+          [iterationNumber]: "Cannot load log output because no project id is available.",
+        }))
+        return
+      }
+      void loadIterationDetail(iterationNumber)
+    }
+  }
+
   return (
     <section className="rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iterations</h3>
         <p className="text-sm text-muted-foreground">
-          Sortable iteration history with status, health, token usage, and commit/test outcomes.
+          Sortable iteration history with health scoring and expandable terminal log output.
         </p>
       </header>
 
@@ -255,48 +305,87 @@ export function IterationsTable({
                 const healthMeta = evaluateIterationHealth(iteration)
                 const testMeta = getTestMeta(iteration.test_passed)
                 const cost = iterationCost(iteration.tokens_used, tokenPricePer1k)
+                const isExpanded = Boolean(expandedRows[iteration.number])
+                const detail = iterationDetails[iteration.number]
+                const detailError = detailErrors[iteration.number]
+                const isDetailLoading = detailLoading[iteration.number]
+                const detailText = detail?.log_output?.trim() || "No log output available for this iteration."
                 return (
-                  <tr key={iteration.number} className="border-b bg-background/20 last:border-b-0 hover:bg-background/50">
-                    <td className="px-3 py-2 font-mono text-xs">{iteration.number}</td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
-                        {statusMeta.label}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                          ITERATION_HEALTH_BADGE_CLASS[healthMeta.level]
-                        }`}
-                      >
-                        {healthMeta.label}
-                        <span className="font-mono text-[10px] opacity-80">({healthMeta.score})</span>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">{formatDuration(iteration.duration_seconds)}</td>
-                    <td className="px-3 py-2 font-mono">{formatTokens(iteration.tokens_used)}</td>
-                    <td className="px-3 py-2 font-mono">{formatUsd(cost)}</td>
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {iteration.tasks_completed.length > 0 ? iteration.tasks_completed.join(", ") : "None"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {iteration.commit && projectId ? (
-                        <a
-                          href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
-                          className="underline decoration-dotted"
+                  <Fragment key={iteration.number}>
+                    <tr className="border-b bg-background/20 hover:bg-background/50">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        <button
+                          type="button"
+                          onClick={() => toggleRow(iteration.number)}
+                          className="mr-1 text-muted-foreground hover:text-foreground"
+                          aria-label={`Toggle details for iteration ${iteration.number}`}
+                          title={isExpanded ? "Collapse details" : "Expand details"}
                         >
-                          {iteration.commit}
-                        </a>
-                      ) : (
-                        iteration.commit ?? "n/a"
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${testMeta.className}`}>
-                        {testMeta.label}
-                      </span>
-                    </td>
-                  </tr>
+                          {isExpanded ? "▾" : "▸"}
+                        </button>
+                        {iteration.number}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
+                          {statusMeta.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                            ITERATION_HEALTH_BADGE_CLASS[healthMeta.level]
+                          }`}
+                        >
+                          {healthMeta.label}
+                          <span className="font-mono text-[10px] opacity-80">({healthMeta.score})</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">{formatDuration(iteration.duration_seconds)}</td>
+                      <td className="px-3 py-2 font-mono">{formatTokens(iteration.tokens_used)}</td>
+                      <td className="px-3 py-2 font-mono">{formatUsd(cost)}</td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {iteration.tasks_completed.length > 0 ? iteration.tasks_completed.join(", ") : "None"}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {iteration.commit && projectId ? (
+                          <a
+                            href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
+                            className="underline decoration-dotted"
+                          >
+                            {iteration.commit}
+                          </a>
+                        ) : (
+                          iteration.commit ?? "n/a"
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${testMeta.className}`}>
+                          {testMeta.label}
+                        </span>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="border-b bg-background/40 last:border-b-0">
+                        <td colSpan={COLUMNS.length} className="px-3 py-3">
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-100">
+                            <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-zinc-300">
+                              <span>Iteration {iteration.number} log output</span>
+                              <span>{formatDuration(iteration.duration_seconds)}</span>
+                            </div>
+                            {isDetailLoading ? (
+                              <p className="text-zinc-400">Loading log output...</p>
+                            ) : detailError ? (
+                              <p className="text-rose-300">{detailError}</p>
+                            ) : (
+                              <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words pr-2 text-[11px] leading-5">
+                                {detailText}
+                              </pre>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>

@@ -98,7 +98,7 @@ STATUS: READY
 ## Phase 13: Iterations Tab
 - [x] 13.1: Build iterations table with sortable columns
 - [x] 13.2: Build health scoring display (colored indicators)
-- [ ] 13.3: Build expandable row detail (full log output, terminal-styled)
+- [x] 13.3: Build expandable row detail (full log output, terminal-styled)
 - [ ] 13.4: Build git diff viewer (syntax highlighted)
 - [ ] 13.5: Add filters (status, health, search)
 
