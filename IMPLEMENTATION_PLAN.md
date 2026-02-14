@@ -14,7 +14,7 @@ STATUS: READY
 - [x] 2.3: Implement JWT auth module (login, refresh, token validation, bcrypt password hashing)
 - [x] 2.4: Add auth middleware/dependency for protecting endpoints
 - [x] 2.5: Create initial user setup CLI command or first-run flow (set username/password)
-- [ ] 2.6: Add auth tests
+- [x] 2.6: Add auth tests
 
 ## Phase 3: Project Discovery & Management
 - [ ] 3.1: Implement project discovery (scan configured dirs for .ralph/ subdirectories)
