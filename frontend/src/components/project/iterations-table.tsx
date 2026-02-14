@@ -1,0 +1,337 @@
+import { useMemo, useState } from "react"
+
+import type { IterationSummary } from "@/types/project"
+
+type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
+type SortDirection = "asc" | "desc"
+type IterationHealthLevel = "productive" | "partial" | "failed"
+
+type IterationsTableProps = {
+  iterations: IterationSummary[]
+  projectId?: string
+  isLoading?: boolean
+  tokenPricePer1k?: number
+}
+
+type StatusMeta = {
+  label: string
+  rank: number
+  className: string
+}
+
+type TestMeta = {
+  label: string
+  rank: number
+  className: string
+}
+
+type HealthMeta = {
+  label: string
+  level: IterationHealthLevel
+}
+
+const DEFAULT_TOKEN_PRICE_PER_1K = 0.006
+
+const STATUS_CLASSES: Record<"success" | "warning" | "error" | "unknown", string> = {
+  success: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  warning: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  error: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  unknown: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
+}
+
+const HEALTH_CLASSES: Record<IterationHealthLevel, string> = {
+  productive: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  partial: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  failed: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+}
+
+const TEST_CLASSES: Record<"passed" | "failed" | "na", string> = {
+  passed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  failed: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  na: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
+}
+
+const COLUMNS: Array<{ key: IterationSortKey; label: string }> = [
+  { key: "number", label: "#" },
+  { key: "status", label: "Status" },
+  { key: "health", label: "Health" },
+  { key: "duration", label: "Duration" },
+  { key: "tokens", label: "Tokens" },
+  { key: "cost", label: "Cost" },
+  { key: "tasks", label: "Tasks" },
+  { key: "commit", label: "Commit" },
+  { key: "test", label: "Test" },
+]
+
+function classifyIterationHealth(iteration: IterationSummary): HealthMeta {
+  const hasTasks = iteration.tasks_completed.length > 0
+  const hasCommit = Boolean(iteration.commit)
+  const hasErrors = iteration.has_errors || iteration.status === "error"
+  const testsFailed = iteration.test_passed === false
+
+  if (hasErrors || (testsFailed && !hasTasks)) {
+    return { label: "Failed", level: "failed" }
+  }
+  if (hasTasks && iteration.test_passed !== false) {
+    return { label: "Productive", level: "productive" }
+  }
+  if (hasTasks || hasCommit) {
+    return { label: "Partial", level: "partial" }
+  }
+  return { label: "Partial", level: "partial" }
+}
+
+function getStatusMeta(iteration: IterationSummary): StatusMeta {
+  if (iteration.has_errors || iteration.status === "error") {
+    return { label: "Error", rank: 0, className: STATUS_CLASSES.error }
+  }
+  if (iteration.status === "success") {
+    return { label: "Success", rank: 2, className: STATUS_CLASSES.success }
+  }
+  if (iteration.status) {
+    return { label: "Warning", rank: 1, className: STATUS_CLASSES.warning }
+  }
+  return { label: "Unknown", rank: 1, className: STATUS_CLASSES.unknown }
+}
+
+function getTestMeta(value: boolean | null): TestMeta {
+  if (value === true) {
+    return { label: "Pass", rank: 2, className: TEST_CLASSES.passed }
+  }
+  if (value === false) {
+    return { label: "Fail", rank: 0, className: TEST_CLASSES.failed }
+  }
+  return { label: "N/A", rank: 1, className: TEST_CLASSES.na }
+}
+
+function compareNullableNumbers(left: number | null, right: number | null): number {
+  if (left === null && right === null) {
+    return 0
+  }
+  if (left === null) {
+    return 1
+  }
+  if (right === null) {
+    return -1
+  }
+  return left - right
+}
+
+function compareNullableStrings(left: string | null, right: string | null): number {
+  if (!left && !right) {
+    return 0
+  }
+  if (!left) {
+    return 1
+  }
+  if (!right) {
+    return -1
+  }
+  return left.localeCompare(right)
+}
+
+function formatDuration(durationSeconds: number | null): string {
+  if (durationSeconds === null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return "n/a"
+  }
+  const rounded = Math.round(durationSeconds)
+  const hours = Math.floor(rounded / 3600)
+  const minutes = Math.floor((rounded % 3600) / 60)
+  const seconds = rounded % 60
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
+}
+
+function formatTokens(tokens: number | null): string {
+  if (tokens === null || !Number.isFinite(tokens)) {
+    return "n/a"
+  }
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: tokens % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(tokens)
+}
+
+function formatUsd(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "n/a"
+  }
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function iterationCost(tokensUsed: number | null, tokenPricePer1k: number): number | null {
+  if (tokensUsed === null || !Number.isFinite(tokensUsed)) {
+    return null
+  }
+  return (tokensUsed / 1000) * tokenPricePer1k
+}
+
+function getSortIndicator(column: IterationSortKey, activeSort: IterationSortKey, direction: SortDirection): string {
+  if (column !== activeSort) {
+    return "↕"
+  }
+  return direction === "asc" ? "↑" : "↓"
+}
+
+export function IterationsTable({
+  iterations,
+  projectId,
+  isLoading = false,
+  tokenPricePer1k = DEFAULT_TOKEN_PRICE_PER_1K,
+}: IterationsTableProps) {
+  const [sortKey, setSortKey] = useState<IterationSortKey>("number")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+
+  const sortedIterations = useMemo(() => {
+    const next = [...iterations]
+    next.sort((left, right) => {
+      let comparison = 0
+
+      if (sortKey === "number") {
+        comparison = left.number - right.number
+      } else if (sortKey === "status") {
+        comparison = getStatusMeta(left).rank - getStatusMeta(right).rank
+      } else if (sortKey === "health") {
+        const leftHealth = classifyIterationHealth(left).level
+        const rightHealth = classifyIterationHealth(right).level
+        const healthRank: Record<IterationHealthLevel, number> = { failed: 0, partial: 1, productive: 2 }
+        comparison = healthRank[leftHealth] - healthRank[rightHealth]
+      } else if (sortKey === "duration") {
+        comparison = compareNullableNumbers(left.duration_seconds, right.duration_seconds)
+      } else if (sortKey === "tokens") {
+        comparison = compareNullableNumbers(left.tokens_used, right.tokens_used)
+      } else if (sortKey === "cost") {
+        comparison = compareNullableNumbers(
+          iterationCost(left.tokens_used, tokenPricePer1k),
+          iterationCost(right.tokens_used, tokenPricePer1k),
+        )
+      } else if (sortKey === "tasks") {
+        comparison = left.tasks_completed.length - right.tasks_completed.length
+        if (comparison === 0) {
+          comparison = left.tasks_completed.join(",").localeCompare(right.tasks_completed.join(","))
+        }
+      } else if (sortKey === "commit") {
+        comparison = compareNullableStrings(left.commit, right.commit)
+      } else if (sortKey === "test") {
+        comparison = getTestMeta(left.test_passed).rank - getTestMeta(right.test_passed).rank
+      }
+
+      if (comparison === 0) {
+        comparison = left.number - right.number
+      }
+      return sortDirection === "asc" ? comparison : -comparison
+    })
+    return next
+  }, [iterations, sortDirection, sortKey, tokenPricePer1k])
+
+  const handleSort = (nextSort: IterationSortKey) => {
+    if (sortKey === nextSort) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortKey(nextSort)
+    setSortDirection(nextSort === "number" ? "desc" : "asc")
+  }
+
+  return (
+    <section className="rounded-xl border bg-card p-4">
+      <header className="mb-3">
+        <h3 className="text-base font-semibold">Iterations</h3>
+        <p className="text-sm text-muted-foreground">
+          Sortable iteration history with status, health, token usage, and commit/test outcomes.
+        </p>
+      </header>
+
+      {isLoading && iterations.length === 0 ? (
+        <div className="rounded-lg border bg-background/40 p-4 text-sm text-muted-foreground">
+          Loading iterations...
+        </div>
+      ) : iterations.length === 0 ? (
+        <div className="rounded-lg border bg-background/40 p-4 text-sm text-muted-foreground">
+          No iterations recorded yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="min-w-full text-sm">
+            <thead className="bg-background/70">
+              <tr className="border-b">
+                {COLUMNS.map((column) => (
+                  <th key={column.key} className="px-3 py-2 text-left font-medium text-muted-foreground">
+                    <button
+                      type="button"
+                      onClick={() => handleSort(column.key)}
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                    >
+                      <span>{column.label}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {getSortIndicator(column.key, sortKey, sortDirection)}
+                      </span>
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedIterations.map((iteration) => {
+                const statusMeta = getStatusMeta(iteration)
+                const healthMeta = classifyIterationHealth(iteration)
+                const testMeta = getTestMeta(iteration.test_passed)
+                const cost = iterationCost(iteration.tokens_used, tokenPricePer1k)
+                return (
+                  <tr key={iteration.number} className="border-b bg-background/20 last:border-b-0 hover:bg-background/50">
+                    <td className="px-3 py-2 font-mono text-xs">{iteration.number}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
+                        {statusMeta.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${HEALTH_CLASSES[healthMeta.level]}`}
+                      >
+                        {healthMeta.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">{formatDuration(iteration.duration_seconds)}</td>
+                    <td className="px-3 py-2 font-mono">{formatTokens(iteration.tokens_used)}</td>
+                    <td className="px-3 py-2 font-mono">{formatUsd(cost)}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {iteration.tasks_completed.length > 0 ? iteration.tasks_completed.join(", ") : "None"}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {iteration.commit && projectId ? (
+                        <a
+                          href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
+                          className="underline decoration-dotted"
+                        >
+                          {iteration.commit}
+                        </a>
+                      ) : (
+                        iteration.commit ?? "n/a"
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${testMeta.className}`}>
+                        {testMeta.label}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}

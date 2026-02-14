@@ -12,6 +12,7 @@ import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { PlanMarkdownEditor } from "@/components/project/plan-markdown-editor"
 import { PlanRenderer } from "@/components/project/plan-renderer"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
+import { IterationsTable } from "@/components/project/iterations-table"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
@@ -431,11 +432,12 @@ export function ProjectPage() {
           )}
         </div>
 
-        <div className="mt-4 rounded-xl border bg-background/50 p-4">
-          <h3 className="text-base font-semibold">Next Plan Enhancements</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Plan tab phase is complete. Next priority starts at phase 13.
-          </p>
+        <div className="mt-4">
+          <IterationsTable
+            iterations={iterations}
+            projectId={id}
+            isLoading={overviewLoading}
+          />
         </div>
         {(projectLoading || overviewLoading) && (
           <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>

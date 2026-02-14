@@ -167,3 +167,4 @@ ralph-dashboard/
 - 2026-02-14: Plan checkboxes are now interactive; `ProjectPage` maps phase/task to checkbox ordinal in `plan.raw`, patches markdown safely, saves via `PUT /plan`, then refreshes overview data.
 - 2026-02-14: Plan view now has a Monaco-powered raw markdown mode (`PlanMarkdownEditor`) with toggle + save flow (`PUT /plan`) and syncs back to rendered mode after successful save.
 - 2026-02-14: Plan tasks now display completion metadata when available by mapping task IDs to iteration + commit from iteration history; commit hashes render as links to the project code route with commit query.
+- 2026-02-14: Iterations UI now includes `IterationsTable` with client-side sortable columns (`#`, status, health, duration, tokens, cost, tasks, commit, test), and per-row cost uses the default `$0.006/1K` token rate.

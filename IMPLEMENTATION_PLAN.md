@@ -96,7 +96,7 @@ STATUS: READY
 - [x] 12.4: Add task metadata display (completed iteration, commit link)
 
 ## Phase 13: Iterations Tab
-- [ ] 13.1: Build iterations table with sortable columns
+- [x] 13.1: Build iterations table with sortable columns
 - [ ] 13.2: Build health scoring display (colored indicators)
 - [ ] 13.3: Build expandable row detail (full log output, terminal-styled)
 - [ ] 13.4: Build git diff viewer (syntax highlighted)
