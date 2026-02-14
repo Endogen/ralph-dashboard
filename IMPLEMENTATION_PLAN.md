@@ -70,7 +70,7 @@ STATUS: READY
 - [x] 9.4: Build control bar component (start/stop/pause/inject buttons)
 - [x] 9.5: Implement login page
 - [x] 9.6: Set up API client (fetch wrapper with auth token handling, auto-refresh)
-- [ ] 9.7: Set up Zustand stores (auth store, projects store, active project store)
+- [x] 9.7: Set up Zustand stores (auth store, projects store, active project store)
 - [ ] 9.8: Set up WebSocket hook with reconnection logic
 
 ## Phase 10: Dashboard Page

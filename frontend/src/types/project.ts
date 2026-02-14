@@ -5,6 +5,10 @@ export type ProjectSummary = {
   name: string
   path: string
   status: ProjectStatus
-  currentIteration: number
-  maxIterations: number
+}
+
+export type ProjectDetail = ProjectSummary & {
+  ralph_dir: string
+  plan_file: string | null
+  log_file: string | null
 }

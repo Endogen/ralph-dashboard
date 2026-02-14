@@ -2,16 +2,10 @@ import { CircleDot, FolderPlus, Gauge, PlayCircle, Square, TriangleAlert } from 
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
-import type { ProjectStatus } from "@/types/project"
-
-type SidebarProject = {
-  id: string
-  name: string
-  status: ProjectStatus
-}
+import type { ProjectStatus, ProjectSummary } from "@/types/project"
 
 type AppSidebarProps = {
-  projects: SidebarProject[]
+  projects: ProjectSummary[]
   onAddProject?: () => void
 }
 
@@ -59,6 +53,11 @@ export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
       </nav>
 
       <div className="mt-4 flex-1 space-y-2">
+        {projects.length === 0 && (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-xs text-muted-foreground">
+            No registered projects yet.
+          </p>
+        )}
         {projects.map((project) => {
           const meta = statusMeta[project.status]
           const Icon = projectIcon[project.status]
