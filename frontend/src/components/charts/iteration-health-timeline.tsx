@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 
+import { ITERATION_HEALTH_TIMELINE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
 import type { IterationSummary } from "@/types/project"
 
 type IterationHealthTimelineProps = {
@@ -7,59 +8,25 @@ type IterationHealthTimelineProps = {
   onSelectIteration?: (iterationNumber: number) => void
 }
 
-type HealthLevel = "productive" | "partial" | "failed"
-
 type HealthPoint = {
   iteration: number
-  health: HealthLevel
+  health: "productive" | "partial" | "failed"
   label: string
+  score: number
 }
 
 function classifyHealth(iteration: IterationSummary): HealthPoint {
-  const hasTasks = iteration.tasks_completed.length > 0
-  const hasCommit = Boolean(iteration.commit)
-  const hasErrors = iteration.has_errors || iteration.status === "error"
-  const testsFailed = iteration.test_passed === false
-
-  if (hasErrors || (testsFailed && !hasTasks)) {
-    return {
-      iteration: iteration.number,
-      health: "failed",
-      label: "Failed",
-    }
-  }
-
-  if (hasTasks && iteration.test_passed !== false) {
-    return {
-      iteration: iteration.number,
-      health: "productive",
-      label: "Productive",
-    }
-  }
-
-  if (hasTasks || hasCommit) {
-    return {
-      iteration: iteration.number,
-      health: "partial",
-      label: "Partial",
-    }
-  }
-
+  const summary = evaluateIterationHealth(iteration)
   return {
     iteration: iteration.number,
-    health: "partial",
-    label: "Partial",
+    health: summary.level,
+    label: summary.label,
+    score: summary.score,
   }
 }
 
-function healthClassName(health: HealthLevel): string {
-  if (health === "productive") {
-    return "bg-emerald-500/90 hover:bg-emerald-500"
-  }
-  if (health === "failed") {
-    return "bg-rose-500/90 hover:bg-rose-500"
-  }
-  return "bg-amber-400/90 hover:bg-amber-400"
+function healthClassName(health: "productive" | "partial" | "failed"): string {
+  return ITERATION_HEALTH_TIMELINE_CLASS[health]
 }
 
 export function IterationHealthTimeline({
@@ -107,8 +74,8 @@ export function IterationHealthTimeline({
                 key={point.iteration}
                 type="button"
                 onClick={() => onSelectIteration?.(point.iteration)}
-                title={`Iteration ${point.iteration}: ${point.label}`}
-                aria-label={`Iteration ${point.iteration}: ${point.label}`}
+                title={`Iteration ${point.iteration}: ${point.label} (${point.score})`}
+                aria-label={`Iteration ${point.iteration}: ${point.label} (${point.score})`}
                 className={`h-6 w-4 shrink-0 rounded-sm transition-colors ${healthClassName(point.health)}`}
               />
             ))}

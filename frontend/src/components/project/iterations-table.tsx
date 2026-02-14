@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react"
 
+import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
 import type { IterationSummary } from "@/types/project"
 
 type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
 type SortDirection = "asc" | "desc"
-type IterationHealthLevel = "productive" | "partial" | "failed"
 
 type IterationsTableProps = {
   iterations: IterationSummary[]
@@ -25,11 +25,6 @@ type TestMeta = {
   className: string
 }
 
-type HealthMeta = {
-  label: string
-  level: IterationHealthLevel
-}
-
 const DEFAULT_TOKEN_PRICE_PER_1K = 0.006
 
 const STATUS_CLASSES: Record<"success" | "warning" | "error" | "unknown", string> = {
@@ -37,12 +32,6 @@ const STATUS_CLASSES: Record<"success" | "warning" | "error" | "unknown", string
   warning: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   error: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
   unknown: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
-}
-
-const HEALTH_CLASSES: Record<IterationHealthLevel, string> = {
-  productive: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  partial: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  failed: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
 }
 
 const TEST_CLASSES: Record<"passed" | "failed" | "na", string> = {
@@ -62,24 +51,6 @@ const COLUMNS: Array<{ key: IterationSortKey; label: string }> = [
   { key: "commit", label: "Commit" },
   { key: "test", label: "Test" },
 ]
-
-function classifyIterationHealth(iteration: IterationSummary): HealthMeta {
-  const hasTasks = iteration.tasks_completed.length > 0
-  const hasCommit = Boolean(iteration.commit)
-  const hasErrors = iteration.has_errors || iteration.status === "error"
-  const testsFailed = iteration.test_passed === false
-
-  if (hasErrors || (testsFailed && !hasTasks)) {
-    return { label: "Failed", level: "failed" }
-  }
-  if (hasTasks && iteration.test_passed !== false) {
-    return { label: "Productive", level: "productive" }
-  }
-  if (hasTasks || hasCommit) {
-    return { label: "Partial", level: "partial" }
-  }
-  return { label: "Partial", level: "partial" }
-}
 
 function getStatusMeta(iteration: IterationSummary): StatusMeta {
   if (iteration.has_errors || iteration.status === "error") {
@@ -202,10 +173,7 @@ export function IterationsTable({
       } else if (sortKey === "status") {
         comparison = getStatusMeta(left).rank - getStatusMeta(right).rank
       } else if (sortKey === "health") {
-        const leftHealth = classifyIterationHealth(left).level
-        const rightHealth = classifyIterationHealth(right).level
-        const healthRank: Record<IterationHealthLevel, number> = { failed: 0, partial: 1, productive: 2 }
-        comparison = healthRank[leftHealth] - healthRank[rightHealth]
+        comparison = evaluateIterationHealth(left).score - evaluateIterationHealth(right).score
       } else if (sortKey === "duration") {
         comparison = compareNullableNumbers(left.duration_seconds, right.duration_seconds)
       } else if (sortKey === "tokens") {
@@ -284,7 +252,7 @@ export function IterationsTable({
             <tbody>
               {sortedIterations.map((iteration) => {
                 const statusMeta = getStatusMeta(iteration)
-                const healthMeta = classifyIterationHealth(iteration)
+                const healthMeta = evaluateIterationHealth(iteration)
                 const testMeta = getTestMeta(iteration.test_passed)
                 const cost = iterationCost(iteration.tokens_used, tokenPricePer1k)
                 return (
@@ -297,9 +265,12 @@ export function IterationsTable({
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${HEALTH_CLASSES[healthMeta.level]}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                          ITERATION_HEALTH_BADGE_CLASS[healthMeta.level]
+                        }`}
                       >
                         {healthMeta.label}
+                        <span className="font-mono text-[10px] opacity-80">({healthMeta.score})</span>
                       </span>
                     </td>
                     <td className="px-3 py-2">{formatDuration(iteration.duration_seconds)}</td>

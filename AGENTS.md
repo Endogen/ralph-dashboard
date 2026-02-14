@@ -168,3 +168,4 @@ ralph-dashboard/
 - 2026-02-14: Plan view now has a Monaco-powered raw markdown mode (`PlanMarkdownEditor`) with toggle + save flow (`PUT /plan`) and syncs back to rendered mode after successful save.
 - 2026-02-14: Plan tasks now display completion metadata when available by mapping task IDs to iteration + commit from iteration history; commit hashes render as links to the project code route with commit query.
 - 2026-02-14: Iterations UI now includes `IterationsTable` with client-side sortable columns (`#`, status, health, duration, tokens, cost, tasks, commit, test), and per-row cost uses the default `$0.006/1K` token rate.
+- 2026-02-14: Iteration health scoring is centralized in `frontend/src/lib/iteration-health.ts` and reused by both the table and health timeline, including a numeric score with consistent color classes.
