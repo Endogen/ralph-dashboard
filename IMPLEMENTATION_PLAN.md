@@ -105,7 +105,7 @@ STATUS: READY
 ## Phase 14: Specs Tab
 - [x] 14.1: Build file browser sidebar (list specs/*.md files)
 - [x] 14.2: Integrate Monaco editor for spec editing
-- [ ] 14.3: Implement create/delete spec file functionality
+- [x] 14.3: Implement create/delete spec file functionality
 - [ ] 14.4: Add save with Ctrl+S, unsaved indicator
 
 ## Phase 15: Code Tab
