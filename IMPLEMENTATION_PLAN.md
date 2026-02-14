@@ -85,7 +85,7 @@ STATUS: READY
 - [x] 11.3: Build progress timeline chart (Recharts ComposedChart: tasks area + tokens bar + projection)
 - [x] 11.4: Build task burndown chart (ideal vs actual)
 - [x] 11.5: Build token usage by phase pie chart
-- [ ] 11.6: Build iteration health timeline (color-coded strip)
+- [x] 11.6: Build iteration health timeline (color-coded strip)
 - [ ] 11.7: Build recent activity feed
 - [ ] 11.8: Wire up real-time chart updates via WebSocket
 

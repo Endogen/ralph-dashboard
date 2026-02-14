@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { apiFetch } from "@/api/client"
+import { IterationHealthTimeline } from "@/components/charts/iteration-health-timeline"
 import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
 import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
 import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
@@ -166,10 +167,14 @@ export function ProjectPage() {
           <TokenUsagePhaseChart data={stats?.tokens_by_phase ?? []} totalTokens={tokensUsed} />
         </div>
 
+        <div className="mt-4">
+          <IterationHealthTimeline iterations={sortedIterations} />
+        </div>
+
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
-          <h3 className="text-base font-semibold">Next Overview Widgets</h3>
+          <h3 className="text-base font-semibold">Next Overview Widget</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Iteration health timeline and recent activity feed are queued in tasks 11.6 and 11.7.
+            Recent activity feed is queued in task 11.7.
           </p>
         </div>
         {(projectLoading || overviewLoading) && (

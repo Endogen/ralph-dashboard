@@ -160,3 +160,4 @@ ralph-dashboard/
 - 2026-02-14: Recharts build can fail in this sandbox with unresolved `react-is`; aliasing `react-is` to `frontend/src/vendor/react-is.ts` in `vite.config.ts` provides a local fallback when npm registry access is blocked.
 - 2026-02-14: Overview now includes `TaskBurndownChart`, using unique completed-task accumulation from iteration events to render ideal vs actual remaining tasks and ahead/behind tinted bands.
 - 2026-02-14: `TokenUsagePhaseChart` now renders a donut from stats `tokens_by_phase`, sorted by token volume, with exact-value tooltip and centered total token count.
+- 2026-02-14: `IterationHealthTimeline` now classifies each iteration as productive/partial/failed using task completion, commit presence, error flags, and test status, then renders a compact clickable health strip.
