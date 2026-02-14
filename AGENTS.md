@@ -196,3 +196,4 @@ ralph-dashboard/
 - 2026-02-14: Added reusable `Skeleton` UI primitive and replaced plain loading copy with dashboard card skeletons plus an initial project-page skeleton layout for smoother perceived load behavior.
 - 2026-02-14: Toast notification infrastructure now uses Zustand (`useToastStore`) with a global `ToastRegion`; add-project, specs CRUD/save, code-file save/inject, plan save failures, and config save/copy actions now emit success/error toasts.
 - 2026-02-14: Mobile-responsive navigation now appears in `AppLayout` when the sidebar is hidden, exposing dashboard/project quick links and add-project action so core routing remains usable on small screens.
+- 2026-02-14: Production static serving is now covered by `backend/tests/test_main_static_frontend.py`, validating direct file responses, SPA index fallback, API-path exclusion, and path-traversal rejection for the frontend catch-all route.
