@@ -186,3 +186,4 @@ ralph-dashboard/
 - 2026-02-14: `ProjectLogViewer` now includes search/filter controls (Ctrl/Cmd+F focus shortcut, all-vs-errors filter, and iteration from/to bounds) that apply over hydrated + live log content while keeping ANSI rendering intact.
 - 2026-02-14: `ProjectLogViewer` now virtualizes rendered log lines (fixed-height rows + overscan) so large logs keep DOM size bounded while preserving ANSI coloring and existing follow/search/filter behavior.
 - 2026-02-14: Websocket log-tail rewrite detection now falls back to comparing a small leading-byte prefix when file size is unchanged, preventing missed `log_append` events when same-size rewrites occur without observable mtime granularity changes.
+- 2026-02-14: Log tab now supports jump-to-iteration navigation from detected markers in the current view (select + Go, plus Previous/Next relative to current scroll position), and jumping switches viewer out of follow mode for manual inspection.

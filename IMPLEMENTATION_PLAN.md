@@ -120,7 +120,7 @@ STATUS: READY
 - [x] 16.3: Add auto-scroll toggle and "scroll to bottom" button
 - [x] 16.4: Add search/filter functionality
 - [x] 16.5: Implement virtualized rendering for performance (large logs)
-- [ ] 16.6: Add jump-to-iteration navigation
+- [x] 16.6: Add jump-to-iteration navigation
 
 ## Phase 17: Config Tab
 - [ ] 17.1: Build config form (CLI dropdown, flags, max iterations, test command)

@@ -30,6 +30,11 @@ type ParsedLogLine = {
   segments: AnsiSegment[]
 }
 
+type IterationAnchor = {
+  iteration: number
+  lineIndex: number
+}
+
 const ANSI_ESCAPE = String.fromCharCode(27)
 const ANSI_PATTERN = new RegExp(`${ANSI_ESCAPE}\\[([0-9;]*)m`, "g")
 const BOTTOM_OFFSET_PX = 20
@@ -173,6 +178,8 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
   const [filterMode, setFilterMode] = useState<LogFilterMode>("all")
   const [iterationFrom, setIterationFrom] = useState("")
   const [iterationTo, setIterationTo] = useState("")
+  const [jumpIteration, setJumpIteration] = useState("")
+  const [jumpError, setJumpError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const pendingLiveChunkRef = useRef("")
@@ -222,6 +229,8 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
         setFilterMode("all")
         setIterationFrom("")
         setIterationTo("")
+        setJumpIteration("")
+        setJumpError(null)
         pendingLiveChunkRef.current = ""
         hydratingRef.current = false
         setLogContent("")
@@ -401,6 +410,73 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
     [parsedLogLines, virtualizedWindow.endIndex, virtualizedWindow.startIndex],
   )
 
+  const iterationAnchors = useMemo<IterationAnchor[]>(() => {
+    const anchors: IterationAnchor[] = []
+    const seen = new Set<number>()
+
+    parsedLogLines.forEach((line, lineIndex) => {
+      const iteration = extractIterationNumber(line.raw)
+      if (iteration === null || seen.has(iteration)) {
+        return
+      }
+      seen.add(iteration)
+      anchors.push({ iteration, lineIndex })
+    })
+
+    return anchors
+  }, [parsedLogLines])
+
+  const currentLineIndex = Math.floor(scrollTop / LOG_LINE_HEIGHT_PX)
+  const previousAnchor = useMemo(
+    () => [...iterationAnchors].reverse().find((anchor) => anchor.lineIndex < currentLineIndex) ?? null,
+    [currentLineIndex, iterationAnchors],
+  )
+  const nextAnchor = useMemo(
+    () => iterationAnchors.find((anchor) => anchor.lineIndex > currentLineIndex) ?? null,
+    [currentLineIndex, iterationAnchors],
+  )
+
+  const jumpToIteration = useCallback(
+    (targetIteration: number) => {
+      const target = iterationAnchors.find((anchor) => anchor.iteration === targetIteration)
+      if (!target) {
+        setJumpError(`Iteration ${targetIteration} is not available in the current log view.`)
+        return
+      }
+
+      setJumpError(null)
+      setJumpIteration(String(targetIteration))
+      setIsAutoScroll(false)
+
+      const viewport = viewportRef.current
+      if (!viewport) {
+        return
+      }
+      viewport.scrollTo({ top: target.lineIndex * LOG_LINE_HEIGHT_PX, behavior: "smooth" })
+    },
+    [iterationAnchors],
+  )
+
+  const handleJumpSubmit = useCallback(() => {
+    const parsed = Number.parseInt(jumpIteration, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setJumpError("Select a valid iteration to jump.")
+      return
+    }
+    jumpToIteration(parsed)
+  }, [jumpIteration, jumpToIteration])
+
+  useEffect(() => {
+    if (iterationAnchors.length === 0) {
+      setJumpIteration("")
+      setJumpError(null)
+      return
+    }
+    if (!iterationAnchors.some((anchor) => String(anchor.iteration) === jumpIteration)) {
+      setJumpIteration(String(iterationAnchors[iterationAnchors.length - 1].iteration))
+    }
+  }, [iterationAnchors, jumpIteration])
+
   useEffect(() => {
     if (!isAutoScroll) {
       return
@@ -470,6 +546,49 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
           Iteration range is invalid: start must be {"<="} end.
         </p>
       ) : null}
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={jumpIteration}
+          onChange={(event) => {
+            setJumpIteration(event.target.value)
+            setJumpError(null)
+          }}
+          className="min-w-44 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          aria-label="Jump to iteration"
+          disabled={iterationAnchors.length === 0}
+        >
+          <option value="">Jump to iteration...</option>
+          {iterationAnchors.map((anchor) => (
+            <option key={anchor.iteration} value={anchor.iteration}>
+              Iteration {anchor.iteration}
+            </option>
+          ))}
+        </select>
+        <Button type="button" size="sm" variant="outline" onClick={handleJumpSubmit} disabled={!jumpIteration}>
+          Go
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => previousAnchor && jumpToIteration(previousAnchor.iteration)}
+          disabled={!previousAnchor}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => nextAnchor && jumpToIteration(nextAnchor.iteration)}
+          disabled={!nextAnchor}
+        >
+          Next
+        </Button>
+        <span className="text-xs text-muted-foreground">Navigate iteration markers in the current log view.</span>
+      </div>
+      {jumpError ? <p className="mb-3 text-xs text-rose-600 dark:text-rose-400">{jumpError}</p> : null}
 
       <div className="relative">
         <div
