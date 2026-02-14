@@ -177,3 +177,4 @@ ralph-dashboard/
 - 2026-02-14: Specs panel create/delete is wired to `POST /api/projects/{id}/specs` and `DELETE /api/projects/{id}/specs/{name}` with client-side list updates, default markdown content for new files, and confirmation before delete.
 - 2026-02-14: Specs editor now supports `PUT /api/projects/{id}/specs/{name}` saves, unsaved-change indicators, and keyboard save shortcut (`Ctrl+S`/`Cmd+S`) scoped to the selected spec file.
 - 2026-02-14: Code panel now includes side-by-side Monaco editors for `AGENTS.md` and `PROMPT.md`, loaded from `GET /api/projects/{id}/files/agents|prompt`, with save/inject/git actions queued for later phase-15 tasks.
+- 2026-02-14: Code panel now includes an inject message box that posts to `POST /api/projects/{id}/inject`, with inline send status and response/error feedback.
