@@ -138,7 +138,7 @@ STATUS: READY
 
 ## Phase 19: Integration & Polish
 - [x] 19.1: Set up nginx config for ralph.xian.technology reverse proxy
-- [ ] 19.2: End-to-end testing with a real project (use antique-catalogue data)
+- [x] 19.2: End-to-end testing with a real project (use antique-catalogue data)
 - [ ] 19.3: Dark mode theming and visual polish
 - [ ] 19.4: Error handling and edge cases (no data, empty projects, stale PIDs)
 - [ ] 19.5: Loading states and skeleton screens
