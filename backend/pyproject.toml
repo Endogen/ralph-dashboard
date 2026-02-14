@@ -18,6 +18,9 @@ dependencies = [
   "pydantic>=2.11,<3.0",
 ]
 
+[project.scripts]
+ralph-dashboard-init-user = "app.auth.setup_user:cli"
+
 [project.optional-dependencies]
 dev = [
   "ruff>=0.13,<0.15",

@@ -110,3 +110,4 @@ ralph-dashboard/
 - 2026-02-14: In this sandbox, thread-to-event-loop wakeups can be delayed; keep a lightweight heartbeat task running during `aiosqlite` work to prevent stalled awaits/timeouts.
 - 2026-02-14: `passlib` bcrypt backend can fail with modern `bcrypt` releases in this environment; use direct `bcrypt.hashpw` / `bcrypt.checkpw` for stable password hashing tests.
 - 2026-02-14: `fastapi.testclient` requires `httpx`, which is not preinstalled here and may be un-installable during DNS outages; prefer unit-testing auth helpers/dependencies directly when network installs are blocked.
+- 2026-02-14: Initialize auth credentials with `ralph-dashboard-init-user`; use `--username/--password/--password-confirm` for non-interactive setup in scripts and tests.
