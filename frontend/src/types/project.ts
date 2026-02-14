@@ -58,6 +58,16 @@ export type ProjectFileContent = {
   content: string
 }
 
+export type GitCommitSummary = {
+  hash: string
+  author: string
+  date: string
+  message: string
+  files_changed: number
+  insertions: number
+  deletions: number
+}
+
 export type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number

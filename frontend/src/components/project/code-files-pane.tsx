@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Editor } from "@monaco-editor/react"
 
 import { apiFetch } from "@/api/client"
-import type { ProjectFileContent } from "@/types/project"
+import { GitDiffViewer } from "@/components/project/git-diff-viewer"
+import type { GitCommitDiff, GitCommitSummary, ProjectFileContent } from "@/types/project"
 
 type CodeFilesPaneProps = {
   projectId?: string
@@ -11,6 +12,19 @@ type CodeFilesPaneProps = {
 
 type InjectResponse = {
   content: string
+}
+
+function formatCommitDate(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.valueOf())) {
+    return value
+  }
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
 }
 
 export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
@@ -21,6 +35,13 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
   const [injectText, setInjectText] = useState("")
   const [isInjecting, setIsInjecting] = useState(false)
   const [injectResult, setInjectResult] = useState<string | null>(null)
+  const [gitLog, setGitLog] = useState<GitCommitSummary[]>([])
+  const [isGitLogLoading, setIsGitLogLoading] = useState(false)
+  const [gitLogError, setGitLogError] = useState<string | null>(null)
+  const [expandedCommitHash, setExpandedCommitHash] = useState<string | null>(null)
+  const [diffByCommit, setDiffByCommit] = useState<Record<string, string>>({})
+  const [diffLoading, setDiffLoading] = useState<Record<string, boolean>>({})
+  const [diffError, setDiffError] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -68,6 +89,50 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
     }
   }, [projectId])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadGitLog = async () => {
+      if (!projectId) {
+        setGitLog([])
+        setIsGitLogLoading(false)
+        setGitLogError(null)
+        setExpandedCommitHash(null)
+        setDiffByCommit({})
+        setDiffLoading({})
+        setDiffError({})
+        return
+      }
+
+      setIsGitLogLoading(true)
+      setGitLogError(null)
+      try {
+        const commits = await apiFetch<GitCommitSummary[]>(`/projects/${projectId}/git/log?limit=50&offset=0`)
+        if (cancelled) {
+          return
+        }
+        setGitLog(commits)
+      } catch (loadError) {
+        if (cancelled) {
+          return
+        }
+        const message = loadError instanceof Error ? loadError.message : "Failed to load git log"
+        setGitLog([])
+        setGitLogError(message)
+      } finally {
+        if (!cancelled) {
+          setIsGitLogLoading(false)
+        }
+      }
+    }
+
+    void loadGitLog()
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
+
   const handleInject = useCallback(async () => {
     if (!projectId) {
       return
@@ -95,6 +160,37 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       setIsInjecting(false)
     }
   }, [injectText, projectId])
+
+  const loadCommitDiff = useCallback(
+    async (commitHash: string) => {
+      if (!projectId || diffByCommit[commitHash] !== undefined || diffLoading[commitHash]) {
+        return
+      }
+
+      setDiffLoading((current) => ({ ...current, [commitHash]: true }))
+      setDiffError((current) => ({ ...current, [commitHash]: "" }))
+      try {
+        const payload = await apiFetch<GitCommitDiff>(
+          `/projects/${projectId}/git/diff/${encodeURIComponent(commitHash)}`,
+        )
+        setDiffByCommit((current) => ({ ...current, [commitHash]: payload.diff }))
+      } catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : "Failed to load commit diff"
+        setDiffError((current) => ({ ...current, [commitHash]: message }))
+      } finally {
+        setDiffLoading((current) => ({ ...current, [commitHash]: false }))
+      }
+    },
+    [diffByCommit, diffLoading, projectId],
+  )
+
+  const toggleCommit = (commitHash: string) => {
+    const nextExpanded = expandedCommitHash === commitHash ? null : commitHash
+    setExpandedCommitHash(nextExpanded)
+    if (nextExpanded) {
+      void loadCommitDiff(commitHash)
+    }
+  }
 
   return (
     <section className="rounded-xl border bg-card p-4">
@@ -178,6 +274,53 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
               </button>
             </div>
             {injectResult && <p className="mt-2 text-xs text-muted-foreground">{injectResult}</p>}
+          </section>
+
+          <section className="rounded-lg border bg-background/30 p-3">
+            <p className="text-sm font-semibold">Git History</p>
+            <p className="mb-2 text-xs text-muted-foreground">Recent commits with expandable syntax-highlighted diffs.</p>
+            {isGitLogLoading ? (
+              <p className="text-sm text-muted-foreground">Loading git history...</p>
+            ) : gitLogError ? (
+              <p className="text-sm text-rose-600 dark:text-rose-400">{gitLogError}</p>
+            ) : gitLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No commits found.</p>
+            ) : (
+              <ul className="space-y-2">
+                {gitLog.map((commit) => {
+                  const isExpanded = expandedCommitHash === commit.hash
+                  return (
+                    <li key={commit.hash} className="rounded-md border bg-background/50 p-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleCommit(commit.hash)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs">{commit.hash}</span>
+                          <span className="text-xs text-muted-foreground">{formatCommitDate(commit.date)}</span>
+                        </div>
+                        <p className="mt-1 text-sm">{commit.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {commit.author} | {commit.files_changed} files | +{commit.insertions} / -{commit.deletions}
+                        </p>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="mt-2">
+                          <GitDiffViewer
+                            commitHash={commit.hash}
+                            diff={diffByCommit[commit.hash] ?? null}
+                            isLoading={Boolean(diffLoading[commit.hash])}
+                            error={diffError[commit.hash] ?? null}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </section>
         </div>
       )}

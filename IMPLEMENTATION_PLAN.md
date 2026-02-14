@@ -111,7 +111,7 @@ STATUS: READY
 ## Phase 15: Code Tab
 - [x] 15.1: Build side-by-side editors for AGENTS.md and PROMPT.md
 - [x] 15.2: Build inject message box with send
-- [ ] 15.3: Build git log component with expandable diffs
+- [x] 15.3: Build git log component with expandable diffs
 - [ ] 15.4: Wire up save functionality
 
 ## Phase 16: Log Tab
