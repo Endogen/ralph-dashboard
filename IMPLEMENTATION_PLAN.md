@@ -43,7 +43,7 @@ STATUS: READY
 - [x] 6.2: Implement stats endpoint
 - [x] 6.3: Implement notification history endpoint (read pending + last notification files, plus archived)
 - [x] 6.4: Implement report generation (markdown format)
-- [ ] 6.5: Add stats tests
+- [x] 6.5: Add stats tests
 
 ## Phase 7: Loop Control
 - [ ] 7.1: Implement process manager (start ralph.sh as subprocess, track PID)
