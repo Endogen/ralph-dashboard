@@ -9,10 +9,16 @@ import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
 import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
+import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { useActiveProjectStore } from "@/stores/active-project-store"
-import type { IterationListResponse, IterationSummary, ProjectStats } from "@/types/project"
+import type {
+  IterationListResponse,
+  IterationSummary,
+  NotificationEntry,
+  ProjectStats,
+} from "@/types/project"
 
 function formatDuration(valueInSeconds: number): string {
   if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
@@ -41,6 +47,7 @@ export function ProjectPage() {
   const projectLoading = useActiveProjectStore((state) => state.isLoading)
 
   const [iterations, setIterations] = useState<IterationSummary[]>([])
+  const [notifications, setNotifications] = useState<NotificationEntry[]>([])
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
@@ -58,6 +65,7 @@ export function ProjectPage() {
     const loadOverview = async () => {
       if (!id) {
         setIterations([])
+        setNotifications([])
         setStats(null)
         setOverviewError(null)
         setOverviewLoading(false)
@@ -68,15 +76,17 @@ export function ProjectPage() {
       setOverviewError(null)
 
       try {
-        const [iterationsResponse, statsResponse] = await Promise.all([
+        const [iterationsResponse, statsResponse, notificationsResponse] = await Promise.all([
           apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
           apiFetch<ProjectStats>(`/projects/${id}/stats`),
+          apiFetch<NotificationEntry[]>(`/projects/${id}/notifications`),
         ])
         if (cancelled) {
           return
         }
         setIterations(iterationsResponse.iterations)
         setStats(statsResponse)
+        setNotifications(notificationsResponse)
       } catch (error) {
         if (cancelled) {
           return
@@ -84,6 +94,7 @@ export function ProjectPage() {
         const message = error instanceof Error ? error.message : "Failed to load overview data"
         setOverviewError(message)
         setIterations([])
+        setNotifications([])
         setStats(null)
       } finally {
         if (!cancelled) {
@@ -171,10 +182,14 @@ export function ProjectPage() {
           <IterationHealthTimeline iterations={sortedIterations} />
         </div>
 
+        <div className="mt-4">
+          <RecentActivityFeed iterations={sortedIterations} notifications={notifications} />
+        </div>
+
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
           <h3 className="text-base font-semibold">Next Overview Widget</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Recent activity feed is queued in task 11.7.
+            Real-time chart updates via websocket are queued in task 11.8.
           </p>
         </div>
         {(projectLoading || overviewLoading) && (

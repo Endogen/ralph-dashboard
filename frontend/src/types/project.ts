@@ -66,3 +66,13 @@ export type ProjectStats = {
   health_breakdown: HealthBreakdown
   tokens_by_phase: PhaseTokenUsage[]
 }
+
+export type NotificationEntry = {
+  timestamp: string
+  prefix: string | null
+  message: string
+  status: string | null
+  iteration: number | null
+  details: string | null
+  source: string | null
+}

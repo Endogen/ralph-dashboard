@@ -86,7 +86,7 @@ STATUS: READY
 - [x] 11.4: Build task burndown chart (ideal vs actual)
 - [x] 11.5: Build token usage by phase pie chart
 - [x] 11.6: Build iteration health timeline (color-coded strip)
-- [ ] 11.7: Build recent activity feed
+- [x] 11.7: Build recent activity feed
 - [ ] 11.8: Wire up real-time chart updates via WebSocket
 
 ## Phase 12: Plan Tab
