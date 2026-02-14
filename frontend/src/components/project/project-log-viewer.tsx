@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { apiFetch } from "@/api/client"
 import type { IterationDetail, IterationListResponse } from "@/types/project"
 
 type ProjectLogViewerProps = {
   projectId?: string
+  liveChunk?: {
+    id: number
+    lines: string
+  } | null
 }
 
 type AnsiStyle = {
@@ -101,22 +105,40 @@ function styleToClass(style: AnsiStyle): string {
   return classes.join(" ")
 }
 
-export function ProjectLogViewer({ projectId }: ProjectLogViewerProps) {
+function appendLogChunk(current: string, chunk: string): string {
+  if (!chunk) {
+    return current
+  }
+  if (!current) {
+    return chunk
+  }
+  if (current.endsWith("\n") || chunk.startsWith("\n")) {
+    return `${current}${chunk}`
+  }
+  return `${current}\n${chunk}`
+}
+
+export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps) {
   const [logContent, setLogContent] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pendingLiveChunkRef = useRef("")
+  const hydratingRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
 
     const loadLogs = async () => {
       if (!projectId) {
+        pendingLiveChunkRef.current = ""
+        hydratingRef.current = false
         setLogContent("")
         setIsLoading(false)
         setError(null)
         return
       }
 
+      hydratingRef.current = true
       setIsLoading(true)
       setError(null)
       try {
@@ -137,16 +159,18 @@ export function ProjectLogViewer({ projectId }: ProjectLogViewerProps) {
             return `[Iteration ${detail.number}]\n${body}`
           })
           .join("\n\n")
-        setLogContent(merged)
+        const pending = pendingLiveChunkRef.current
+        pendingLiveChunkRef.current = ""
+        setLogContent(appendLogChunk(merged, pending))
       } catch (loadError) {
         if (cancelled) {
           return
         }
         const message = loadError instanceof Error ? loadError.message : "Failed to load log output"
-        setLogContent("")
         setError(message)
       } finally {
         if (!cancelled) {
+          hydratingRef.current = false
           setIsLoading(false)
         }
       }
@@ -158,6 +182,20 @@ export function ProjectLogViewer({ projectId }: ProjectLogViewerProps) {
       cancelled = true
     }
   }, [projectId])
+
+  useEffect(() => {
+    if (!projectId || !liveChunk || !liveChunk.lines) {
+      return
+    }
+
+    if (hydratingRef.current) {
+      pendingLiveChunkRef.current = appendLogChunk(pendingLiveChunkRef.current, liveChunk.lines)
+      return
+    }
+
+    setLogContent((current) => appendLogChunk(current, liveChunk.lines))
+    setError(null)
+  }, [liveChunk, projectId])
 
   const ansiSegments = useMemo(() => parseAnsiText(logContent), [logContent])
 

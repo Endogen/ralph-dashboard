@@ -18,6 +18,9 @@ class WatcherEventDispatcher:
     def __init__(self) -> None:
         self._started_iterations: dict[str, set[int]] = defaultdict(set)
         self._completed_iterations: dict[str, set[int]] = defaultdict(set)
+        self._log_offsets: dict[str, int] = {}
+        self._log_mtimes_ns: dict[str, int] = {}
+        self._log_remainders: dict[str, str] = {}
         self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
         self._last_notification_keys: dict[str, tuple[str, str, str | None, int | None]] = {}
         self._statuses: dict[str, str] = {}
@@ -46,6 +49,10 @@ class WatcherEventDispatcher:
         await self._emit_file_changed(change)
 
     async def _handle_log_change(self, change: FileChangeEvent) -> None:
+        lines = self._read_log_append_lines(change)
+        if lines:
+            await hub.emit("log_append", change.project_id, {"lines": lines})
+
         iterations = parse_ralph_log_file(change.path)
         started = self._started_iterations[change.project_id]
         completed = self._completed_iterations[change.project_id]
@@ -74,6 +81,55 @@ class WatcherEventDispatcher:
                         "errors": iteration.error_lines,
                     },
                 )
+
+    def _read_log_append_lines(self, change: FileChangeEvent) -> str | None:
+        previous_offset = self._log_offsets.get(change.project_id, 0)
+        previous_mtime = self._log_mtimes_ns.get(change.project_id)
+        try:
+            file_stats = change.path.stat()
+            with change.path.open("rb") as handle:
+                size = file_stats.st_size
+                if size < previous_offset:
+                    previous_offset = 0
+                    self._log_remainders.pop(change.project_id, None)
+                elif (
+                    size == previous_offset
+                    and previous_mtime is not None
+                    and file_stats.st_mtime_ns != previous_mtime
+                ):
+                    previous_offset = 0
+                    self._log_remainders.pop(change.project_id, None)
+                handle.seek(previous_offset)
+                chunk = handle.read()
+        except OSError:
+            self._log_offsets.pop(change.project_id, None)
+            self._log_mtimes_ns.pop(change.project_id, None)
+            self._log_remainders.pop(change.project_id, None)
+            return None
+
+        self._log_offsets[change.project_id] = size
+        self._log_mtimes_ns[change.project_id] = file_stats.st_mtime_ns
+        if not chunk:
+            return None
+
+        buffer = self._log_remainders.get(change.project_id, "") + chunk.decode(
+            "utf-8",
+            errors="replace",
+        )
+        lines = buffer.splitlines(keepends=True)
+
+        remainder = ""
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            remainder = lines.pop()
+
+        if remainder:
+            self._log_remainders[change.project_id] = remainder
+        else:
+            self._log_remainders.pop(change.project_id, None)
+
+        if not lines:
+            return None
+        return "".join(lines)
 
     async def _handle_plan_change(self, change: FileChangeEvent) -> None:
         parsed = parse_implementation_plan_file(change.path)

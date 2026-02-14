@@ -116,7 +116,7 @@ STATUS: READY
 
 ## Phase 16: Log Tab
 - [x] 16.1: Build terminal-style log viewer (dark bg, monospace, ANSI color support)
-- [ ] 16.2: Implement real-time log streaming via WebSocket
+- [x] 16.2: Implement real-time log streaming via WebSocket
 - [ ] 16.3: Add auto-scroll toggle and "scroll to bottom" button
 - [ ] 16.4: Add search/filter functionality
 - [ ] 16.5: Implement virtualized rendering for performance (large logs)

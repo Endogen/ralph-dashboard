@@ -181,3 +181,4 @@ ralph-dashboard/
 - 2026-02-14: Code panel now includes git history from `GET /api/projects/{id}/git/log` with expandable commit rows that lazy-load diffs via `GET /api/projects/{id}/git/diff/{hash}` and render through `GitDiffViewer`.
 - 2026-02-14: AGENTS/PROMPT code editors now save via `PUT /api/projects/{id}/files/agents|prompt`, show per-file dirty markers (`*`), and disable save buttons until content changes.
 - 2026-02-14: Log viewer now renders terminal-styled output in `ProjectLogViewer`, hydrates iteration logs from `GET /api/projects/{id}/iterations` + per-iteration detail endpoints, and applies basic ANSI color/bold parsing for display.
+- 2026-02-14: Real-time log streaming now uses websocket `log_append` chunks; backend watcher tails `.ralph/ralph.log` incrementally with per-project byte offsets + partial-line buffering (including same-size rewrite detection via mtime), and `ProjectPage` forwards chunks into `ProjectLogViewer` for live appends.

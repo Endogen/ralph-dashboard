@@ -28,6 +28,11 @@ import type {
   ProjectStats,
 } from "@/types/project"
 
+type LiveLogChunk = {
+  id: number
+  lines: string
+}
+
 function formatDuration(valueInSeconds: number): string {
   if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
     return "0m"
@@ -138,7 +143,9 @@ export function ProjectPage() {
   const [isSavingPlanTask, setIsSavingPlanTask] = useState(false)
   const [isSavingPlanRaw, setIsSavingPlanRaw] = useState(false)
   const [overviewRefreshToken, setOverviewRefreshToken] = useState(0)
+  const [liveLogChunk, setLiveLogChunk] = useState<LiveLogChunk | null>(null)
   const refreshTimerRef = useRef<number | null>(null)
+  const logChunkIdRef = useRef(0)
 
   const queueOverviewRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) {
@@ -165,9 +172,27 @@ export function ProjectPage() {
     }
   }, [])
 
+  useEffect(() => {
+    setLiveLogChunk(null)
+    logChunkIdRef.current = 0
+  }, [id])
+
   const handleOverviewSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
       if (!id || event.project !== id) {
+        return
+      }
+
+      if (event.type === "log_append") {
+        if (!event.data || typeof event.data !== "object") {
+          return
+        }
+        const lines = (event.data as { lines?: unknown }).lines
+        if (typeof lines !== "string" || lines.length === 0) {
+          return
+        }
+        logChunkIdRef.current += 1
+        setLiveLogChunk({ id: logChunkIdRef.current, lines })
         return
       }
 
@@ -452,7 +477,7 @@ export function ProjectPage() {
         </div>
 
         <div className="mt-4">
-          <ProjectLogViewer projectId={id} />
+          <ProjectLogViewer projectId={id} liveChunk={liveLogChunk} />
         </div>
         {(projectLoading || overviewLoading) && (
           <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>
