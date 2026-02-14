@@ -1,1 +1,1 @@
-"""Module package placeholder."""
+"""Iteration parsing package."""
