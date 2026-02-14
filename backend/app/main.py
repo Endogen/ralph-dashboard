@@ -17,6 +17,7 @@ from app.iterations.router import router as iterations_router
 from app.notifications.router import router as notifications_router
 from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
+from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -53,6 +54,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(plan_router)
     app.include_router(projects_router)
+    app.include_router(report_router)
     app.include_router(stats_router)
 
     @app.middleware("http")
