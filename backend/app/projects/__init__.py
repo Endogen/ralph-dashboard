@@ -1,1 +1,1 @@
-"""Project discovery package."""
+"""Project discovery and status package."""

@@ -113,3 +113,4 @@ ralph-dashboard/
 - 2026-02-14: Initialize auth credentials with `ralph-dashboard-init-user`; use `--username/--password/--password-confirm` for non-interactive setup in scripts and tests.
 - 2026-02-14: Async auth route handlers (`login`, `refresh_token`) can be tested directly with request models, which avoids `TestClient`/`httpx` dependency constraints.
 - 2026-02-14: Project discovery scans configured roots recursively for `.ralph/` and skips heavy/noisy folders like `node_modules`, `.git`, and cache dirs.
+- 2026-02-14: Project status detection precedence is: running+pause file => `paused`, running without pause => `running`, otherwise `STATUS: COMPLETE` in plan => `complete`, else `stopped`.
