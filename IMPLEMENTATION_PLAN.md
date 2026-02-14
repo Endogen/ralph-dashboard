@@ -25,7 +25,7 @@ STATUS: READY
 
 ## Phase 4: Log & Iteration Parsing
 - [x] 4.1: Implement ralph.log parser (extract iterations, timestamps, token counts, errors)
-- [ ] 4.2: Implement iterations.jsonl parser (read structured JSON lines)
+- [x] 4.2: Implement iterations.jsonl parser (read structured JSON lines)
 - [ ] 4.3: Implement IMPLEMENTATION_PLAN.md parser (phases, tasks, checkboxes, status)
 - [ ] 4.4: Create iteration endpoints (GET list, GET detail with log output)
 - [ ] 4.5: Create plan endpoints (GET parsed plan, PUT update plan)
