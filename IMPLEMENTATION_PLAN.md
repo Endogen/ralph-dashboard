@@ -55,7 +55,7 @@ STATUS: READY
 - [x] 7.7: Add control tests
 
 ## Phase 8: WebSocket & File Watching
-- [ ] 8.1: Implement WebSocket hub (connection manager, broadcast, subscriptions)
+- [x] 8.1: Implement WebSocket hub (connection manager, broadcast, subscriptions)
 - [ ] 8.2: Implement file watcher service (watchdog observers per project)
 - [ ] 8.3: Connect file watcher to log parser → emit iteration events
 - [ ] 8.4: Connect file watcher to plan parser → emit plan events

@@ -20,6 +20,7 @@ from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
+from app.ws.router import router as ws_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
@@ -58,6 +59,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(projects_router)
     app.include_router(report_router)
     app.include_router(stats_router)
+    app.include_router(ws_router)
 
     @app.middleware("http")
     async def authenticate_api_requests(request: Request, call_next):
