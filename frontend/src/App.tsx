@@ -11,7 +11,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
-        <Route path="project/:id" element={<ProjectPage />} />
+        <Route path="project/:id/*" element={<ProjectPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
