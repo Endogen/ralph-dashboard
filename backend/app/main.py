@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth.router import router as auth_router
 from app.auth.service import InvalidTokenError, validate_access_token
 from app.database import init_database
+from app.iterations.router import router as iterations_router
 from app.projects.router import router as projects_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -39,6 +40,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     """Build and configure the FastAPI application instance."""
     app = FastAPI(title="Ralph Dashboard API", version="0.1.0", lifespan=app_lifespan)
     app.include_router(auth_router)
+    app.include_router(iterations_router)
     app.include_router(projects_router)
 
     @app.middleware("http")

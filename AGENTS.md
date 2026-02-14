@@ -119,3 +119,4 @@ ralph-dashboard/
 - 2026-02-14: `ralph.log` parser matches headers like `[HH:MM:SS] === Iteration N/M ===`, reads token counts from the line after `tokens used` (commas supported), and flags common error markers.
 - 2026-02-14: `iterations.jsonl` parsing is line-tolerant: malformed JSON or schema-invalid lines are skipped so one bad line does not drop the whole file.
 - 2026-02-14: IMPLEMENTATION_PLAN parser captures global `STATUS`, phase blocks, checkbox tasks (with indentation), and computes per-phase + overall done/total counts.
+- 2026-02-14: Iteration endpoints merge `.ralph/ralph.log` and `.ralph/iterations.jsonl` by iteration number; JSONL fields override summary metadata while log data provides `log_output`.
