@@ -123,3 +123,4 @@ ralph-dashboard/
 - 2026-02-14: `PUT /api/projects/{id}/plan` writes raw markdown to `IMPLEMENTATION_PLAN.md` and returns the freshly parsed structure from the submitted content.
 - 2026-02-14: Parser fixture tests use `backend/tests/fixtures/antique-catalogue/`; log header parsing now strips ANSI color codes before matching iteration markers.
 - 2026-02-14: File endpoints map aliases `agents`/`prompt` to `AGENTS.md`/`PROMPT.md` under each resolved project path and return `{name, content}` payloads.
+- 2026-02-14: Specs CRUD endpoints enforce single-file `.md` names (no path separators) to prevent path traversal and keep operations confined to `project/specs/`.
