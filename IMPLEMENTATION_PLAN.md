@@ -106,7 +106,7 @@ STATUS: READY
 - [x] 14.1: Build file browser sidebar (list specs/*.md files)
 - [x] 14.2: Integrate Monaco editor for spec editing
 - [x] 14.3: Implement create/delete spec file functionality
-- [ ] 14.4: Add save with Ctrl+S, unsaved indicator
+- [x] 14.4: Add save with Ctrl+S, unsaved indicator
 
 ## Phase 15: Code Tab
 - [ ] 15.1: Build side-by-side editors for AGENTS.md and PROMPT.md

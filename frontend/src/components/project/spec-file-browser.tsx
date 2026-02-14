@@ -44,10 +44,12 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
   const [isLoadingContent, setIsLoadingContent] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [newSpecName, setNewSpecName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [contentError, setContentError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [lastSavedContent, setLastSavedContent] = useState("")
 
   const loadSpecs = useCallback(async () => {
     if (!projectId) {
@@ -102,6 +104,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
     const loadSelectedFile = async () => {
       if (!projectId || !selectedFileName) {
         setSelectedContent("")
+        setLastSavedContent("")
         setIsLoadingContent(false)
         setContentError(null)
         return
@@ -117,12 +120,14 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
           return
         }
         setSelectedContent(response.content)
+        setLastSavedContent(response.content)
       } catch (loadError) {
         if (cancelled) {
           return
         }
         const message = loadError instanceof Error ? loadError.message : "Failed to load spec file"
         setSelectedContent("")
+        setLastSavedContent("")
         setContentError(message)
       } finally {
         if (!cancelled) {
@@ -175,6 +180,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
       })
       setSelectedFileName(response.name)
       setSelectedContent(response.content)
+      setLastSavedContent(response.content)
       setNewSpecName("")
       setContentError(null)
     } catch (createError) {
@@ -202,6 +208,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
       })
       setSpecFiles((current) => current.filter((file) => file.name !== selectedFileName))
       setSelectedContent("")
+      setLastSavedContent("")
       setContentError(null)
     } catch (deleteError) {
       const message = deleteError instanceof Error ? deleteError.message : "Failed to delete spec file"
@@ -210,6 +217,65 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
       setIsDeleting(false)
     }
   }, [projectId, selectedFileName])
+
+  const handleSaveSpec = useCallback(async () => {
+    if (!projectId || !selectedFileName || selectedContent === lastSavedContent) {
+      return
+    }
+
+    setIsSaving(true)
+    setActionError(null)
+    try {
+      const response = await apiFetch<SpecFileContent>(
+        `/projects/${projectId}/specs/${encodeURIComponent(selectedFileName)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ content: selectedContent }),
+        },
+      )
+      setSelectedContent(response.content)
+      setLastSavedContent(response.content)
+      setSpecFiles((current) =>
+        current.map((file) =>
+          file.name === response.name
+            ? {
+                ...file,
+                size: estimateByteSize(response.content),
+                modified: new Date().toISOString(),
+              }
+            : file,
+        ),
+      )
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to save spec file"
+      setActionError(message)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [lastSavedContent, projectId, selectedContent, selectedFileName])
+
+  const hasUnsavedChanges = Boolean(selectedFileName) && selectedContent !== lastSavedContent
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") {
+        return
+      }
+      if (!selectedFileName) {
+        return
+      }
+      if (selectedContent === lastSavedContent) {
+        return
+      }
+      event.preventDefault()
+      void handleSaveSpec()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [handleSaveSpec, lastSavedContent, selectedContent, selectedFileName])
 
   return (
     <section className="rounded-xl border bg-card p-4">
@@ -261,7 +327,10 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
                           : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                       }`}
                     >
-                      <p className="truncate font-medium">{file.name}</p>
+                      <p className="truncate font-medium">
+                        {file.name}
+                        {isSelected && hasUnsavedChanges ? " *" : ""}
+                      </p>
                       <p className="text-[11px]">{formatFileSize(file.size)}</p>
                     </button>
                   </li>
@@ -286,15 +355,26 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
                   <p className="text-sm text-muted-foreground">
                     Size: {formatFileSize(selectedFile.size)} | Updated: {formatTimestamp(selectedFile.modified)}
                   </p>
+                  {hasUnsavedChanges && <p className="text-xs text-amber-600 dark:text-amber-300">Unsaved changes</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDeleteSpec}
-                  disabled={isDeleting}
-                  className="rounded-md border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-500/25 dark:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isDeleting ? "Deleting..." : "Delete"}
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveSpec}
+                    disabled={isSaving || !hasUnsavedChanges}
+                    className="rounded-md border bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSpec}
+                    disabled={isDeleting}
+                    className="rounded-md border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-500/25 dark:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               </div>
 
               <div className="h-[420px] overflow-hidden rounded-lg border">
@@ -315,7 +395,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
               </div>
 
               <p className="text-sm text-muted-foreground">
-                Create and delete are active. Save and Ctrl+S support are next in phase 14.4.
+                Save is available via button or Ctrl+S / Cmd+S.
               </p>
             </div>
           )}
