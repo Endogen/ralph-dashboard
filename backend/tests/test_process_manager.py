@@ -14,6 +14,7 @@ from app.control.process_manager import (
     is_project_running,
     read_project_pid,
     start_project_process,
+    stop_project_process,
     terminate_pid,
 )
 
@@ -78,3 +79,36 @@ async def test_start_project_process_rejects_duplicate_start(
             if not _pid_is_alive(started.pid):
                 break
             time.sleep(0.05)
+
+
+@pytest.mark.anyio
+async def test_stop_project_process_stops_and_cleans_pid(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    await start_project_process("control-project", command=["sleep", "30"])
+    stopped = await stop_project_process("control-project", grace_period_seconds=0.2)
+
+    assert stopped
+    assert not await is_project_running("control-project")
+    assert not (project / ".ralph" / "ralph.pid").exists()
+
+
+@pytest.mark.anyio
+async def test_stop_project_process_returns_false_when_not_running(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    (project / ".ralph" / "ralph.pid").write_text("999999", encoding="utf-8")
+    stopped = await stop_project_process("control-project")
+
+    assert not stopped
+    assert not (project / ".ralph" / "ralph.pid").exists()
