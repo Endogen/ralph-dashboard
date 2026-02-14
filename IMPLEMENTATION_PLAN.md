@@ -128,13 +128,13 @@ STATUS: READY
 - [x] 17.3: Implement save to .ralph/config.json
 
 ## Phase 18: Ralph.sh Modifications
-- [ ] 18.1: Add iterations.jsonl writing (structured JSON after each iteration)
-- [ ] 18.2: Add pause mechanism (check .ralph/pause between iterations)
-- [ ] 18.3: Add PID file management (.ralph/ralph.pid)
-- [ ] 18.4: Add config.json reading
-- [ ] 18.5: Add inject.md handling (append to AGENTS.md, delete)
-- [ ] 18.6: Add SIGTERM handler with notification
-- [ ] 18.7: Add precise iteration timing and token capture
+- [x] 18.1: Add iterations.jsonl writing (structured JSON after each iteration)
+- [x] 18.2: Add pause mechanism (check .ralph/pause between iterations)
+- [x] 18.3: Add PID file management (.ralph/ralph.pid)
+- [x] 18.4: Add config.json reading
+- [x] 18.5: Add inject.md handling (append to AGENTS.md, delete)
+- [x] 18.6: Add SIGTERM handler with notification
+- [x] 18.7: Add precise iteration timing and token capture
 
 ## Phase 19: Integration & Polish
 - [ ] 19.1: Set up nginx config for ralph.xian.technology reverse proxy
