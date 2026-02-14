@@ -42,6 +42,12 @@ export type GitCommitDiff = {
   diff: string
 }
 
+export type SpecFileInfo = {
+  name: string
+  size: number
+  modified: string
+}
+
 export type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number

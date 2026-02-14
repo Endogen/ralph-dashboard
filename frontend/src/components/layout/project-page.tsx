@@ -13,6 +13,7 @@ import { PlanMarkdownEditor } from "@/components/project/plan-markdown-editor"
 import { PlanRenderer } from "@/components/project/plan-renderer"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { IterationsTable } from "@/components/project/iterations-table"
+import { SpecFileBrowser } from "@/components/project/spec-file-browser"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
@@ -438,6 +439,10 @@ export function ProjectPage() {
             projectId={id}
             isLoading={overviewLoading}
           />
+        </div>
+
+        <div className="mt-4">
+          <SpecFileBrowser projectId={id} />
         </div>
         {(projectLoading || overviewLoading) && (
           <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>

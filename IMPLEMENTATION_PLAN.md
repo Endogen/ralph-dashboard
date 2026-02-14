@@ -103,7 +103,7 @@ STATUS: READY
 - [x] 13.5: Add filters (status, health, search)
 
 ## Phase 14: Specs Tab
-- [ ] 14.1: Build file browser sidebar (list specs/*.md files)
+- [x] 14.1: Build file browser sidebar (list specs/*.md files)
 - [ ] 14.2: Integrate Monaco editor for spec editing
 - [ ] 14.3: Implement create/delete spec file functionality
 - [ ] 14.4: Add save with Ctrl+S, unsaved indicator

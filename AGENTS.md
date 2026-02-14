@@ -172,3 +172,4 @@ ralph-dashboard/
 - 2026-02-14: Iteration rows can now expand to lazily fetch `GET /api/projects/{id}/iterations/{n}` detail and render `log_output` in a terminal-styled panel; per-project expansion/detail caches reset when project changes.
 - 2026-02-14: Expanded iteration rows now lazy-load commit diffs from `GET /api/projects/{id}/git/diff/{hash}` and render them with line-based syntax highlighting in `GitDiffViewer` (headers, hunks, additions, deletions).
 - 2026-02-14: Iterations table filters now include status (`all/success/error`), health (`all/productive/partial/failed`), and text search; when searching, missing iteration logs are hydrated in small batches so log-output text becomes searchable.
+- 2026-02-14: Specs UI now includes `SpecFileBrowser`, which fetches `GET /api/projects/{id}/specs`, renders a selectable sidebar list, and shows selected file metadata while reserving editor integration for phase 14.2.
