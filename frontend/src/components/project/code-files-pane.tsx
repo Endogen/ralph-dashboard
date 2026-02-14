@@ -4,6 +4,7 @@ import { Editor } from "@monaco-editor/react"
 
 import { apiFetch } from "@/api/client"
 import { GitDiffViewer } from "@/components/project/git-diff-viewer"
+import { useToastStore } from "@/stores/toast-store"
 import type { GitCommitDiff, GitCommitSummary, ProjectFileContent } from "@/types/project"
 
 type CodeFilesPaneProps = {
@@ -47,6 +48,7 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
   const [diffByCommit, setDiffByCommit] = useState<Record<string, string>>({})
   const [diffLoading, setDiffLoading] = useState<Record<string, boolean>>({})
   const [diffError, setDiffError] = useState<Record<string, string>>({})
+  const pushToast = useToastStore((state) => state.pushToast)
 
   useEffect(() => {
     let cancelled = false
@@ -152,6 +154,10 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
     const message = injectText.trim()
     if (!message) {
       setInjectResult("Enter an inject message before sending.")
+      pushToast({
+        title: "Inject message required",
+        tone: "error",
+      })
       return
     }
 
@@ -164,13 +170,23 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       })
       setInjectText("")
       setInjectResult(`Injected (${payload.content.length} chars).`)
+      pushToast({
+        title: "Instructions injected",
+        description: `${payload.content.length} characters queued`,
+        tone: "success",
+      })
     } catch (injectError) {
       const messageText = injectError instanceof Error ? injectError.message : "Failed to send inject message"
       setInjectResult(messageText)
+      pushToast({
+        title: "Inject failed",
+        description: messageText,
+        tone: "error",
+      })
     } finally {
       setIsInjecting(false)
     }
-  }, [injectText, projectId])
+  }, [injectText, projectId, pushToast])
 
   const handleSaveAgents = useCallback(async () => {
     if (!projectId || agentsContent === agentsSavedContent) {
@@ -187,13 +203,22 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       setAgentsContent(response.content)
       setAgentsSavedContent(response.content)
       setSaveMessage("Saved AGENTS.md")
+      pushToast({
+        title: "AGENTS.md saved",
+        tone: "success",
+      })
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Failed to save AGENTS.md"
       setSaveMessage(message)
+      pushToast({
+        title: "Failed to save AGENTS.md",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSavingAgents(false)
     }
-  }, [agentsContent, agentsSavedContent, projectId])
+  }, [agentsContent, agentsSavedContent, projectId, pushToast])
 
   const handleSavePrompt = useCallback(async () => {
     if (!projectId || promptContent === promptSavedContent) {
@@ -210,13 +235,22 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       setPromptContent(response.content)
       setPromptSavedContent(response.content)
       setSaveMessage("Saved PROMPT.md")
+      pushToast({
+        title: "PROMPT.md saved",
+        tone: "success",
+      })
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Failed to save PROMPT.md"
       setSaveMessage(message)
+      pushToast({
+        title: "Failed to save PROMPT.md",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSavingPrompt(false)
     }
-  }, [projectId, promptContent, promptSavedContent])
+  }, [projectId, promptContent, promptSavedContent, pushToast])
 
   const agentsDirty = agentsContent !== agentsSavedContent
   const promptDirty = promptContent !== promptSavedContent

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Editor } from "@monaco-editor/react"
 
 import { apiFetch } from "@/api/client"
+import { useToastStore } from "@/stores/toast-store"
 import type { SpecFileContent, SpecFileInfo } from "@/types/project"
 
 type SpecFileBrowserProps = {
@@ -50,6 +51,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
   const [contentError, setContentError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [lastSavedContent, setLastSavedContent] = useState("")
+  const pushToast = useToastStore((state) => state.pushToast)
 
   const loadSpecs = useCallback(async () => {
     if (!projectId) {
@@ -183,13 +185,23 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
       setLastSavedContent(response.content)
       setNewSpecName("")
       setContentError(null)
+      pushToast({
+        title: "Spec created",
+        description: response.name,
+        tone: "success",
+      })
     } catch (createError) {
       const message = createError instanceof Error ? createError.message : "Failed to create spec file"
       setActionError(message)
+      pushToast({
+        title: "Create failed",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsCreating(false)
     }
-  }, [newSpecName, projectId])
+  }, [newSpecName, projectId, pushToast])
 
   const handleDeleteSpec = useCallback(async () => {
     if (!projectId || !selectedFileName) {
@@ -210,13 +222,23 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
       setSelectedContent("")
       setLastSavedContent("")
       setContentError(null)
+      pushToast({
+        title: "Spec deleted",
+        description: selectedFileName,
+        tone: "success",
+      })
     } catch (deleteError) {
       const message = deleteError instanceof Error ? deleteError.message : "Failed to delete spec file"
       setActionError(message)
+      pushToast({
+        title: "Delete failed",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsDeleting(false)
     }
-  }, [projectId, selectedFileName])
+  }, [projectId, pushToast, selectedFileName])
 
   const handleSaveSpec = useCallback(async () => {
     if (!projectId || !selectedFileName || selectedContent === lastSavedContent) {
@@ -246,13 +268,23 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
             : file,
         ),
       )
+      pushToast({
+        title: "Spec saved",
+        description: response.name,
+        tone: "success",
+      })
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Failed to save spec file"
       setActionError(message)
+      pushToast({
+        title: "Save failed",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSaving(false)
     }
-  }, [lastSavedContent, projectId, selectedContent, selectedFileName])
+  }, [lastSavedContent, projectId, pushToast, selectedContent, selectedFileName])
 
   const hasUnsavedChanges = Boolean(selectedFileName) && selectedContent !== lastSavedContent
 

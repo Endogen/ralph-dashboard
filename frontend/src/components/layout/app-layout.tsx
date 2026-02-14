@@ -5,6 +5,7 @@ import { Outlet } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { ToastRegion } from "@/components/ui/toast-region"
 import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
@@ -121,6 +122,7 @@ export function AppLayout() {
         onClose={() => setAddProjectOpen(false)}
         onCreated={upsertProject}
       />
+      <ToastRegion />
     </div>
   )
 }

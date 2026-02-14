@@ -22,6 +22,7 @@ import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
+import { useToastStore } from "@/stores/toast-store"
 import type {
   IterationListResponse,
   IterationSummary,
@@ -171,6 +172,7 @@ export function ProjectPage() {
   const fetchActiveProject = useActiveProjectStore((state) => state.fetchActiveProject)
   const clearActiveProject = useActiveProjectStore((state) => state.clearActiveProject)
   const projectLoading = useActiveProjectStore((state) => state.isLoading)
+  const pushToast = useToastStore((state) => state.pushToast)
 
   const [iterations, setIterations] = useState<IterationSummary[]>([])
   const [notifications, setNotifications] = useState<NotificationEntry[]>([])
@@ -373,6 +375,11 @@ export function ProjectPage() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update plan markdown"
         setOverviewError(message)
+        pushToast({
+          title: "Plan update failed",
+          description: message,
+          tone: "error",
+        })
         return
       }
 
@@ -391,11 +398,16 @@ export function ProjectPage() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to save plan task"
         setOverviewError(message)
+        pushToast({
+          title: "Plan task save failed",
+          description: message,
+          tone: "error",
+        })
       } finally {
         setIsSavingPlanTask(false)
       }
     },
-    [id, isRawPlanMode, plan, queueOverviewRefresh],
+    [id, isRawPlanMode, plan, pushToast, queueOverviewRefresh],
   )
 
   const handleSavePlanRaw = useCallback(async () => {
@@ -414,13 +426,23 @@ export function ProjectPage() {
       setIsRawPlanMode(false)
       setOverviewError(null)
       queueOverviewRefresh()
+      pushToast({
+        title: "Plan saved",
+        description: "IMPLEMENTATION_PLAN.md updated",
+        tone: "success",
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save plan markdown"
       setOverviewError(message)
+      pushToast({
+        title: "Plan save failed",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSavingPlanRaw(false)
     }
-  }, [id, planDraft, queueOverviewRefresh])
+  }, [id, planDraft, pushToast, queueOverviewRefresh])
 
   const toggleRawPlanMode = useCallback(() => {
     if (!isRawPlanMode && plan) {

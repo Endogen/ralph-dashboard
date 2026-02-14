@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { apiFetch } from "@/api/client"
+import { useToastStore } from "@/stores/toast-store"
 import type { LoopConfig } from "@/types/project"
 
 type ProjectConfigPanelProps = {
@@ -79,6 +80,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
   const [formError, setFormError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const pushToast = useToastStore((state) => state.pushToast)
 
   const applyConfig = useCallback((config: LoopConfig) => {
     const nextConfig = cloneConfig(config)
@@ -208,16 +210,29 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
     }
     if (!navigator.clipboard?.writeText) {
       setCopyMessage("Clipboard is unavailable.")
+      pushToast({
+        title: "Copy unavailable",
+        description: "Clipboard API is not available in this browser.",
+        tone: "error",
+      })
       return
     }
 
     try {
       await navigator.clipboard.writeText(projectPath)
       setCopyMessage("Copied.")
+      pushToast({
+        title: "Project path copied",
+        tone: "success",
+      })
     } catch {
       setCopyMessage("Failed to copy.")
+      pushToast({
+        title: "Copy failed",
+        tone: "error",
+      })
     }
-  }, [projectPath])
+  }, [projectPath, pushToast])
 
   const updatePricingRow = useCallback((rowId: string, field: "model" | "price", value: string) => {
     setPricingRows((current) =>
@@ -263,13 +278,23 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
       })
       applyConfig(saved)
       setSaveMessage("Saved .ralph/config.json")
+      pushToast({
+        title: "Config saved",
+        description: ".ralph/config.json updated",
+        tone: "success",
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save config"
       setFormError(message)
+      pushToast({
+        title: "Config save failed",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSaving(false)
     }
-  }, [applyConfig, buildPayload, projectId])
+  }, [applyConfig, buildPayload, projectId, pushToast])
 
   return (
     <section className="rounded-xl border bg-card p-4">

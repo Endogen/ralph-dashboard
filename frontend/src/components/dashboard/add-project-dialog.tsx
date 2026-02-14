@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react"
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
+import { useToastStore } from "@/stores/toast-store"
 import type { ProjectSummary } from "@/types/project"
 
 type AddProjectDialogProps = {
@@ -14,6 +15,7 @@ export function AddProjectDialog({ open, onClose, onCreated }: AddProjectDialogP
   const [path, setPath] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const pushToast = useToastStore((state) => state.pushToast)
 
   useEffect(() => {
     if (!open) {
@@ -45,11 +47,21 @@ export function AddProjectDialog({ open, onClose, onCreated }: AddProjectDialogP
         body: JSON.stringify({ path: normalizedPath }),
       })
       onCreated?.(project)
+      pushToast({
+        title: "Project added",
+        description: project.name,
+        tone: "success",
+      })
       setPath("")
       onClose()
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : "Failed to add project."
       setError(message)
+      pushToast({
+        title: "Failed to add project",
+        description: message,
+        tone: "error",
+      })
     } finally {
       setIsSubmitting(false)
     }
