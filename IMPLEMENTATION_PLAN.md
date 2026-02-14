@@ -21,7 +21,7 @@ STATUS: READY
 - [x] 3.2: Create project models (Pydantic) with status detection (running/paused/stopped/complete)
 - [x] 3.3: Implement project registration/unregistration endpoints
 - [x] 3.4: Implement GET /api/projects (list) and GET /api/projects/{id} (detail)
-- [ ] 3.5: Add project tests
+- [x] 3.5: Add project tests
 
 ## Phase 4: Log & Iteration Parsing
 - [ ] 4.1: Implement ralph.log parser (extract iterations, timestamps, token counts, errors)
