@@ -144,3 +144,4 @@ ralph-dashboard/
 - 2026-02-14: WebSocket connection at `/api/ws` now requires a valid `token` query parameter; missing or invalid JWTs are rejected before joining the hub.
 - 2026-02-14: WebSocket tests (`backend/tests/test_ws.py`) use async fake socket objects (no `TestClient`/`httpx`) to validate hub subscription filtering, event envelopes, auth rejection, and protocol actions (`subscribe`/`unsubscribe`/`ping`).
 - 2026-02-14: Frontend `AppLayout` now provides the phase-9 shell (sidebar + main content area), and routing reserves `/`, `/login`, and `/project/:id/*` for dashboard/auth/project detail flows.
+- 2026-02-14: Sidebar UI is now a dedicated `AppSidebar` component with status badges, project links, and an Add Project action slot; `AppLayout` currently seeds it with demo project rows pending Zustand/API wiring.

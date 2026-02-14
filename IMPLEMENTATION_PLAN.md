@@ -65,7 +65,7 @@ STATUS: READY
 
 ## Phase 9: Frontend Core Layout
 - [x] 9.1: Create app layout (sidebar + main content area + routing)
-- [ ] 9.2: Build sidebar component (project list with status indicators, add project button)
+- [x] 9.2: Build sidebar component (project list with status indicators, add project button)
 - [ ] 9.3: Build top bar component (project name, status badge, quick stats)
 - [ ] 9.4: Build control bar component (start/stop/pause/inject buttons)
 - [ ] 9.5: Implement login page
