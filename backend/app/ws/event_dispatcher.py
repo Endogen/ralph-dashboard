@@ -68,24 +68,30 @@ class WatcherEventDispatcher:
 
         await self._emit_file_changed(change)
 
-    async def _handle_iterations_change(self, change: FileChangeEvent) -> None:
-        """Read the last line of iterations.jsonl to detect new iterations."""
+    @staticmethod
+    def _read_last_jsonl_record(path) -> dict | None:
+        """Read just the last JSON line from iterations.jsonl (sync I/O)."""
         try:
-            with change.path.open("rb") as f:
-                # Seek to end and read last line efficiently
+            with path.open("rb") as f:
                 f.seek(0, 2)
                 size = f.tell()
                 if size == 0:
-                    return
-                # Read last 4KB max (one JSON line is typically <500 bytes)
+                    return None
                 read_size = min(4096, size)
                 f.seek(size - read_size)
                 chunk = f.read().decode("utf-8", errors="replace")
                 lines = chunk.strip().splitlines()
                 if not lines:
-                    return
-                record = json.loads(lines[-1])
+                    return None
+                return json.loads(lines[-1])
         except (OSError, json.JSONDecodeError, KeyError):
+            return None
+
+    async def _handle_iterations_change(self, change: FileChangeEvent) -> None:
+        """Read the last line of iterations.jsonl to detect new iterations."""
+        loop = asyncio.get_running_loop()
+        record = await loop.run_in_executor(None, self._read_last_jsonl_record, change.path)
+        if record is None:
             return
 
         iteration_num = record.get("iteration")
@@ -124,9 +130,14 @@ class WatcherEventDispatcher:
             )
 
     async def _handle_log_change(self, change: FileChangeEvent) -> None:
-        lines = self._read_log_append_lines(change)
+        loop = asyncio.get_running_loop()
+        lines = await loop.run_in_executor(None, self._read_log_append_lines, change)
         if lines:
             await hub.emit("log_append", change.project_id, {"lines": lines})
+
+    # Maximum bytes to read in one append chunk.  Prevents reading 200MB+
+    # when the watcher fires for the first time on an existing large log.
+    _MAX_APPEND_BYTES = 512 * 1024  # 512 KB
 
     def _read_log_append_lines(self, change: FileChangeEvent) -> str | None:
         previous_offset = self._log_offsets.get(change.project_id, 0)
@@ -153,8 +164,15 @@ class WatcherEventDispatcher:
                     if rewritten_by_time or rewritten_by_prefix:
                         previous_offset = 0
                         self._log_remainders.pop(change.project_id, None)
+
+                # On first event after restart, skip to near the end of the
+                # file instead of reading everything from offset 0.
+                if previous_offset == 0 and size > self._MAX_APPEND_BYTES:
+                    previous_offset = size - self._MAX_APPEND_BYTES
+                    self._log_remainders.pop(change.project_id, None)
+
                 handle.seek(previous_offset)
-                chunk = handle.read()
+                chunk = handle.read(self._MAX_APPEND_BYTES)
         except OSError:
             self._log_offsets.pop(change.project_id, None)
             self._log_mtimes_ns.pop(change.project_id, None)

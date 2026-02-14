@@ -279,6 +279,18 @@ def _wait_for_exit(pid: int, timeout_seconds: float) -> bool:
     return not _is_pid_running(pid)
 
 
+async def _async_wait_for_exit(pid: int, timeout_seconds: float) -> bool:
+    """Non-blocking version of _wait_for_exit for async callers."""
+    import asyncio
+
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if not _is_pid_running(pid):
+            return True
+        await asyncio.sleep(0.1)
+    return not _is_pid_running(pid)
+
+
 async def stop_project_process(project_id: str, grace_period_seconds: float = 3.0) -> bool:
     """Stop a running project process via SIGTERM then SIGKILL fallback."""
     project_path = await _resolve_project_path(project_id)
@@ -293,10 +305,10 @@ async def stop_project_process(project_id: str, grace_period_seconds: float = 3.
         return False
 
     os.kill(pid, signal.SIGTERM)
-    exited = _wait_for_exit(pid, grace_period_seconds)
+    exited = await _async_wait_for_exit(pid, grace_period_seconds)
     if not exited:
         os.kill(pid, signal.SIGKILL)
-        _wait_for_exit(pid, 1.0)
+        await _async_wait_for_exit(pid, 1.0)
 
     pid_file.unlink(missing_ok=True)
     return True

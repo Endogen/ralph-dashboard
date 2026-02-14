@@ -42,26 +42,63 @@ def _open_repo(project_path: Path) -> Repo:
 
 
 async def get_git_log(project_id: str, limit: int = 50, offset: int = 0) -> list[GitCommitSummary]:
-    """Return commit summaries for a project repository."""
+    """Return commit summaries for a project repository.
+
+    Uses ``git log --shortstat`` in a single subprocess call instead of
+    computing per-commit stats via GitPython (which spawns one subprocess
+    per commit and can be very slow for large repos).
+    """
+    import asyncio
+    import re
+
     project_path = await _resolve_project_path(project_id)
     repo = _open_repo(project_path)
 
-    commits = list(repo.iter_commits("HEAD", max_count=limit, skip=offset))
-    result: list[GitCommitSummary] = []
-    for commit in commits:
-        total_stats = commit.stats.total
-        result.append(
-            GitCommitSummary(
-                hash=commit.hexsha[:7],
-                author=commit.author.name,
-                date=datetime.fromtimestamp(commit.committed_date, tz=UTC).isoformat(),
-                message=commit.message.strip(),
-                files_changed=int(total_stats.get("files", 0)),
-                insertions=int(total_stats.get("insertions", 0)),
-                deletions=int(total_stats.get("deletions", 0)),
+    def _run_git_log() -> list[GitCommitSummary]:
+        separator = "---RALPH_SEP---"
+        fmt = f"%H{separator}%an{separator}%aI{separator}%s"
+        try:
+            raw = repo.git.log(
+                f"--max-count={limit}",
+                f"--skip={offset}",
+                f"--format={fmt}",
+                "--shortstat",
             )
+        except Exception:
+            return []
+
+        stat_re = re.compile(
+            r"(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?"
         )
-    return result
+
+        result: list[GitCommitSummary] = []
+        current: dict | None = None
+        for line in raw.splitlines():
+            if separator in line:
+                if current is not None:
+                    result.append(GitCommitSummary(**current))
+                parts = line.split(separator, 3)
+                current = {
+                    "hash": parts[0][:7],
+                    "author": parts[1],
+                    "date": parts[2],
+                    "message": parts[3] if len(parts) > 3 else "",
+                    "files_changed": 0,
+                    "insertions": 0,
+                    "deletions": 0,
+                }
+            elif current is not None:
+                m = stat_re.search(line)
+                if m:
+                    current["files_changed"] = int(m.group(1) or 0)
+                    current["insertions"] = int(m.group(2) or 0)
+                    current["deletions"] = int(m.group(3) or 0)
+        if current is not None:
+            result.append(GitCommitSummary(**current))
+        return result
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _run_git_log)
 
 
 async def get_git_diff(project_id: str, commit_hash: str) -> GitCommitDiff:
