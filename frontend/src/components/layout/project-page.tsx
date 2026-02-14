@@ -1,19 +1,46 @@
-import { useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { useParams } from "react-router-dom"
 
+import { apiFetch } from "@/api/client"
+import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { useActiveProjectStore } from "@/stores/active-project-store"
+import type { IterationListResponse, IterationSummary, ProjectStats } from "@/types/project"
+
+function formatDuration(valueInSeconds: number): string {
+  if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
+    return "0m"
+  }
+
+  const totalSeconds = Math.round(valueInSeconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
+}
 
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>()
   const activeProject = useActiveProjectStore((state) => state.activeProject)
   const fetchActiveProject = useActiveProjectStore((state) => state.fetchActiveProject)
   const clearActiveProject = useActiveProjectStore((state) => state.clearActiveProject)
-  const isLoading = useActiveProjectStore((state) => state.isLoading)
+  const projectLoading = useActiveProjectStore((state) => state.isLoading)
+
+  const [iterations, setIterations] = useState<IterationSummary[]>([])
+  const [stats, setStats] = useState<ProjectStats | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(false)
+  const [overviewError, setOverviewError] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchActiveProject(id ?? null)
@@ -22,12 +49,78 @@ export function ProjectPage() {
     }
   }, [clearActiveProject, fetchActiveProject, id])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadOverview = async () => {
+      if (!id) {
+        setIterations([])
+        setStats(null)
+        setOverviewError(null)
+        setOverviewLoading(false)
+        return
+      }
+
+      setOverviewLoading(true)
+      setOverviewError(null)
+
+      try {
+        const [iterationsResponse, statsResponse] = await Promise.all([
+          apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
+          apiFetch<ProjectStats>(`/projects/${id}/stats`),
+        ])
+        if (cancelled) {
+          return
+        }
+        setIterations(iterationsResponse.iterations)
+        setStats(statsResponse)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        const message = error instanceof Error ? error.message : "Failed to load overview data"
+        setOverviewError(message)
+        setIterations([])
+        setStats(null)
+      } finally {
+        if (!cancelled) {
+          setOverviewLoading(false)
+        }
+      }
+    }
+
+    void loadOverview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  const sortedIterations = useMemo(
+    () => [...iterations].sort((left, right) => left.number - right.number),
+    [iterations],
+  )
+  const latestIteration = sortedIterations[sortedIterations.length - 1]
+  const iterationLabel =
+    latestIteration && latestIteration.max_iterations
+      ? `Iteration ${latestIteration.number}/${latestIteration.max_iterations}`
+      : latestIteration
+        ? `Iteration ${latestIteration.number}`
+        : "Iteration n/a"
+  const runtimeLabel = `Running for ${formatDuration(stats?.total_duration_seconds ?? 0)}`
+
+  const tokensUsed = stats?.total_tokens ?? 0
+  const estimatedCostUsd = stats?.total_cost_usd ?? 0
+  const tasksCompleted = stats?.tasks_done ?? 0
+  const tasksTotal = stats?.tasks_total ?? 0
+  const iterationsCompleted = stats?.total_iterations ?? 0
+  const errorCount = stats?.errors_count ?? 0
+  const successRate =
+    iterationsCompleted > 0 ? ((iterationsCompleted - errorCount) / iterationsCompleted) * 100 : 0
+
   const projectName = activeProject?.name ?? id ?? "Unknown Project"
   const status = activeProject?.status ?? "stopped"
-  const iterationLabel = "Iteration 15/50"
-  const runtimeLabel = "Running for 2h 14m"
-  const tokensUsed = 1245
-  const estimatedCostUsd = 7.47
+  const modeLabel = status === "running" || status === "paused" ? "BUILDING" : "READY"
 
   return (
     <div className="space-y-4">
@@ -46,29 +139,41 @@ export function ProjectPage() {
           iterationLabel={iterationLabel}
           runningFor={runtimeLabel}
           cliLabel="codex"
-          modeLabel="BUILDING"
+          modeLabel={modeLabel}
         />
 
         <div className="mt-4">
           <StatsGrid
             totalTokens={tokensUsed}
             estimatedCostUsd={estimatedCostUsd}
-            iterationsCompleted={15}
-            averageIterationDuration="2m 34s"
-            tasksCompleted={12}
-            tasksTotal={34}
-            errorCount={1}
-            successRate={93.3}
+            iterationsCompleted={iterationsCompleted}
+            averageIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
+            tasksCompleted={tasksCompleted}
+            tasksTotal={tasksTotal}
+            errorCount={errorCount}
+            successRate={successRate}
           />
+        </div>
+
+        <div className="mt-4">
+          <ProgressTimelineChart iterations={sortedIterations} tasksTotal={tasksTotal} />
         </div>
 
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
           <h3 className="text-base font-semibold">Project Workspace</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Overview charts and activity widgets will be implemented in the next frontend phases.
+            Additional overview widgets are queued next (burndown, token phase pie, health timeline, and activity
+            feed).
           </p>
         </div>
-        {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>}
+        {(projectLoading || overviewLoading) && (
+          <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>
+        )}
+        {overviewError && (
+          <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">
+            Failed to load overview metrics ({overviewError}).
+          </p>
+        )}
       </section>
 
       <ProjectControlBar

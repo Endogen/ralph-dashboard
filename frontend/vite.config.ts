@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react-is": path.resolve(__dirname, "./src/vendor/react-is.ts"),
     },
   },
 })
