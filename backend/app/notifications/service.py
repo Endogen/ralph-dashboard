@@ -40,7 +40,7 @@ def _parse_message(raw_message: str) -> tuple[str | None, str]:
     return None, message
 
 
-def _parse_notification_file(path: Path) -> NotificationEntry | None:
+def parse_notification_file(path: Path) -> NotificationEntry | None:
     if not path.exists() or not path.is_file():
         return None
     content = path.read_text(encoding="utf-8").strip()
@@ -101,7 +101,7 @@ async def get_notification_history(project_id: str) -> list[NotificationEntry]:
     archive_files = _iter_archive_candidates(ralph_dir)
 
     for path in [*primary_files, *archive_files]:
-        entry = _parse_notification_file(path)
+        entry = parse_notification_file(path)
         if entry is None:
             continue
         key = (entry.timestamp, entry.message, entry.source)

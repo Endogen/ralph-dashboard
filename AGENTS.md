@@ -140,3 +140,4 @@ ralph-dashboard/
 - 2026-02-14: File watcher service (`app/ws/file_watcher.py`) now runs in app lifespan, maintains watchdog observers per discovered/registered project, and filters events to `.ralph` runtime files, root control files, and `specs/*.md`.
 - 2026-02-14: Watcher dispatch now parses `.ralph/ralph.log` changes and emits websocket `iteration_started` plus `iteration_completed` envelopes (status inferred from log errors) while deduplicating by project+iteration.
 - 2026-02-14: `IMPLEMENTATION_PLAN.md` watcher events are parsed and emitted as websocket `plan_updated` payloads with per-phase done/total/status; duplicate snapshots are suppressed per project.
+- 2026-02-14: Watcher dispatch now emits websocket `notification` from `.ralph/pending-notification.txt`, `status_changed` when `.ralph/ralph.pid`/`.ralph/pause`/plan changes alter detected status, and `file_changed` for other watched files.
