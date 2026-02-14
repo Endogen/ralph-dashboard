@@ -95,3 +95,13 @@ ralph-dashboard/
 
 ## Learnings
 <!-- Agent appends operational notes here during execution -->
+- 2026-02-14: Frontend dependency install may be blocked in restricted environments due DNS resolution failures for `registry.npmjs.org`; `npm run lint`/`npm run build` will fail until package installation succeeds.
+- 2026-02-14: `npm install` failed with `EAI_AGAIN` for both `registry.npmjs.org` and `registry.npmmirror.com` in this environment, so frontend toolchain binaries (`eslint`, `tsc`, `vite`) were unavailable for lint/build validation.
+- 2026-02-14: `npm install` can hang silently in this environment; using `--fetch-retries=1 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=2000` fails fast and confirms DNS-level `EAI_AGAIN` blockage.
+- 2026-02-14: Without installed frontend dependencies, backpressure checks report `sh: 1: eslint: not found` and `sh: 1: tsc: not found`; `npm install --offline` also fails with `ENOTCACHED` when no local package cache exists.
+- 2026-02-14: Backpressure commands piped to `head`/`tail` can still exit with status 0 even when frontend scripts fail; always inspect output for `eslint: not found` / `tsc: not found`.
+- 2026-02-14: In this sandbox, npm may also fail to write debug logs to `/home/endogen/.npm/_logs`, so rely on terminal stderr for diagnostics.
+- 2026-02-14: Backend backpressure checks can pass while frontend remains blocked; repeated `npm install` attempts against npmjs/npmmirror returned `EAI_AGAIN`, and offline install returned `ENOTCACHED`, so frontend lint/build validation requires restored registry access or a prewarmed npm cache.
+- 2026-02-14: For backpressure validation, three sequential install strategies (`npm install` default, `--registry=https://registry.npmmirror.com`, and `--offline`) quickly distinguish DNS outage (`EAI_AGAIN`) from cache absence (`ENOTCACHED`).
+- 2026-02-14: If frontend backpressure still fails after those three install attempts, write `.ralph/pending-notification.txt` with an `ERROR:` message and pause for human help because frontend lint/build cannot be unblocked locally.
+- 2026-02-14: `.ralph/` notification files are ignored by git in this repo, so confirm writes with `cat .ralph/pending-notification.txt` rather than `git status`.
