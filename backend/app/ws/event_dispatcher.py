@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 
-from app.iterations.log_parser import parse_ralph_log_file
 from app.notifications.service import parse_notification_file
 from app.plan.parser import parse_implementation_plan_file
 from app.projects.status import detect_project_status
@@ -41,6 +41,10 @@ class WatcherEventDispatcher:
             await self._emit_status_if_changed(change)
             return
 
+        if change.path.name == "iterations.jsonl" and change.path.parent.name == ".ralph":
+            await self._handle_iterations_change(change)
+            return
+
         if change.path.name != "ralph.log":
             await self._emit_file_changed(change)
             return
@@ -50,39 +54,65 @@ class WatcherEventDispatcher:
 
         await self._emit_file_changed(change)
 
+    async def _handle_iterations_change(self, change: FileChangeEvent) -> None:
+        """Read the last line of iterations.jsonl to detect new iterations."""
+        try:
+            with change.path.open("rb") as f:
+                # Seek to end and read last line efficiently
+                f.seek(0, 2)
+                size = f.tell()
+                if size == 0:
+                    return
+                # Read last 4KB max (one JSON line is typically <500 bytes)
+                read_size = min(4096, size)
+                f.seek(size - read_size)
+                chunk = f.read().decode("utf-8", errors="replace")
+                lines = chunk.strip().splitlines()
+                if not lines:
+                    return
+                record = json.loads(lines[-1])
+        except (OSError, json.JSONDecodeError, KeyError):
+            return
+
+        iteration_num = record.get("iteration")
+        if iteration_num is None:
+            return
+
+        started = self._started_iterations[change.project_id]
+        completed = self._completed_iterations[change.project_id]
+
+        if iteration_num not in started:
+            started.add(iteration_num)
+            await hub.emit(
+                "iteration_started",
+                change.project_id,
+                {"iteration": iteration_num, "max": record.get("max", 0)},
+            )
+
+        if iteration_num not in completed:
+            completed.add(iteration_num)
+            await hub.emit(
+                "iteration_completed",
+                change.project_id,
+                {
+                    "iteration": iteration_num,
+                    "max": record.get("max", 0),
+                    "start": record.get("start"),
+                    "end": record.get("end"),
+                    "duration_seconds": record.get("duration_seconds"),
+                    "tokens": record.get("tokens"),
+                    "status": record.get("status", "success"),
+                    "tasks_completed": record.get("tasks_completed", []),
+                    "commit": record.get("commit"),
+                    "test_passed": record.get("test_passed"),
+                    "errors": record.get("errors", []),
+                },
+            )
+
     async def _handle_log_change(self, change: FileChangeEvent) -> None:
         lines = self._read_log_append_lines(change)
         if lines:
             await hub.emit("log_append", change.project_id, {"lines": lines})
-
-        iterations = parse_ralph_log_file(change.path)
-        started = self._started_iterations[change.project_id]
-        completed = self._completed_iterations[change.project_id]
-
-        for iteration in iterations:
-            if iteration.number not in started:
-                started.add(iteration.number)
-                await hub.emit(
-                    "iteration_started",
-                    change.project_id,
-                    {"iteration": iteration.number, "max": iteration.max_iterations},
-                )
-
-            if iteration.end_timestamp is not None and iteration.number not in completed:
-                completed.add(iteration.number)
-                await hub.emit(
-                    "iteration_completed",
-                    change.project_id,
-                    {
-                        "iteration": iteration.number,
-                        "max": iteration.max_iterations,
-                        "start": iteration.start_timestamp,
-                        "end": iteration.end_timestamp,
-                        "tokens": iteration.tokens_used,
-                        "status": "error" if iteration.has_errors else "success",
-                        "errors": iteration.error_lines,
-                    },
-                )
 
     def _read_log_append_lines(self, change: FileChangeEvent) -> str | None:
         previous_offset = self._log_offsets.get(change.project_id, 0)

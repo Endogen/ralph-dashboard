@@ -42,7 +42,6 @@ async def test_log_append_emits_only_new_complete_lines(
 
     fake_hub = CapturingHub()
     monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
-    monkeypatch.setattr(event_dispatcher, "parse_ralph_log_file", lambda _: [])
     dispatcher = event_dispatcher.WatcherEventDispatcher()
 
     await dispatcher.handle_change(change)
@@ -75,7 +74,6 @@ async def test_log_append_resets_offset_after_log_truncate(
 
     fake_hub = CapturingHub()
     monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
-    monkeypatch.setattr(event_dispatcher, "parse_ralph_log_file", lambda _: [])
     dispatcher = event_dispatcher.WatcherEventDispatcher()
 
     change.path.write_text("one\n", encoding="utf-8")
