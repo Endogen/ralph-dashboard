@@ -1,15 +1,18 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { Settings2 } from "lucide-react"
 import { Outlet } from "react-router-dom"
 
+import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
 
 export function AppLayout() {
+  const [addProjectOpen, setAddProjectOpen] = useState(false)
   const projects = useProjectsStore((state) => state.projects)
   const fetchProjects = useProjectsStore((state) => state.fetchProjects)
+  const upsertProject = useProjectsStore((state) => state.upsertProject)
   const { connected, reconnecting } = useWebSocket({ projects: projects.map((project) => project.id) })
 
   useEffect(() => {
@@ -19,7 +22,7 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[1200px] gap-4 p-4 md:p-6">
-        <AppSidebar projects={projects} />
+        <AppSidebar projects={projects} onAddProject={() => setAddProjectOpen(true)} />
 
         <main className="flex min-h-[80vh] flex-1 flex-col gap-4 rounded-2xl border bg-card/30 p-4 md:p-6">
           <header className="flex items-center justify-between rounded-xl border bg-background/70 px-4 py-3">
@@ -52,6 +55,12 @@ export function AppLayout() {
           </section>
         </main>
       </div>
+
+      <AddProjectDialog
+        open={addProjectOpen}
+        onClose={() => setAddProjectOpen(false)}
+        onCreated={upsertProject}
+      />
     </div>
   )
 }

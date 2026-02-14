@@ -153,3 +153,4 @@ ralph-dashboard/
 - 2026-02-14: `useWebSocket` now handles token-authenticated connect, exponential reconnect (1s→30s), project subscribe/unsubscribe diffing, and JSON event dispatch; `AppLayout` shows live/reconnecting/offline state from the hook.
 - 2026-02-14: Dashboard `ProjectCard` component is now available with status badge, iteration progress bar, token/cost stat cells, last-activity text, and mini iteration-health strip.
 - 2026-02-14: Dashboard now uses a responsive `ProjectGrid` (1/2/3 columns) wired to `useProjectsStore`; it renders loading/error/empty states and routes card open actions to `/project/:id`.
+- 2026-02-14: Add-project flow now uses `AddProjectDialog` modal from `AppLayout`; it posts absolute path to `POST /api/projects` and upserts the returned project summary into `useProjectsStore`.

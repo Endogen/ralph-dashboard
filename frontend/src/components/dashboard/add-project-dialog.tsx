@@ -1,0 +1,98 @@
+import { type FormEvent, useEffect, useState } from "react"
+
+import { apiFetch } from "@/api/client"
+import { Button } from "@/components/ui/button"
+import type { ProjectSummary } from "@/types/project"
+
+type AddProjectDialogProps = {
+  open: boolean
+  onClose: () => void
+  onCreated?: (project: ProjectSummary) => void
+}
+
+export function AddProjectDialog({ open, onClose, onCreated }: AddProjectDialogProps) {
+  const [path, setPath] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handleEscape)
+    return () => window.removeEventListener("keydown", handleEscape)
+  }, [onClose, open])
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError(null)
+
+    const normalizedPath = path.trim()
+    if (!normalizedPath) {
+      setError("Project path is required.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const project = await apiFetch<ProjectSummary>("/projects", {
+        method: "POST",
+        body: JSON.stringify({ path: normalizedPath }),
+      })
+      onCreated?.(project)
+      setPath("")
+      onClose()
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : "Failed to add project."
+      setError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!open) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+      <div className="w-full max-w-lg rounded-xl border bg-card p-5 shadow-lg">
+        <header>
+          <h2 className="text-lg font-semibold">Add Project</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enter an absolute path to a project containing a <code>.ralph</code> directory.
+          </p>
+        </header>
+
+        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+          <label className="block text-sm font-medium">
+            Project Path
+            <input
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={path}
+              onChange={(event) => setPath(event.target.value)}
+              placeholder="/home/endogen/projects/my-project"
+              required
+            />
+          </label>
+
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Adding..." : "Add Project"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
