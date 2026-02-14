@@ -36,7 +36,7 @@ STATUS: READY
 - [x] 5.2: Implement specs CRUD endpoints (list, read, create, update, delete)
 - [x] 5.3: Implement git service (log with stats, diff for specific commits)
 - [x] 5.4: Implement git endpoints
-- [ ] 5.5: Add file and git tests
+- [x] 5.5: Add file and git tests
 
 ## Phase 6: Stats & Notifications
 - [ ] 6.1: Implement stats aggregation service (tokens, costs, velocity, projections, health breakdown)
