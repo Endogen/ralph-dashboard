@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { Editor } from "@monaco-editor/react"
+
 import { apiFetch } from "@/api/client"
-import type { SpecFileInfo } from "@/types/project"
+import type { SpecFileContent, SpecFileInfo } from "@/types/project"
 
 type SpecFileBrowserProps = {
   projectId?: string
@@ -33,8 +35,11 @@ function formatTimestamp(value: string): string {
 export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
   const [specFiles, setSpecFiles] = useState<SpecFileInfo[]>([])
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
+  const [selectedContent, setSelectedContent] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingContent, setIsLoadingContent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [contentError, setContentError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -97,6 +102,48 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
     [selectedFileName, specFiles],
   )
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSelectedFile = async () => {
+      if (!projectId || !selectedFileName) {
+        setSelectedContent("")
+        setIsLoadingContent(false)
+        setContentError(null)
+        return
+      }
+
+      setIsLoadingContent(true)
+      setContentError(null)
+      try {
+        const response = await apiFetch<SpecFileContent>(
+          `/projects/${projectId}/specs/${encodeURIComponent(selectedFileName)}`,
+        )
+        if (cancelled) {
+          return
+        }
+        setSelectedContent(response.content)
+      } catch (loadError) {
+        if (cancelled) {
+          return
+        }
+        const message = loadError instanceof Error ? loadError.message : "Failed to load spec file"
+        setSelectedContent("")
+        setContentError(message)
+      } finally {
+        if (!cancelled) {
+          setIsLoadingContent(false)
+        }
+      }
+    }
+
+    void loadSelectedFile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, selectedFileName])
+
   return (
     <section className="rounded-xl border bg-card p-4">
       <header className="mb-3">
@@ -140,14 +187,38 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
         <div className="rounded-lg border bg-background/30 p-4">
           {!selectedFile ? (
             <p className="text-sm text-muted-foreground">Select a spec file from the sidebar.</p>
+          ) : isLoadingContent ? (
+            <p className="text-sm text-muted-foreground">Loading `{selectedFile.name}`...</p>
+          ) : contentError ? (
+            <p className="text-sm text-rose-600 dark:text-rose-400">{contentError}</p>
           ) : (
-            <div className="space-y-2">
-              <p className="font-mono text-sm">{selectedFile.name}</p>
+            <div className="space-y-3">
+              <div>
+                <p className="font-mono text-sm">{selectedFile.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Size: {formatFileSize(selectedFile.size)} | Updated: {formatTimestamp(selectedFile.modified)}
+                </p>
+              </div>
+
+              <div className="h-[420px] overflow-hidden rounded-lg border">
+                <Editor
+                  height="100%"
+                  defaultLanguage="markdown"
+                  value={selectedContent}
+                  onChange={(next) => setSelectedContent(next ?? "")}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    wordWrap: "on",
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+
               <p className="text-sm text-muted-foreground">
-                Size: {formatFileSize(selectedFile.size)} | Updated: {formatTimestamp(selectedFile.modified)}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Editor integration is next (Monaco in Phase 14.2).
+                Editor is active. Save/create/delete flows land in phases 14.3 and 14.4.
               </p>
             </div>
           )}
