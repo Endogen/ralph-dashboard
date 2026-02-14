@@ -35,7 +35,7 @@ STATUS: READY
 - [x] 5.1: Implement file read/write endpoints (AGENTS.md, PROMPT.md)
 - [x] 5.2: Implement specs CRUD endpoints (list, read, create, update, delete)
 - [x] 5.3: Implement git service (log with stats, diff for specific commits)
-- [ ] 5.4: Implement git endpoints
+- [x] 5.4: Implement git endpoints
 - [ ] 5.5: Add file and git tests
 
 ## Phase 6: Stats & Notifications
