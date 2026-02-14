@@ -4,7 +4,7 @@ import { useAuthStore } from "@/stores/auth-store"
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const
 
-type WebSocketEnvelope = {
+export type WebSocketEnvelope = {
   type: string
   project?: string
   timestamp?: string

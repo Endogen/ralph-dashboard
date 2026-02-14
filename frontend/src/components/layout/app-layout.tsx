@@ -1,19 +1,55 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Settings2 } from "lucide-react"
 import { Outlet } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
-import { useWebSocket } from "@/hooks/use-websocket"
+import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
+import type { ProjectStatus } from "@/types/project"
 
 export function AppLayout() {
   const [addProjectOpen, setAddProjectOpen] = useState(false)
   const projects = useProjectsStore((state) => state.projects)
   const fetchProjects = useProjectsStore((state) => state.fetchProjects)
+  const patchProject = useProjectsStore((state) => state.patchProject)
   const upsertProject = useProjectsStore((state) => state.upsertProject)
-  const { connected, reconnecting } = useWebSocket({ projects: projects.map((project) => project.id) })
+  const handleSocketEvent = useCallback(
+    (event: WebSocketEnvelope) => {
+      if (
+        (event.type === "iteration_started" ||
+          event.type === "iteration_completed" ||
+          event.type === "plan_updated") &&
+        event.project
+      ) {
+        void fetchProjects()
+      }
+
+      if (event.type !== "status_changed" || !event.project) {
+        return
+      }
+      if (!event.data || typeof event.data !== "object") {
+        return
+      }
+
+      const status = (event.data as { status?: string }).status
+      if (!status) {
+        return
+      }
+
+      const validStatuses = new Set<ProjectStatus>(["running", "paused", "stopped", "complete", "error"])
+      if (!validStatuses.has(status as ProjectStatus)) {
+        return
+      }
+      patchProject(event.project, { status: status as ProjectStatus })
+    },
+    [fetchProjects, patchProject],
+  )
+  const { connected, reconnecting } = useWebSocket({
+    projects: projects.map((project) => project.id),
+    onEvent: handleSocketEvent,
+  })
 
   useEffect(() => {
     void fetchProjects()

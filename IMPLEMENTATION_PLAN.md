@@ -77,7 +77,7 @@ STATUS: READY
 - [x] 10.1: Build project card component (status, progress bar, stats, mini health bar)
 - [x] 10.2: Build project grid layout (responsive grid of cards)
 - [x] 10.3: Build add project dialog/modal
-- [ ] 10.4: Wire up real-time updates (project cards update via WebSocket)
+- [x] 10.4: Wire up real-time updates (project cards update via WebSocket)
 
 ## Phase 11: Overview Tab
 - [ ] 11.1: Build status panel (large status badge, iteration, running time, CLI info)

@@ -9,6 +9,7 @@ type ProjectsState = {
   error: string | null
   fetchProjects: () => Promise<void>
   setProjects: (projects: ProjectSummary[]) => void
+  patchProject: (projectId: string, patch: Partial<ProjectSummary>) => void
   upsertProject: (project: ProjectSummary) => void
   removeProject: (projectId: string) => void
 }
@@ -30,6 +31,13 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
   },
 
   setProjects: (projects: ProjectSummary[]) => set({ projects }),
+
+  patchProject: (projectId: string, patch: Partial<ProjectSummary>) =>
+    set((state) => ({
+      projects: state.projects.map((project) =>
+        project.id === projectId ? { ...project, ...patch } : project,
+      ),
+    })),
 
   upsertProject: (project: ProjectSummary) =>
     set((state) => {
