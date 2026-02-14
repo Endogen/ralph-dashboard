@@ -170,7 +170,18 @@ class FileWatcherService:
             loop=self._loop,
         )
         try:
-            observer.schedule(handler, str(project_path), recursive=True)
+            # Watch only specific directories instead of recursive=True
+            # to avoid watching node_modules, .venv, .git, etc.
+            observer.schedule(handler, str(project_path), recursive=False)
+
+            ralph_dir = project_path / ".ralph"
+            if ralph_dir.exists() and ralph_dir.is_dir():
+                observer.schedule(handler, str(ralph_dir), recursive=False)
+
+            specs_dir = project_path / "specs"
+            if specs_dir.exists() and specs_dir.is_dir():
+                observer.schedule(handler, str(specs_dir), recursive=False)
+
             observer.start()
         except OSError:
             observer.stop()
