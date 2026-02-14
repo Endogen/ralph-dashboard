@@ -57,7 +57,7 @@ STATUS: READY
 ## Phase 8: WebSocket & File Watching
 - [x] 8.1: Implement WebSocket hub (connection manager, broadcast, subscriptions)
 - [x] 8.2: Implement file watcher service (watchdog observers per project)
-- [ ] 8.3: Connect file watcher to log parser → emit iteration events
+- [x] 8.3: Connect file watcher to log parser → emit iteration events
 - [ ] 8.4: Connect file watcher to plan parser → emit plan events
 - [ ] 8.5: Connect file watcher to notification/status detection → emit events
 - [ ] 8.6: Implement WebSocket authentication (token validation on connect)

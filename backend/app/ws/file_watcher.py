@@ -99,6 +99,9 @@ class FileWatcherService:
     def running(self) -> bool:
         return self._running
 
+    def set_on_change(self, on_change: OnFileChange | None) -> None:
+        self._on_change = on_change
+
     async def start(self) -> None:
         if self._running:
             return

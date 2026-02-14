@@ -20,6 +20,7 @@ from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
+from app.ws.event_dispatcher import watcher_event_dispatcher
 from app.ws.file_watcher import file_watcher_service
 from app.ws.router import router as ws_router
 
@@ -35,6 +36,7 @@ PUBLIC_API_PATHS = {
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
     await init_database()
+    file_watcher_service.set_on_change(watcher_event_dispatcher.handle_change)
     await file_watcher_service.start()
     try:
         yield
