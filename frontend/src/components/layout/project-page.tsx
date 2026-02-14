@@ -19,6 +19,7 @@ import { StatusPanel } from "@/components/project/status-panel"
 import { CodeFilesPane } from "@/components/project/code-files-pane"
 import { ProjectConfigPanel } from "@/components/project/project-config-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
+import { Skeleton } from "@/components/ui/skeleton"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import type {
@@ -124,6 +125,44 @@ function buildTaskMetadata(
   }
 
   return metadata
+}
+
+function ProjectPageSkeleton() {
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-9 w-28" />
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-card p-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <Skeleton key={`stat-skeleton-${index}`} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="mt-4 h-60 w-full" />
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Skeleton className="h-52 w-full" />
+          <Skeleton className="h-52 w-full" />
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-card p-4">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="mt-3 h-56 w-full" />
+      </section>
+
+      <section className="rounded-xl border bg-card p-4">
+        <Skeleton className="h-10 w-full" />
+      </section>
+    </div>
+  )
 }
 
 export function ProjectPage() {
@@ -413,6 +452,17 @@ export function ProjectPage() {
   const status = activeProject?.status ?? "stopped"
   const modeLabel = status === "running" || status === "paused" ? "BUILDING" : "READY"
   const taskMetadata = buildTaskMetadata(sortedIterations)
+  const isInitialLoading =
+    (projectLoading || overviewLoading) &&
+    !activeProject &&
+    iterations.length === 0 &&
+    notifications.length === 0 &&
+    !stats &&
+    !plan
+
+  if (isInitialLoading) {
+    return <ProjectPageSkeleton />
+  }
 
   return (
     <div className="space-y-4">

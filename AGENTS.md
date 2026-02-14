@@ -193,3 +193,4 @@ ralph-dashboard/
 - 2026-02-14: Added integration smoke test `backend/tests/test_antique_catalogue_e2e.py` that seeds fixture data and validates the end-to-end backend flow across project discovery, iterations, plan, stats, config, notifications, and report handlers.
 - 2026-02-14: Theme handling now defaults to system preference via `useTheme`/`applyInitialTheme`, adds header light-dark toggle + auto-reset control, and applies polished gradient-backed surfaces for both light and dark modes.
 - 2026-02-14: Status detection now clears stale/invalid `.ralph/ralph.pid` files (including zombie PIDs), and project overview loading now degrades gracefully by keeping partial data when one endpoint fails instead of blanking the entire page.
+- 2026-02-14: Added reusable `Skeleton` UI primitive and replaced plain loading copy with dashboard card skeletons plus an initial project-page skeleton layout for smoother perceived load behavior.

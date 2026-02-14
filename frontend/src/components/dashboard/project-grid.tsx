@@ -1,4 +1,5 @@
 import { ProjectCard } from "@/components/dashboard/project-card"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { ProjectStatus } from "@/types/project"
 
 type IterationHealth = "productive" | "partial" | "failed"
@@ -25,8 +26,31 @@ type ProjectGridProps = {
 export function ProjectGrid({ projects, isLoading, error, onOpenProject }: ProjectGridProps) {
   if (isLoading) {
     return (
-      <section className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        Loading projects...
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <article
+            key={`project-skeleton-${index}`}
+            className="rounded-xl border bg-card/50 p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+            <div className="mt-4 space-y-2">
+              <Skeleton className="h-2.5 w-full" />
+              <Skeleton className="h-2.5 w-3/4" />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="mt-4 flex gap-1">
+              {Array.from({ length: 8 }).map((__, healthIndex) => (
+                <Skeleton key={`health-${healthIndex}`} className="h-2 w-full rounded-full" />
+              ))}
+            </div>
+          </article>
+        ))}
       </section>
     )
   }
