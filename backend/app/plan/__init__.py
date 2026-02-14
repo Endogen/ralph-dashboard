@@ -1,1 +1,1 @@
-"""Module package placeholder."""
+"""Implementation plan parsing package."""
