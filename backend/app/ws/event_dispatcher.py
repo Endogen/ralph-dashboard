@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections import defaultdict
+from functools import partial
 
 from app.notifications.service import parse_notification_file
 from app.plan.parser import parse_implementation_plan_file
@@ -26,8 +28,20 @@ class WatcherEventDispatcher:
         self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
         self._last_notification_keys: dict[str, tuple[str, str, str | None, int | None]] = {}
         self._statuses: dict[str, str] = {}
+        self._handling: bool = False
 
     async def handle_change(self, change: FileChangeEvent) -> None:
+        # Guard against re-entrant handling (file reads during handling
+        # could trigger new watchdog events that re-enter this method).
+        if self._handling:
+            return
+        self._handling = True
+        try:
+            await self._dispatch(change)
+        finally:
+            self._handling = False
+
+    async def _dispatch(self, change: FileChangeEvent) -> None:
         if change.path.name == "IMPLEMENTATION_PLAN.md":
             await self._handle_plan_change(change)
             await self._emit_status_if_changed(change)
@@ -176,7 +190,8 @@ class WatcherEventDispatcher:
         return "".join(lines)
 
     async def _handle_plan_change(self, change: FileChangeEvent) -> None:
-        parsed = parse_implementation_plan_file(change.path)
+        loop = asyncio.get_running_loop()
+        parsed = await loop.run_in_executor(None, parse_implementation_plan_file, change.path)
         if parsed is None:
             return
 
@@ -212,7 +227,8 @@ class WatcherEventDispatcher:
         )
 
     async def _handle_notification_change(self, change: FileChangeEvent) -> None:
-        entry = parse_notification_file(change.path)
+        loop = asyncio.get_running_loop()
+        entry = await loop.run_in_executor(None, parse_notification_file, change.path)
         if entry is None:
             return
 
@@ -235,7 +251,8 @@ class WatcherEventDispatcher:
         )
 
     async def _emit_status_if_changed(self, change: FileChangeEvent) -> None:
-        current = detect_project_status(change.project_path).value
+        loop = asyncio.get_running_loop()
+        current = (await loop.run_in_executor(None, detect_project_status, change.project_path)).value
         previous = self._statuses.get(change.project_id)
         if previous == current:
             return

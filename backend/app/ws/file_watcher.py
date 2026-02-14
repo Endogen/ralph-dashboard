@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.events import (
+    EVENT_TYPE_CREATED,
+    EVENT_TYPE_DELETED,
+    EVENT_TYPE_MODIFIED,
+    EVENT_TYPE_MOVED,
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
 from watchdog.observers import Observer
 
 from app.projects.models import project_id_from_path
@@ -22,6 +30,13 @@ WATCHED_RALPH_FILES = {
     "ralph.pid",
     "pause",
 }
+# Only react to real content changes, not access/attribute metadata events.
+_RELEVANT_EVENT_TYPES = {EVENT_TYPE_CREATED, EVENT_TYPE_DELETED, EVENT_TYPE_MODIFIED, EVENT_TYPE_MOVED}
+# Minimum seconds between queuing events for the same file.
+_DEBOUNCE_SECONDS = 0.5
+# Hard cap on pending events to prevent unbounded memory growth.
+_MAX_QUEUE_SIZE = 200
+
 OnFileChange = Callable[["FileChangeEvent"], Awaitable[None]]
 
 
@@ -34,20 +49,27 @@ class FileChangeEvent:
 
 
 def _is_relevant_path(project_path: Path, file_path: Path) -> bool:
+    # Use string operations instead of resolve() to avoid expensive syscalls
+    # in the hot path (called from watchdog thread on every fs event).
     try:
-        relative = file_path.resolve().relative_to(project_path.resolve())
-    except ValueError:
+        proj_str = str(project_path)
+        file_str = str(file_path)
+        if not file_str.startswith(proj_str):
+            return False
+        relative = file_str[len(proj_str):].lstrip("/")
+    except (TypeError, ValueError):
         return False
 
-    parts = relative.parts
-    if not parts:
+    if not relative:
         return False
+
+    parts = relative.split("/")
 
     if len(parts) == 1 and parts[0] in WATCHED_ROOT_FILES:
         return True
     if len(parts) == 2 and parts[0] == ".ralph" and parts[1] in WATCHED_RALPH_FILES:
         return True
-    if len(parts) >= 2 and parts[0] == "specs" and relative.suffix == ".md":
+    if len(parts) >= 2 and parts[0] == "specs" and relative.endswith(".md"):
         return True
     return False
 
@@ -64,20 +86,36 @@ class _ProjectEventHandler(FileSystemEventHandler):
         self._project_path = project_path
         self._queue = queue
         self._loop = loop
+        self._last_event_times: dict[str, float] = {}
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
 
+        # Only process real content-change events.
+        if event.event_type not in _RELEVANT_EVENT_TYPES:
+            return
+
         path_value = getattr(event, "dest_path", None) or event.src_path
-        path = Path(path_value)
-        if not _is_relevant_path(self._project_path, path):
+        path_str = str(path_value)
+        if not _is_relevant_path(self._project_path, Path(path_str)):
+            return
+
+        # Debounce: skip if the same file was queued recently.
+        now = time.monotonic()
+        last = self._last_event_times.get(path_str, 0.0)
+        if now - last < _DEBOUNCE_SECONDS:
+            return
+        self._last_event_times[path_str] = now
+
+        # Drop events when queue is full to prevent memory leak.
+        if self._queue.qsize() >= _MAX_QUEUE_SIZE:
             return
 
         change = FileChangeEvent(
             project_id=self._project_id,
             project_path=self._project_path,
-            path=path.resolve(),
+            path=Path(path_str),
             event_type=event.event_type,
         )
         self._loop.call_soon_threadsafe(self._queue.put_nowait, change)
@@ -148,11 +186,28 @@ class FileWatcherService:
                 self._start_observer(project_id, project_path)
 
     async def _consume_events(self) -> None:
+        last_handled: dict[str, float] = {}
         while True:
             change = await self._queue.get()
             try:
                 if self._on_change is not None:
+                    key = f"{change.project_id}:{change.path}"
+                    now = asyncio.get_event_loop().time()
+                    if now - last_handled.get(key, 0.0) < _DEBOUNCE_SECONDS:
+                        continue
+                    last_handled[key] = now
+                    # Drain any duplicate events that piled up during handling.
+                    drained = 0
+                    while not self._queue.empty() and drained < 50:
+                        try:
+                            self._queue.get_nowait()
+                            self._queue.task_done()
+                            drained += 1
+                        except asyncio.QueueEmpty:
+                            break
                     await self._on_change(change)
+            except Exception:
+                pass  # Don't let a handler error kill the consumer loop.
             finally:
                 self._queue.task_done()
 
