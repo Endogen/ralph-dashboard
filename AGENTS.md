@@ -120,3 +120,4 @@ ralph-dashboard/
 - 2026-02-14: `iterations.jsonl` parsing is line-tolerant: malformed JSON or schema-invalid lines are skipped so one bad line does not drop the whole file.
 - 2026-02-14: IMPLEMENTATION_PLAN parser captures global `STATUS`, phase blocks, checkbox tasks (with indentation), and computes per-phase + overall done/total counts.
 - 2026-02-14: Iteration endpoints merge `.ralph/ralph.log` and `.ralph/iterations.jsonl` by iteration number; JSONL fields override summary metadata while log data provides `log_output`.
+- 2026-02-14: `PUT /api/projects/{id}/plan` writes raw markdown to `IMPLEMENTATION_PLAN.md` and returns the freshly parsed structure from the submitted content.

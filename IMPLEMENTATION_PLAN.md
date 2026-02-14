@@ -28,7 +28,7 @@ STATUS: READY
 - [x] 4.2: Implement iterations.jsonl parser (read structured JSON lines)
 - [x] 4.3: Implement IMPLEMENTATION_PLAN.md parser (phases, tasks, checkboxes, status)
 - [x] 4.4: Create iteration endpoints (GET list, GET detail with log output)
-- [ ] 4.5: Create plan endpoints (GET parsed plan, PUT update plan)
+- [x] 4.5: Create plan endpoints (GET parsed plan, PUT update plan)
 - [ ] 4.6: Add parser tests (use sample data from antique-catalogue as test fixtures)
 
 ## Phase 5: File & Git Endpoints
