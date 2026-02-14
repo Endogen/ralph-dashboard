@@ -10,7 +10,7 @@ STATUS: READY
 
 ## Phase 2: Backend Auth
 - [x] 2.1: Create config.py with Settings (project_dirs, port, secret_key, credentials file path)
-- [ ] 2.2: Create SQLite database setup with aiosqlite (for auth + settings storage)
+- [x] 2.2: Create SQLite database setup with aiosqlite (for auth + settings storage)
 - [ ] 2.3: Implement JWT auth module (login, refresh, token validation, bcrypt password hashing)
 - [ ] 2.4: Add auth middleware/dependency for protecting endpoints
 - [ ] 2.5: Create initial user setup CLI command or first-run flow (set username/password)

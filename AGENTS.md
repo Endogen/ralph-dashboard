@@ -107,3 +107,4 @@ ralph-dashboard/
 - 2026-02-14: `.ralph/` notification files are ignored by git in this repo, so confirm writes with `cat .ralph/pending-notification.txt` rather than `git status`.
 - 2026-02-14: Once `frontend/node_modules` is available, backpressure frontend checks run normally; successful `npm run lint` may print only the script header with no additional output.
 - 2026-02-14: `app.config.get_settings()` is `lru_cache`d; when tests or scripts mutate `RALPH_*` env vars, call `get_settings.cache_clear()` before reloading settings.
+- 2026-02-14: In this sandbox, thread-to-event-loop wakeups can be delayed; keep a lightweight heartbeat task running during `aiosqlite` work to prevent stalled awaits/timeouts.

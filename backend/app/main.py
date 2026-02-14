@@ -1,18 +1,27 @@
 """FastAPI application entrypoint."""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.database import init_database
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
 
+@asynccontextmanager
+async def app_lifespan(_: FastAPI):
+    await init_database()
+    yield
+
+
 def create_app(frontend_dist: Path | None = None) -> FastAPI:
     """Build and configure the FastAPI application instance."""
-    app = FastAPI(title="Ralph Dashboard API", version="0.1.0")
+    app = FastAPI(title="Ralph Dashboard API", version="0.1.0", lifespan=app_lifespan)
 
     @app.get("/api/health", tags=["health"])
     async def healthcheck() -> dict[str, str]:
