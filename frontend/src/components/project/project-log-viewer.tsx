@@ -13,6 +13,8 @@ type ProjectLogViewerProps = {
   } | null
 }
 
+type LogFilterMode = "all" | "errors"
+
 type AnsiStyle = {
   color: string | null
   bold: boolean
@@ -26,6 +28,7 @@ type AnsiSegment = {
 const ANSI_ESCAPE = String.fromCharCode(27)
 const ANSI_PATTERN = new RegExp(`${ANSI_ESCAPE}\\[([0-9;]*)m`, "g")
 const BOTTOM_OFFSET_PX = 20
+const LOG_ERROR_PATTERN = /(error|failed|exception|traceback|fatal|❌|⚠)/i
 
 const ANSI_COLOR_CLASS: Record<string, string> = {
   "30": "text-zinc-900",
@@ -121,13 +124,48 @@ function appendLogChunk(current: string, chunk: string): string {
   return `${current}\n${chunk}`
 }
 
+function stripAnsi(input: string): string {
+  return input.replace(ANSI_PATTERN, "")
+}
+
+function extractIterationNumber(line: string): number | null {
+  const normalized = stripAnsi(line)
+  const dashboardMatch = normalized.match(/^\[Iteration\s+(\d+)\]/i)
+  if (dashboardMatch) {
+    return Number.parseInt(dashboardMatch[1], 10)
+  }
+
+  const streamMatch = normalized.match(/===\s*Iteration\s+(\d+)\/\d+\s*===/i)
+  if (streamMatch) {
+    return Number.parseInt(streamMatch[1], 10)
+  }
+
+  return null
+}
+
+function parseIterationBound(rawValue: string): number | null {
+  if (rawValue.trim().length === 0) {
+    return null
+  }
+  const value = Number.parseInt(rawValue, 10)
+  if (!Number.isFinite(value) || value <= 0) {
+    return null
+  }
+  return value
+}
+
 export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps) {
   const [logContent, setLogContent] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isAutoScroll, setIsAutoScroll] = useState(true)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterMode, setFilterMode] = useState<LogFilterMode>("all")
+  const [iterationFrom, setIterationFrom] = useState("")
+  const [iterationTo, setIterationTo] = useState("")
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const pendingLiveChunkRef = useRef("")
   const hydratingRef = useRef(false)
 
@@ -169,6 +207,10 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       if (!projectId) {
         setIsAutoScroll(true)
         setIsAtBottom(true)
+        setSearchTerm("")
+        setFilterMode("all")
+        setIterationFrom("")
+        setIterationTo("")
         pendingLiveChunkRef.current = ""
         hydratingRef.current = false
         setLogContent("")
@@ -237,13 +279,84 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
   }, [liveChunk, projectId])
 
   useEffect(() => {
+    if (!projectId) {
+      return
+    }
+
+    const handleFindShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return
+      }
+      if (event.key.toLowerCase() !== "f") {
+        return
+      }
+      event.preventDefault()
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+
+    window.addEventListener("keydown", handleFindShortcut)
+    return () => {
+      window.removeEventListener("keydown", handleFindShortcut)
+    }
+  }, [projectId])
+
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+  const parsedFrom = parseIterationBound(iterationFrom)
+  const parsedTo = parseIterationBound(iterationTo)
+  const hasIterationRange = parsedFrom !== null || parsedTo !== null
+  const hasInvalidRange = parsedFrom !== null && parsedTo !== null && parsedFrom > parsedTo
+  const hasActiveFilters = normalizedSearchTerm.length > 0 || filterMode !== "all" || hasIterationRange
+
+  const filteredLogContent = useMemo(() => {
+    if (logContent.length === 0 || hasInvalidRange) {
+      return ""
+    }
+
+    const lines = logContent.split(/\r?\n/)
+    const filteredLines: string[] = []
+    let currentIteration: number | null = null
+
+    for (const line of lines) {
+      const parsedIteration = extractIterationNumber(line)
+      if (parsedIteration !== null) {
+        currentIteration = parsedIteration
+      }
+
+      if (hasIterationRange) {
+        if (currentIteration === null) {
+          continue
+        }
+        if (parsedFrom !== null && currentIteration < parsedFrom) {
+          continue
+        }
+        if (parsedTo !== null && currentIteration > parsedTo) {
+          continue
+        }
+      }
+
+      const normalizedLine = stripAnsi(line).toLowerCase()
+      if (filterMode === "errors" && !LOG_ERROR_PATTERN.test(normalizedLine)) {
+        continue
+      }
+      if (normalizedSearchTerm.length > 0 && !normalizedLine.includes(normalizedSearchTerm)) {
+        continue
+      }
+
+      filteredLines.push(line)
+    }
+
+    return filteredLines.join("\n")
+  }, [filterMode, hasInvalidRange, hasIterationRange, logContent, normalizedSearchTerm, parsedFrom, parsedTo])
+
+  useEffect(() => {
     if (!isAutoScroll) {
       return
     }
     scrollToBottom()
-  }, [isAutoScroll, logContent, scrollToBottom])
+  }, [filteredLogContent, isAutoScroll, scrollToBottom])
 
-  const ansiSegments = useMemo(() => parseAnsiText(logContent), [logContent])
+  const ansiSegments = useMemo(() => parseAnsiText(filteredLogContent), [filteredLogContent])
 
   return (
     <section className="rounded-xl border bg-card p-4">
@@ -265,6 +378,49 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
         </Button>
       </header>
 
+      <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_11rem_6.5rem_6.5rem]">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search logs (Ctrl/Cmd+F)..."
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        <select
+          value={filterMode}
+          onChange={(event) => setFilterMode(event.target.value as LogFilterMode)}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+          aria-label="Log filter mode"
+        >
+          <option value="all">All lines</option>
+          <option value="errors">Errors only</option>
+        </select>
+        <input
+          type="number"
+          min={1}
+          inputMode="numeric"
+          value={iterationFrom}
+          onChange={(event) => setIterationFrom(event.target.value)}
+          placeholder="Iter from"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        <input
+          type="number"
+          min={1}
+          inputMode="numeric"
+          value={iterationTo}
+          onChange={(event) => setIterationTo(event.target.value)}
+          placeholder="Iter to"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+      </div>
+      {hasInvalidRange ? (
+        <p className="mb-3 text-xs text-rose-600 dark:text-rose-400">
+          Iteration range is invalid: start must be {"<="} end.
+        </p>
+      ) : null}
+
       <div className="relative">
         <div
           ref={viewportRef}
@@ -275,8 +431,14 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
             <p className="text-zinc-400">Loading logs...</p>
           ) : error ? (
             <p className="text-rose-300">{error}</p>
-          ) : logContent.length === 0 ? (
-            <p className="text-zinc-400">No log output yet.</p>
+          ) : filteredLogContent.length === 0 ? (
+            <p className="text-zinc-400">
+              {logContent.length === 0
+                ? "No log output yet."
+                : hasActiveFilters
+                  ? "No log lines match the current search/filter."
+                  : "No log output yet."}
+            </p>
           ) : (
             <pre className="whitespace-pre-wrap break-words">
               {ansiSegments.map((segment, index) => (
