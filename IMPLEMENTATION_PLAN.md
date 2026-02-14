@@ -83,7 +83,7 @@ STATUS: READY
 - [x] 11.1: Build status panel (large status badge, iteration, running time, CLI info)
 - [x] 11.2: Build stats grid (8 stat cards with icons)
 - [x] 11.3: Build progress timeline chart (Recharts ComposedChart: tasks area + tokens bar + projection)
-- [ ] 11.4: Build task burndown chart (ideal vs actual)
+- [x] 11.4: Build task burndown chart (ideal vs actual)
 - [ ] 11.5: Build token usage by phase pie chart
 - [ ] 11.6: Build iteration health timeline (color-coded strip)
 - [ ] 11.7: Build recent activity feed

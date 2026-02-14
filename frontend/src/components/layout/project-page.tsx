@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom"
 
 import { apiFetch } from "@/api/client"
 import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
+import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { StatsGrid } from "@/components/project/stats-grid"
@@ -159,11 +160,21 @@ export function ProjectPage() {
           <ProgressTimelineChart iterations={sortedIterations} tasksTotal={tasksTotal} />
         </div>
 
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <TaskBurndownChart iterations={sortedIterations} tasksTotal={tasksTotal} />
+
+          <section className="rounded-xl border bg-background/50 p-4">
+            <h3 className="text-base font-semibold">Token Usage by Phase</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Phase-token donut visualization is queued in task 11.5.
+            </p>
+          </section>
+        </div>
+
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
-          <h3 className="text-base font-semibold">Project Workspace</h3>
+          <h3 className="text-base font-semibold">Next Overview Widgets</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Additional overview widgets are queued next (burndown, token phase pie, health timeline, and activity
-            feed).
+            Iteration health timeline and recent activity feed are queued in tasks 11.6 and 11.7.
           </p>
         </div>
         {(projectLoading || overviewLoading) && (
