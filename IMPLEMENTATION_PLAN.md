@@ -4,9 +4,9 @@ STATUS: READY
 
 ## Phase 1: Project Scaffolding
 - [x] 1.1: Initialize backend (pyproject.toml, FastAPI app skeleton, directory structure, requirements.txt, venv)
-- [ ] 1.2: Initialize frontend (Vite + React + TypeScript, Tailwind CSS 4, shadcn/ui setup, React Router, Zustand)
-- [ ] 1.3: Configure Vite dev proxy to backend API (port 3420 → 8420)
-- [ ] 1.4: Set up backend static file serving for production (serve built frontend from FastAPI)
+- [x] 1.2: Initialize frontend (Vite + React + TypeScript, Tailwind CSS 4, shadcn/ui setup, React Router, Zustand)
+- [x] 1.3: Configure Vite dev proxy to backend API (port 3420 → 8420)
+- [x] 1.4: Set up backend static file serving for production (serve built frontend from FastAPI)
 
 ## Phase 2: Backend Auth
 - [ ] 2.1: Create config.py with Settings (project_dirs, port, secret_key, credentials file path)

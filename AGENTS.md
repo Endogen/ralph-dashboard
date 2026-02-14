@@ -105,3 +105,4 @@ ralph-dashboard/
 - 2026-02-14: For backpressure validation, three sequential install strategies (`npm install` default, `--registry=https://registry.npmmirror.com`, and `--offline`) quickly distinguish DNS outage (`EAI_AGAIN`) from cache absence (`ENOTCACHED`).
 - 2026-02-14: If frontend backpressure still fails after those three install attempts, write `.ralph/pending-notification.txt` with an `ERROR:` message and pause for human help because frontend lint/build cannot be unblocked locally.
 - 2026-02-14: `.ralph/` notification files are ignored by git in this repo, so confirm writes with `cat .ralph/pending-notification.txt` rather than `git status`.
+- 2026-02-14: Once `frontend/node_modules` is available, backpressure frontend checks run normally; successful `npm run lint` may print only the script header with no additional output.
