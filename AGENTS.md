@@ -166,3 +166,4 @@ ralph-dashboard/
 - 2026-02-14: `PlanRenderer` is now available with collapsible phase cards, per-phase progress bars, read-only task checkboxes (with indentation), and pending/in-progress/complete badges sourced from `/plan`.
 - 2026-02-14: Plan checkboxes are now interactive; `ProjectPage` maps phase/task to checkbox ordinal in `plan.raw`, patches markdown safely, saves via `PUT /plan`, then refreshes overview data.
 - 2026-02-14: Plan view now has a Monaco-powered raw markdown mode (`PlanMarkdownEditor`) with toggle + save flow (`PUT /plan`) and syncs back to rendered mode after successful save.
+- 2026-02-14: Plan tasks now display completion metadata when available by mapping task IDs to iteration + commit from iteration history; commit hashes render as links to the project code route with commit query.

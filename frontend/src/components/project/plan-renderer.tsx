@@ -6,6 +6,8 @@ import type { ParsedImplementationPlan } from "@/types/project"
 
 type PlanRendererProps = {
   plan: ParsedImplementationPlan | null
+  projectId?: string
+  taskMetadata?: Record<string, { iteration: number | null; commit: string | null }>
   isLoading: boolean
   onToggleTask?: (phaseIndex: number, taskIndex: number, nextDone: boolean) => void
   isSavingTask?: boolean
@@ -40,6 +42,8 @@ function percentage(done: number, total: number): number {
 
 export function PlanRenderer({
   plan,
+  projectId,
+  taskMetadata = {},
   isLoading,
   onToggleTask,
   isSavingTask = false,
@@ -168,6 +172,24 @@ export function PlanRenderer({
                             {task.description}
                           </span>
                         </label>
+                        {task.done && task.id && taskMetadata[task.id] && (
+                          <p className="mt-1 pl-6 text-[11px] text-muted-foreground">
+                            Completed in iteration {taskMetadata[task.id].iteration ?? "n/a"}
+                            {" - "}
+                            {taskMetadata[task.id].commit && projectId ? (
+                              <a
+                                href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(
+                                  taskMetadata[task.id].commit ?? "",
+                                )}`}
+                                className="font-mono underline decoration-dotted"
+                              >
+                                {taskMetadata[task.id].commit}
+                              </a>
+                            ) : (
+                              <span className="font-mono">{taskMetadata[task.id].commit ?? "n/a"}</span>
+                            )}
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>

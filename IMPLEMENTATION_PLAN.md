@@ -93,7 +93,7 @@ STATUS: READY
 - [x] 12.1: Build plan renderer (collapsible phases, task checkboxes, status badges)
 - [x] 12.2: Implement interactive checkboxes (toggle saves to file via API)
 - [x] 12.3: Build raw markdown editor mode (Monaco with toggle)
-- [ ] 12.4: Add task metadata display (completed iteration, commit link)
+- [x] 12.4: Add task metadata display (completed iteration, commit link)
 
 ## Phase 13: Iterations Tab
 - [ ] 13.1: Build iterations table with sortable columns

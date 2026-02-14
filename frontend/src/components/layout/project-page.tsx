@@ -94,6 +94,28 @@ function updateTaskCheckboxInRaw(planRaw: string, taskOrdinal: number, nextDone:
   return nextLines.join("\n")
 }
 
+function buildTaskMetadata(
+  iterations: IterationSummary[],
+): Record<string, { iteration: number | null; commit: string | null }> {
+  const ordered = [...iterations].sort((left, right) => left.number - right.number)
+  const metadata: Record<string, { iteration: number | null; commit: string | null }> = {}
+
+  for (const iteration of ordered) {
+    for (const taskId of iteration.tasks_completed) {
+      const normalized = taskId.trim()
+      if (!normalized || metadata[normalized]) {
+        continue
+      }
+      metadata[normalized] = {
+        iteration: iteration.number,
+        commit: iteration.commit,
+      }
+    }
+  }
+
+  return metadata
+}
+
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>()
   const activeProject = useActiveProjectStore((state) => state.activeProject)
@@ -327,6 +349,7 @@ export function ProjectPage() {
   const projectName = activeProject?.name ?? id ?? "Unknown Project"
   const status = activeProject?.status ?? "stopped"
   const modeLabel = status === "running" || status === "paused" ? "BUILDING" : "READY"
+  const taskMetadata = buildTaskMetadata(sortedIterations)
 
   return (
     <div className="space-y-4">
@@ -399,6 +422,8 @@ export function ProjectPage() {
           ) : (
             <PlanRenderer
               plan={plan}
+              projectId={id}
+              taskMetadata={taskMetadata}
               isLoading={overviewLoading}
               onToggleTask={handleTogglePlanTask}
               isSavingTask={isSavingPlanTask || isSavingPlanRaw}
@@ -409,7 +434,7 @@ export function ProjectPage() {
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
           <h3 className="text-base font-semibold">Next Plan Enhancements</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Task metadata display is queued in task 12.4.
+            Plan tab phase is complete. Next priority starts at phase 13.
           </p>
         </div>
         {(projectLoading || overviewLoading) && (
