@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.auth.service import InvalidTokenError, validate_access_token
 from app.ws.hub import hub
 
 router = APIRouter(tags=["ws"])
@@ -23,6 +24,17 @@ def _normalize_projects(raw: object) -> list[str]:
 
 @router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Not authenticated")
+        return
+
+    try:
+        validate_access_token(token)
+    except InvalidTokenError:
+        await websocket.close(code=1008, reason="Invalid access token")
+        return
+
     await hub.connect(websocket)
     try:
         while True:
