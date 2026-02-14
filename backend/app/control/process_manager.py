@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
 import time
 from pathlib import Path
 
-from app.control.models import ProcessStartResult
+from pydantic import ValidationError
+
+from app.control.models import LoopConfig, ProcessStartResult
 from app.projects.service import get_project_detail
 
 
@@ -30,6 +33,14 @@ class ProcessCommandNotFoundError(ProcessManagerError):
 
 class ProcessInjectionValidationError(ProcessManagerError):
     """Raised when injection text is invalid."""
+
+
+class ProcessConfigParseError(ProcessManagerError):
+    """Raised when persisted loop config is not valid JSON."""
+
+
+class ProcessConfigValidationError(ProcessManagerError):
+    """Raised when loop config payload fails validation."""
 
 
 def _is_zombie_pid(pid: int) -> bool:
@@ -171,6 +182,46 @@ async def inject_project_message(project_id: str, message: str) -> str:
 
     inject_file.write_text(payload, encoding="utf-8")
     return payload
+
+
+async def read_project_config(project_id: str) -> LoopConfig:
+    """Read .ralph/config.json or return default config if absent."""
+    project_path = await _resolve_project_path(project_id)
+    config_file = project_path / ".ralph" / "config.json"
+    if not config_file.exists() or not config_file.is_file():
+        return LoopConfig()
+
+    try:
+        parsed = json.loads(config_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ProcessConfigParseError(f"Invalid config.json: {exc.msg}") from exc
+    if not isinstance(parsed, dict):
+        raise ProcessConfigParseError("Invalid config.json: root must be an object")
+
+    try:
+        return LoopConfig.model_validate(parsed)
+    except ValidationError as exc:
+        raise ProcessConfigValidationError("Invalid config.json values") from exc
+
+
+async def write_project_config(
+    project_id: str, payload: LoopConfig | dict[str, object]
+) -> LoopConfig:
+    """Validate and persist .ralph/config.json."""
+    try:
+        config = payload if isinstance(payload, LoopConfig) else LoopConfig.model_validate(payload)
+    except ValidationError as exc:
+        raise ProcessConfigValidationError("Invalid config payload") from exc
+
+    project_path = await _resolve_project_path(project_id)
+    ralph_dir = project_path / ".ralph"
+    ralph_dir.mkdir(parents=True, exist_ok=True)
+    config_file = ralph_dir / "config.json"
+    config_file.write_text(
+        json.dumps(config.model_dump(mode="json"), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return config
 
 
 def terminate_pid(pid: int) -> None:

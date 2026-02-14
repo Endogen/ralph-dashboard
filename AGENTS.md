@@ -133,3 +133,4 @@ ralph-dashboard/
 - 2026-02-14: Stop logic treats `/proc/<pid>/stat` state `Z` as not running, which avoids false positives from zombie PIDs after SIGTERM/SIGKILL.
 - 2026-02-14: Pause/resume helpers are idempotent: pause creates/touches `.ralph/pause` and resume removes it, each returning whether state changed.
 - 2026-02-14: Injection helper rejects blank messages and appends new instructions to `.ralph/inject.md` when a prior pending injection already exists.
+- 2026-02-14: Loop config service reads/writes `.ralph/config.json` with defaults (`cli`, `flags`, `max_iterations`, `test_command`, `model_pricing`) and raises explicit parse/validation errors for invalid JSON or values.

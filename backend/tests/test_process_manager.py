@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
@@ -11,15 +12,19 @@ import pytest
 from app.config import get_settings
 from app.control.process_manager import (
     ProcessAlreadyRunningError,
+    ProcessConfigParseError,
+    ProcessConfigValidationError,
     ProcessInjectionValidationError,
     inject_project_message,
     is_project_running,
     pause_project_process,
+    read_project_config,
     read_project_pid,
     resume_project_process,
     start_project_process,
     stop_project_process,
     terminate_pid,
+    write_project_config,
 )
 
 
@@ -200,3 +205,76 @@ async def test_inject_project_message_rejects_empty_content(
 
     with pytest.raises(ProcessInjectionValidationError):
         await inject_project_message("control-project", "   ")
+
+
+@pytest.mark.anyio
+async def test_read_project_config_defaults_when_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, _ = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    config = await read_project_config("control-project")
+
+    assert config.cli == "codex"
+    assert config.flags == ""
+    assert config.max_iterations == 20
+    assert config.test_command == ""
+    assert config.model_pricing["codex"] == 0.006
+
+
+@pytest.mark.anyio
+async def test_write_project_config_round_trips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    written = await write_project_config(
+        "control-project",
+        {
+            "cli": "claude",
+            "flags": "--dangerously-skip-permissions",
+            "max_iterations": 42,
+            "test_command": "pytest -q",
+            "model_pricing": {"claude": 0.015},
+        },
+    )
+    loaded = await read_project_config("control-project")
+
+    config_file = project / ".ralph" / "config.json"
+    assert config_file.exists()
+    assert json.loads(config_file.read_text(encoding="utf-8")) == written.model_dump(mode="json")
+    assert loaded == written
+
+
+@pytest.mark.anyio
+async def test_read_project_config_rejects_invalid_json(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    (project / ".ralph" / "config.json").write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(ProcessConfigParseError):
+        await read_project_config("control-project")
+
+
+@pytest.mark.anyio
+async def test_write_project_config_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, _ = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    with pytest.raises(ProcessConfigValidationError):
+        await write_project_config("control-project", {"max_iterations": 0})
