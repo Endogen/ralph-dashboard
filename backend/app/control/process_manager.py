@@ -115,6 +115,7 @@ async def is_project_running(project_id: str) -> bool:
 async def start_project_process(
     project_id: str,
     command: list[str] | None = None,
+    env_overrides: dict[str, str] | None = None,
 ) -> ProcessStartResult:
     """Start Ralph loop subprocess and write .ralph/ralph.pid."""
     project_path = await _resolve_project_path(project_id)
@@ -130,6 +131,9 @@ async def start_project_process(
 
     resolved_command = command or _resolve_default_command(project_path)
     log_file = ralph_dir / "ralph.log"
+    launch_env = os.environ.copy()
+    if env_overrides:
+        launch_env.update(env_overrides)
     with log_file.open("a", encoding="utf-8") as log_handle:
         process = subprocess.Popen(  # noqa: S603
             resolved_command,
@@ -137,6 +141,7 @@ async def start_project_process(
             stdout=log_handle,
             stderr=log_handle,
             start_new_session=True,
+            env=launch_env,
         )
 
     pid_file.write_text(str(process.pid), encoding="utf-8")
@@ -222,6 +227,39 @@ async def write_project_config(
         encoding="utf-8",
     )
     return config
+
+
+async def start_project_loop(
+    project_id: str,
+    *,
+    max_iterations: int | None = None,
+    cli: str | None = None,
+    flags: str | None = None,
+    test_command: str | None = None,
+) -> ProcessStartResult:
+    """Start project loop using stored config values with optional request overrides."""
+    config = await read_project_config(project_id)
+    merged_config = config.model_copy(
+        update={
+            key: value
+            for key, value in {
+                "max_iterations": max_iterations,
+                "cli": cli,
+                "flags": flags,
+                "test_command": test_command,
+            }.items()
+            if value is not None
+        }
+    )
+
+    project_path = await _resolve_project_path(project_id)
+    command = [*_resolve_default_command(project_path), str(merged_config.max_iterations)]
+    env_overrides = {
+        "RALPH_CLI": merged_config.cli,
+        "RALPH_FLAGS": merged_config.flags,
+        "RALPH_TEST": merged_config.test_command,
+    }
+    return await start_project_process(project_id, command=command, env_overrides=env_overrides)
 
 
 def terminate_pid(pid: int) -> None:

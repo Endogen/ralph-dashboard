@@ -134,3 +134,4 @@ ralph-dashboard/
 - 2026-02-14: Pause/resume helpers are idempotent: pause creates/touches `.ralph/pause` and resume removes it, each returning whether state changed.
 - 2026-02-14: Injection helper rejects blank messages and appends new instructions to `.ralph/inject.md` when a prior pending injection already exists.
 - 2026-02-14: Loop config service reads/writes `.ralph/config.json` with defaults (`cli`, `flags`, `max_iterations`, `test_command`, `model_pricing`) and raises explicit parse/validation errors for invalid JSON or values.
+- 2026-02-14: Control API routes now live under `/api/projects/{project_id}` (`start`, `stop`, `pause`, `resume`, `inject`, `GET/PUT config`); start merges request overrides with persisted config and passes values via `RALPH_*` env vars.

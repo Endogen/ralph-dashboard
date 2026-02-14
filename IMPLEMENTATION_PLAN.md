@@ -51,7 +51,7 @@ STATUS: READY
 - [x] 7.3: Implement pause/resume (create/remove .ralph/pause file)
 - [x] 7.4: Implement inject (write .ralph/inject.md)
 - [x] 7.5: Implement config read/write (.ralph/config.json)
-- [ ] 7.6: Create control endpoints (start, stop, pause, resume, inject, config)
+- [x] 7.6: Create control endpoints (start, stop, pause, resume, inject, config)
 - [ ] 7.7: Add control tests
 
 ## Phase 8: WebSocket & File Watching
