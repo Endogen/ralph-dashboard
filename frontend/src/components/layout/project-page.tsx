@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom"
 
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
+import { StatusPanel } from "@/components/project/status-panel"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 
 export function ProjectPage() {
@@ -39,10 +40,20 @@ export function ProjectPage() {
       />
 
       <section className="rounded-xl border bg-card p-6">
-        <h2 className="text-lg font-semibold">Project Workspace</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tabs and detailed panels will be implemented in the next frontend phases.
-        </p>
+        <StatusPanel
+          status={status}
+          iterationLabel={iterationLabel}
+          runningFor={runtimeLabel}
+          cliLabel="codex"
+          modeLabel="BUILDING"
+        />
+
+        <div className="mt-4 rounded-xl border bg-background/50 p-4">
+          <h3 className="text-base font-semibold">Project Workspace</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Overview charts and activity widgets will be implemented in the next frontend phases.
+          </p>
+        </div>
         {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>}
       </section>
 
