@@ -129,3 +129,4 @@ ralph-dashboard/
 - 2026-02-14: Stats endpoint is available at `GET /api/projects/{project_id}/stats` and directly returns the aggregation model produced by `aggregate_project_stats`.
 - 2026-02-14: Notification history endpoint aggregates `.ralph/pending-notification.txt`, `.ralph/last-notification.txt`, and archived notification files, then sorts entries by timestamp descending.
 - 2026-02-14: Markdown report generation is available via `GET /api/projects/{project_id}/report`, combining project status, plan progress, iteration table, and error summary.
+- 2026-02-14: Process manager start writes `.ralph/ralph.pid`, rejects duplicate live PIDs, and defaults to `<project>/ralph.sh` with fallback to dashboard `scripts/ralph.sh`.

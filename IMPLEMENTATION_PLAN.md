@@ -46,7 +46,7 @@ STATUS: READY
 - [x] 6.5: Add stats tests
 
 ## Phase 7: Loop Control
-- [ ] 7.1: Implement process manager (start ralph.sh as subprocess, track PID)
+- [x] 7.1: Implement process manager (start ralph.sh as subprocess, track PID)
 - [ ] 7.2: Implement stop (SIGTERM/SIGKILL with grace period)
 - [ ] 7.3: Implement pause/resume (create/remove .ralph/pause file)
 - [ ] 7.4: Implement inject (write .ralph/inject.md)
