@@ -1,1 +1,1 @@
-"""Module package placeholder."""
+"""Project discovery package."""
