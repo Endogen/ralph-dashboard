@@ -182,3 +182,4 @@ ralph-dashboard/
 - 2026-02-14: AGENTS/PROMPT code editors now save via `PUT /api/projects/{id}/files/agents|prompt`, show per-file dirty markers (`*`), and disable save buttons until content changes.
 - 2026-02-14: Log viewer now renders terminal-styled output in `ProjectLogViewer`, hydrates iteration logs from `GET /api/projects/{id}/iterations` + per-iteration detail endpoints, and applies basic ANSI color/bold parsing for display.
 - 2026-02-14: Real-time log streaming now uses websocket `log_append` chunks; backend watcher tails `.ralph/ralph.log` incrementally with per-project byte offsets + partial-line buffering (including same-size rewrite detection via mtime), and `ProjectPage` forwards chunks into `ProjectLogViewer` for live appends.
+- 2026-02-14: `ProjectLogViewer` now supports follow-mode toggling (`Following`/`Manual`) and shows an in-panel `Scroll to bottom` button only when follow mode is off and the viewer is scrolled away from the latest lines.
