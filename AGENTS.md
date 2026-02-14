@@ -146,3 +146,4 @@ ralph-dashboard/
 - 2026-02-14: Frontend `AppLayout` now provides the phase-9 shell (sidebar + main content area), and routing reserves `/`, `/login`, and `/project/:id/*` for dashboard/auth/project detail flows.
 - 2026-02-14: Sidebar UI is now a dedicated `AppSidebar` component with status badges, project links, and an Add Project action slot; `AppLayout` currently seeds it with demo project rows pending Zustand/API wiring.
 - 2026-02-14: `ProjectTopBar` now renders project name, status badge, and quick stat chips (iteration/runtime/tokens/cost) and is mounted at the top of `ProjectPage` as the phase-9 top-bar scaffold.
+- 2026-02-14: `ProjectControlBar` now provides Start/Pause-Resume/Stop actions plus inject input/send and summary status text; `ProjectPage` wires demo values pending API/store hookup.
