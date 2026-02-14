@@ -28,6 +28,10 @@ class ProcessCommandNotFoundError(ProcessManagerError):
     """Raised when startup command/script cannot be located."""
 
 
+class ProcessInjectionValidationError(ProcessManagerError):
+    """Raised when injection text is invalid."""
+
+
 def _is_zombie_pid(pid: int) -> bool:
     stat_file = Path("/proc") / str(pid) / "stat"
     if not stat_file.exists() or not stat_file.is_file():
@@ -147,6 +151,26 @@ async def resume_project_process(project_id: str) -> bool:
         return False
     pause_file.unlink()
     return True
+
+
+async def inject_project_message(project_id: str, message: str) -> str:
+    """Write instruction text to .ralph/inject.md for next iteration."""
+    content = message.strip()
+    if not content:
+        raise ProcessInjectionValidationError("Injection message cannot be empty")
+
+    project_path = await _resolve_project_path(project_id)
+    ralph_dir = project_path / ".ralph"
+    ralph_dir.mkdir(parents=True, exist_ok=True)
+    inject_file = ralph_dir / "inject.md"
+    payload = f"{content}\n"
+    if inject_file.exists() and inject_file.is_file():
+        existing = inject_file.read_text(encoding="utf-8").rstrip()
+        if existing:
+            payload = f"{existing}\n\n{content}\n"
+
+    inject_file.write_text(payload, encoding="utf-8")
+    return payload
 
 
 def terminate_pid(pid: int) -> None:

@@ -11,6 +11,8 @@ import pytest
 from app.config import get_settings
 from app.control.process_manager import (
     ProcessAlreadyRunningError,
+    ProcessInjectionValidationError,
+    inject_project_message,
     is_project_running,
     pause_project_process,
     read_project_pid,
@@ -153,3 +155,48 @@ async def test_resume_project_process_removes_pause_file(
     assert resumed
     assert not resumed_again
     assert not pause_file.exists()
+
+
+@pytest.mark.anyio
+async def test_inject_project_message_writes_inject_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    written = await inject_project_message("control-project", "Use PostgreSQL for auth settings.")
+
+    inject_file = project / ".ralph" / "inject.md"
+    assert written == "Use PostgreSQL for auth settings.\n"
+    assert inject_file.read_text(encoding="utf-8") == written
+
+
+@pytest.mark.anyio
+async def test_inject_project_message_appends_if_pending_injection_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    await inject_project_message("control-project", "First instruction.")
+    combined = await inject_project_message("control-project", "Second instruction.")
+
+    assert combined == "First instruction.\n\nSecond instruction.\n"
+    assert (project / ".ralph" / "inject.md").read_text(encoding="utf-8") == combined
+
+
+@pytest.mark.anyio
+async def test_inject_project_message_rejects_empty_content(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, _ = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    with pytest.raises(ProcessInjectionValidationError):
+        await inject_project_message("control-project", "   ")

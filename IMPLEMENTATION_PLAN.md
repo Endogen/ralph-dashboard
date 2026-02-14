@@ -49,7 +49,7 @@ STATUS: READY
 - [x] 7.1: Implement process manager (start ralph.sh as subprocess, track PID)
 - [x] 7.2: Implement stop (SIGTERM/SIGKILL with grace period)
 - [x] 7.3: Implement pause/resume (create/remove .ralph/pause file)
-- [ ] 7.4: Implement inject (write .ralph/inject.md)
+- [x] 7.4: Implement inject (write .ralph/inject.md)
 - [ ] 7.5: Implement config read/write (.ralph/config.json)
 - [ ] 7.6: Create control endpoints (start, stop, pause, resume, inject, config)
 - [ ] 7.7: Add control tests
