@@ -165,3 +165,4 @@ ralph-dashboard/
 - 2026-02-14: Overview charts now live-refresh via a project-scoped `useWebSocket` subscription in `ProjectPage`; relevant events are debounced (300ms) before reloading iterations/stats/notifications.
 - 2026-02-14: `PlanRenderer` is now available with collapsible phase cards, per-phase progress bars, read-only task checkboxes (with indentation), and pending/in-progress/complete badges sourced from `/plan`.
 - 2026-02-14: Plan checkboxes are now interactive; `ProjectPage` maps phase/task to checkbox ordinal in `plan.raw`, patches markdown safely, saves via `PUT /plan`, then refreshes overview data.
+- 2026-02-14: Plan view now has a Monaco-powered raw markdown mode (`PlanMarkdownEditor`) with toggle + save flow (`PUT /plan`) and syncs back to rendered mode after successful save.

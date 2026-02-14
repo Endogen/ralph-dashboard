@@ -9,6 +9,7 @@ import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
 import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
+import { PlanMarkdownEditor } from "@/components/project/plan-markdown-editor"
 import { PlanRenderer } from "@/components/project/plan-renderer"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { StatsGrid } from "@/components/project/stats-grid"
@@ -103,10 +104,13 @@ export function ProjectPage() {
   const [iterations, setIterations] = useState<IterationSummary[]>([])
   const [notifications, setNotifications] = useState<NotificationEntry[]>([])
   const [plan, setPlan] = useState<ParsedImplementationPlan | null>(null)
+  const [planDraft, setPlanDraft] = useState("")
+  const [isRawPlanMode, setIsRawPlanMode] = useState(false)
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [isSavingPlanTask, setIsSavingPlanTask] = useState(false)
+  const [isSavingPlanRaw, setIsSavingPlanRaw] = useState(false)
   const [overviewRefreshToken, setOverviewRefreshToken] = useState(0)
   const refreshTimerRef = useRef<number | null>(null)
 
@@ -169,6 +173,8 @@ export function ProjectPage() {
         setIterations([])
         setNotifications([])
         setPlan(null)
+        setPlanDraft("")
+        setIsRawPlanMode(false)
         setStats(null)
         setOverviewError(null)
         setOverviewLoading(false)
@@ -192,6 +198,9 @@ export function ProjectPage() {
         setStats(statsResponse)
         setNotifications(notificationsResponse)
         setPlan(planResponse)
+        if (!isRawPlanMode) {
+          setPlanDraft(planResponse.raw)
+        }
       } catch (error) {
         if (cancelled) {
           return
@@ -201,6 +210,7 @@ export function ProjectPage() {
         setIterations([])
         setNotifications([])
         setPlan(null)
+        setPlanDraft("")
         setStats(null)
       } finally {
         if (!cancelled) {
@@ -214,7 +224,13 @@ export function ProjectPage() {
     return () => {
       cancelled = true
     }
-  }, [id, overviewRefreshToken])
+  }, [id, isRawPlanMode, overviewRefreshToken])
+
+  useEffect(() => {
+    if (plan && !isRawPlanMode) {
+      setPlanDraft(plan.raw)
+    }
+  }, [isRawPlanMode, plan])
 
   const handleTogglePlanTask = useCallback(
     async (phaseIndex: number, taskIndex: number, nextDone: boolean) => {
@@ -243,6 +259,9 @@ export function ProjectPage() {
           body: JSON.stringify({ content: nextContent }),
         })
         setPlan(updatedPlan)
+        if (!isRawPlanMode) {
+          setPlanDraft(updatedPlan.raw)
+        }
         setOverviewError(null)
         queueOverviewRefresh()
       } catch (error) {
@@ -252,8 +271,39 @@ export function ProjectPage() {
         setIsSavingPlanTask(false)
       }
     },
-    [id, plan, queueOverviewRefresh],
+    [id, isRawPlanMode, plan, queueOverviewRefresh],
   )
+
+  const handleSavePlanRaw = useCallback(async () => {
+    if (!id) {
+      return
+    }
+
+    setIsSavingPlanRaw(true)
+    try {
+      const updatedPlan = await apiFetch<ParsedImplementationPlan>(`/projects/${id}/plan`, {
+        method: "PUT",
+        body: JSON.stringify({ content: planDraft }),
+      })
+      setPlan(updatedPlan)
+      setPlanDraft(updatedPlan.raw)
+      setIsRawPlanMode(false)
+      setOverviewError(null)
+      queueOverviewRefresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save plan markdown"
+      setOverviewError(message)
+    } finally {
+      setIsSavingPlanRaw(false)
+    }
+  }, [id, planDraft, queueOverviewRefresh])
+
+  const toggleRawPlanMode = useCallback(() => {
+    if (!isRawPlanMode && plan) {
+      setPlanDraft(plan.raw)
+    }
+    setIsRawPlanMode((current) => !current)
+  }, [isRawPlanMode, plan])
 
   const sortedIterations = [...iterations].sort((left, right) => left.number - right.number)
   const latestIteration = sortedIterations[sortedIterations.length - 1]
@@ -329,18 +379,37 @@ export function ProjectPage() {
         </div>
 
         <div className="mt-4">
-          <PlanRenderer
-            plan={plan}
-            isLoading={overviewLoading}
-            onToggleTask={handleTogglePlanTask}
-            isSavingTask={isSavingPlanTask}
-          />
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={toggleRawPlanMode}
+              className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-background/80"
+            >
+              {isRawPlanMode ? "Rendered View" : "Raw Markdown Mode"}
+            </button>
+          </div>
+
+          {isRawPlanMode ? (
+            <PlanMarkdownEditor
+              value={planDraft}
+              onChange={setPlanDraft}
+              onSave={handleSavePlanRaw}
+              isSaving={isSavingPlanRaw}
+            />
+          ) : (
+            <PlanRenderer
+              plan={plan}
+              isLoading={overviewLoading}
+              onToggleTask={handleTogglePlanTask}
+              isSavingTask={isSavingPlanTask || isSavingPlanRaw}
+            />
+          )}
         </div>
 
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
           <h3 className="text-base font-semibold">Next Plan Enhancements</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Raw markdown editor mode and task metadata display are queued in tasks 12.3 and 12.4.
+            Task metadata display is queued in task 12.4.
           </p>
         </div>
         {(projectLoading || overviewLoading) && (
