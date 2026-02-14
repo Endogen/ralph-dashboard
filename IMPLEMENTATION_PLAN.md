@@ -61,7 +61,7 @@ STATUS: READY
 - [x] 8.4: Connect file watcher to plan parser → emit plan events
 - [x] 8.5: Connect file watcher to notification/status detection → emit events
 - [x] 8.6: Implement WebSocket authentication (token validation on connect)
-- [ ] 8.7: Add WebSocket tests
+- [x] 8.7: Add WebSocket tests
 
 ## Phase 9: Frontend Core Layout
 - [ ] 9.1: Create app layout (sidebar + main content area + routing)

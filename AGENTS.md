@@ -142,3 +142,4 @@ ralph-dashboard/
 - 2026-02-14: `IMPLEMENTATION_PLAN.md` watcher events are parsed and emitted as websocket `plan_updated` payloads with per-phase done/total/status; duplicate snapshots are suppressed per project.
 - 2026-02-14: Watcher dispatch now emits websocket `notification` from `.ralph/pending-notification.txt`, `status_changed` when `.ralph/ralph.pid`/`.ralph/pause`/plan changes alter detected status, and `file_changed` for other watched files.
 - 2026-02-14: WebSocket connection at `/api/ws` now requires a valid `token` query parameter; missing or invalid JWTs are rejected before joining the hub.
+- 2026-02-14: WebSocket tests (`backend/tests/test_ws.py`) use async fake socket objects (no `TestClient`/`httpx`) to validate hub subscription filtering, event envelopes, auth rejection, and protocol actions (`subscribe`/`unsubscribe`/`ping`).
