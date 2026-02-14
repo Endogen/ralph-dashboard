@@ -81,7 +81,7 @@ STATUS: READY
 
 ## Phase 11: Overview Tab
 - [x] 11.1: Build status panel (large status badge, iteration, running time, CLI info)
-- [ ] 11.2: Build stats grid (8 stat cards with icons)
+- [x] 11.2: Build stats grid (8 stat cards with icons)
 - [ ] 11.3: Build progress timeline chart (Recharts ComposedChart: tasks area + tokens bar + projection)
 - [ ] 11.4: Build task burndown chart (ideal vs actual)
 - [ ] 11.5: Build token usage by phase pie chart

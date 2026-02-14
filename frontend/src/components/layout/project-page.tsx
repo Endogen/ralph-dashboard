@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom"
 
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
+import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 
@@ -47,6 +48,19 @@ export function ProjectPage() {
           cliLabel="codex"
           modeLabel="BUILDING"
         />
+
+        <div className="mt-4">
+          <StatsGrid
+            totalTokens={tokensUsed}
+            estimatedCostUsd={estimatedCostUsd}
+            iterationsCompleted={15}
+            averageIterationDuration="2m 34s"
+            tasksCompleted={12}
+            tasksTotal={34}
+            errorCount={1}
+            successRate={93.3}
+          />
+        </div>
 
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
           <h3 className="text-base font-semibold">Project Workspace</h3>
