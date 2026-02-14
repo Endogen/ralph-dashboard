@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom"
 import { apiFetch } from "@/api/client"
 import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
 import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
+import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { StatsGrid } from "@/components/project/stats-grid"
@@ -162,13 +163,7 @@ export function ProjectPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <TaskBurndownChart iterations={sortedIterations} tasksTotal={tasksTotal} />
-
-          <section className="rounded-xl border bg-background/50 p-4">
-            <h3 className="text-base font-semibold">Token Usage by Phase</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Phase-token donut visualization is queued in task 11.5.
-            </p>
-          </section>
+          <TokenUsagePhaseChart data={stats?.tokens_by_phase ?? []} totalTokens={tokensUsed} />
         </div>
 
         <div className="mt-4 rounded-xl border bg-background/50 p-4">
