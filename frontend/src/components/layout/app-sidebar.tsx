@@ -39,7 +39,7 @@ export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
     }`
 
   return (
-    <aside className="hidden w-72 flex-col rounded-2xl border bg-card/70 p-4 shadow-sm md:flex">
+    <aside className="hidden w-72 flex-col rounded-2xl border bg-card/75 p-4 shadow-xl shadow-slate-200/35 backdrop-blur-sm dark:shadow-slate-950/35 md:flex">
       <header className="space-y-1 border-b pb-4">
         <h1 className="text-lg font-semibold tracking-tight">Ralph Dashboard</h1>
         <p className="text-xs text-muted-foreground">Projects</p>
