@@ -179,3 +179,4 @@ ralph-dashboard/
 - 2026-02-14: Code panel now includes side-by-side Monaco editors for `AGENTS.md` and `PROMPT.md`, loaded from `GET /api/projects/{id}/files/agents|prompt`, with save/inject/git actions queued for later phase-15 tasks.
 - 2026-02-14: Code panel now includes an inject message box that posts to `POST /api/projects/{id}/inject`, with inline send status and response/error feedback.
 - 2026-02-14: Code panel now includes git history from `GET /api/projects/{id}/git/log` with expandable commit rows that lazy-load diffs via `GET /api/projects/{id}/git/diff/{hash}` and render through `GitDiffViewer`.
+- 2026-02-14: AGENTS/PROMPT code editors now save via `PUT /api/projects/{id}/files/agents|prompt`, show per-file dirty markers (`*`), and disable save buttons until content changes.

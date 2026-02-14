@@ -30,8 +30,13 @@ function formatCommitDate(value: string): string {
 export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
   const [agentsContent, setAgentsContent] = useState("")
   const [promptContent, setPromptContent] = useState("")
+  const [agentsSavedContent, setAgentsSavedContent] = useState("")
+  const [promptSavedContent, setPromptSavedContent] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSavingAgents, setIsSavingAgents] = useState(false)
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [injectText, setInjectText] = useState("")
   const [isInjecting, setIsInjecting] = useState(false)
   const [injectResult, setInjectResult] = useState<string | null>(null)
@@ -50,6 +55,8 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       if (!projectId) {
         setAgentsContent("")
         setPromptContent("")
+        setAgentsSavedContent("")
+        setPromptSavedContent("")
         setIsLoading(false)
         setError(null)
         return
@@ -67,6 +74,8 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
         }
         setAgentsContent(agentsResponse.content)
         setPromptContent(promptResponse.content)
+        setAgentsSavedContent(agentsResponse.content)
+        setPromptSavedContent(promptResponse.content)
       } catch (loadError) {
         if (cancelled) {
           return
@@ -74,6 +83,8 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
         const message = loadError instanceof Error ? loadError.message : "Failed to load AGENTS.md and PROMPT.md"
         setAgentsContent("")
         setPromptContent("")
+        setAgentsSavedContent("")
+        setPromptSavedContent("")
         setError(message)
       } finally {
         if (!cancelled) {
@@ -161,6 +172,55 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
     }
   }, [injectText, projectId])
 
+  const handleSaveAgents = useCallback(async () => {
+    if (!projectId || agentsContent === agentsSavedContent) {
+      return
+    }
+
+    setIsSavingAgents(true)
+    setSaveMessage(null)
+    try {
+      const response = await apiFetch<ProjectFileContent>(`/projects/${projectId}/files/agents`, {
+        method: "PUT",
+        body: JSON.stringify({ content: agentsContent }),
+      })
+      setAgentsContent(response.content)
+      setAgentsSavedContent(response.content)
+      setSaveMessage("Saved AGENTS.md")
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to save AGENTS.md"
+      setSaveMessage(message)
+    } finally {
+      setIsSavingAgents(false)
+    }
+  }, [agentsContent, agentsSavedContent, projectId])
+
+  const handleSavePrompt = useCallback(async () => {
+    if (!projectId || promptContent === promptSavedContent) {
+      return
+    }
+
+    setIsSavingPrompt(true)
+    setSaveMessage(null)
+    try {
+      const response = await apiFetch<ProjectFileContent>(`/projects/${projectId}/files/prompt`, {
+        method: "PUT",
+        body: JSON.stringify({ content: promptContent }),
+      })
+      setPromptContent(response.content)
+      setPromptSavedContent(response.content)
+      setSaveMessage("Saved PROMPT.md")
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to save PROMPT.md"
+      setSaveMessage(message)
+    } finally {
+      setIsSavingPrompt(false)
+    }
+  }, [projectId, promptContent, promptSavedContent])
+
+  const agentsDirty = agentsContent !== agentsSavedContent
+  const promptDirty = promptContent !== promptSavedContent
+
   const loadCommitDiff = useCallback(
     async (commitHash: string) => {
       if (!projectId || diffByCommit[commitHash] !== undefined || diffLoading[commitHash]) {
@@ -197,7 +257,7 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       <header className="mb-3">
         <h3 className="text-base font-semibold">Code Files</h3>
         <p className="text-sm text-muted-foreground">
-          Side-by-side AGENTS.md and PROMPT.md editors. Save/inject/git features follow in phase 15.2+.
+          Side-by-side AGENTS.md and PROMPT.md editors with runtime inject and git history tooling.
         </p>
       </header>
 
@@ -213,7 +273,17 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             <article className="rounded-lg border bg-background/30 p-3">
-              <p className="mb-2 font-mono text-sm">AGENTS.md</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="font-mono text-sm">AGENTS.md{agentsDirty ? " *" : ""}</p>
+                <button
+                  type="button"
+                  onClick={handleSaveAgents}
+                  disabled={isSavingAgents || !agentsDirty}
+                  className="rounded-md border bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingAgents ? "Saving..." : "Save"}
+                </button>
+              </div>
               <div className="h-[420px] overflow-hidden rounded-lg border">
                 <Editor
                   height="100%"
@@ -233,7 +303,17 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
             </article>
 
             <article className="rounded-lg border bg-background/30 p-3">
-              <p className="mb-2 font-mono text-sm">PROMPT.md</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="font-mono text-sm">PROMPT.md{promptDirty ? " *" : ""}</p>
+                <button
+                  type="button"
+                  onClick={handleSavePrompt}
+                  disabled={isSavingPrompt || !promptDirty}
+                  className="rounded-md border bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingPrompt ? "Saving..." : "Save"}
+                </button>
+              </div>
               <div className="h-[420px] overflow-hidden rounded-lg border">
                 <Editor
                   height="100%"
@@ -252,6 +332,7 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
               </div>
             </article>
           </div>
+          {saveMessage && <p className="text-xs text-muted-foreground">{saveMessage}</p>}
 
           <section className="rounded-lg border bg-background/30 p-3">
             <p className="text-sm font-semibold">Inject Message</p>
