@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { MoonStar, Settings2, Sun } from "lucide-react"
-import { Outlet } from "react-router-dom"
+import { FolderPlus, MoonStar, Settings2, Sun } from "lucide-react"
+import { NavLink, Outlet } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
@@ -10,6 +10,14 @@ import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
 import type { ProjectStatus } from "@/types/project"
+
+const mobileStatusClass: Record<ProjectStatus, string> = {
+  running: "bg-emerald-500",
+  paused: "bg-amber-500",
+  stopped: "bg-slate-400",
+  complete: "bg-teal-500",
+  error: "bg-rose-500",
+}
 
 export function AppLayout() {
   const [addProjectOpen, setAddProjectOpen] = useState(false)
@@ -110,6 +118,51 @@ export function AppLayout() {
               <Settings2 className="h-4 w-4 text-muted-foreground" />
             </div>
           </header>
+
+          <section className="space-y-2 md:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `rounded-md border px-3 py-2 text-sm font-medium ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background/70 text-muted-foreground"
+                  }`
+                }
+              >
+                Dashboard
+              </NavLink>
+              <button
+                type="button"
+                onClick={() => setAddProjectOpen(true)}
+                className="flex items-center gap-1 rounded-md border bg-background/70 px-3 py-2 text-sm font-medium text-muted-foreground"
+              >
+                <FolderPlus className="h-4 w-4" />
+                Add
+              </button>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {projects.map((project) => (
+                <NavLink
+                  key={project.id}
+                  to={`/project/${project.id}`}
+                  className={({ isActive }) =>
+                    `flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                      isActive
+                        ? "bg-primary/15 text-foreground"
+                        : "bg-background/60 text-muted-foreground"
+                    }`
+                  }
+                >
+                  <span className={`h-2 w-2 rounded-full ${mobileStatusClass[project.status]}`} />
+                  <span className="max-w-[160px] truncate">{project.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </section>
 
           <section className="flex-1">
             <Outlet />

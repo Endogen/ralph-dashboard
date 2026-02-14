@@ -195,3 +195,4 @@ ralph-dashboard/
 - 2026-02-14: Status detection now clears stale/invalid `.ralph/ralph.pid` files (including zombie PIDs), and project overview loading now degrades gracefully by keeping partial data when one endpoint fails instead of blanking the entire page.
 - 2026-02-14: Added reusable `Skeleton` UI primitive and replaced plain loading copy with dashboard card skeletons plus an initial project-page skeleton layout for smoother perceived load behavior.
 - 2026-02-14: Toast notification infrastructure now uses Zustand (`useToastStore`) with a global `ToastRegion`; add-project, specs CRUD/save, code-file save/inject, plan save failures, and config save/copy actions now emit success/error toasts.
+- 2026-02-14: Mobile-responsive navigation now appears in `AppLayout` when the sidebar is hidden, exposing dashboard/project quick links and add-project action so core routing remains usable on small screens.
