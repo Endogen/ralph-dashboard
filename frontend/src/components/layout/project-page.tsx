@@ -16,6 +16,7 @@ import { IterationsTable } from "@/components/project/iterations-table"
 import { SpecFileBrowser } from "@/components/project/spec-file-browser"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
+import { CodeFilesPane } from "@/components/project/code-files-pane"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import type {
@@ -443,6 +444,10 @@ export function ProjectPage() {
 
         <div className="mt-4">
           <SpecFileBrowser projectId={id} />
+        </div>
+
+        <div className="mt-4">
+          <CodeFilesPane projectId={id} />
         </div>
         {(projectLoading || overviewLoading) && (
           <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>

@@ -53,6 +53,11 @@ export type SpecFileContent = {
   content: string
 }
 
+export type ProjectFileContent = {
+  name: string
+  content: string
+}
+
 export type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number

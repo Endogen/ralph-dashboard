@@ -176,3 +176,4 @@ ralph-dashboard/
 - 2026-02-14: Specs panel now loads selected files via `GET /api/projects/{id}/specs/{name}` into Monaco (`@monaco-editor/react`) for in-place markdown editing ahead of save/create/delete work.
 - 2026-02-14: Specs panel create/delete is wired to `POST /api/projects/{id}/specs` and `DELETE /api/projects/{id}/specs/{name}` with client-side list updates, default markdown content for new files, and confirmation before delete.
 - 2026-02-14: Specs editor now supports `PUT /api/projects/{id}/specs/{name}` saves, unsaved-change indicators, and keyboard save shortcut (`Ctrl+S`/`Cmd+S`) scoped to the selected spec file.
+- 2026-02-14: Code panel now includes side-by-side Monaco editors for `AGENTS.md` and `PROMPT.md`, loaded from `GET /api/projects/{id}/files/agents|prompt`, with save/inject/git actions queued for later phase-15 tasks.
