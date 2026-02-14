@@ -17,6 +17,17 @@ def _read_pid(pid_file: Path) -> int | None:
         return None
 
 
+def _is_zombie_pid(pid: int) -> bool:
+    stat_file = Path("/proc") / str(pid) / "stat"
+    if not stat_file.exists() or not stat_file.is_file():
+        return False
+    try:
+        state = stat_file.read_text(encoding="utf-8").split()[2]
+    except (OSError, IndexError):
+        return False
+    return state == "Z"
+
+
 def _is_process_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -24,14 +35,23 @@ def _is_process_alive(pid: int) -> bool:
         return False
     except PermissionError:
         return True
+    if _is_zombie_pid(pid):
+        return False
     return True
 
 
 def _is_running(ralph_dir: Path) -> bool:
-    pid = _read_pid(ralph_dir / "ralph.pid")
+    pid_file = ralph_dir / "ralph.pid"
+    pid = _read_pid(pid_file)
     if pid is None:
+        if pid_file.exists() and pid_file.is_file():
+            pid_file.unlink(missing_ok=True)
         return False
-    return _is_process_alive(pid)
+    if _is_process_alive(pid):
+        return True
+
+    pid_file.unlink(missing_ok=True)
+    return False
 
 
 def _is_plan_complete(project_path: Path) -> bool:

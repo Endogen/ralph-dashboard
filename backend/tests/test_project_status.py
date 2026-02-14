@@ -43,10 +43,22 @@ def test_detect_complete_status(tmp_path: Path) -> None:
 
 def test_detect_stopped_status_with_stale_pid(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
-    (project / ".ralph" / "ralph.pid").write_text("999999", encoding="utf-8")
+    pid_file = project / ".ralph" / "ralph.pid"
+    pid_file.write_text("999999", encoding="utf-8")
 
     status = detect_project_status(project)
     assert status == ProjectStatus.stopped
+    assert not pid_file.exists()
+
+
+def test_detect_stopped_status_with_invalid_pid_content(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    pid_file = project / ".ralph" / "ralph.pid"
+    pid_file.write_text("not-a-pid", encoding="utf-8")
+
+    status = detect_project_status(project)
+    assert status == ProjectStatus.stopped
+    assert not pid_file.exists()
 
 
 def test_build_project_summary(tmp_path: Path) -> None:

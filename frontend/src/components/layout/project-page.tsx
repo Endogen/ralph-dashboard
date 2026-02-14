@@ -237,7 +237,7 @@ export function ProjectPage() {
       setOverviewError(null)
 
       try {
-        const [iterationsResponse, statsResponse, notificationsResponse, planResponse] = await Promise.all([
+        const [iterationsResult, statsResult, notificationsResult, planResult] = await Promise.allSettled([
           apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
           apiFetch<ProjectStats>(`/projects/${id}/stats`),
           apiFetch<NotificationEntry[]>(`/projects/${id}/notifications`),
@@ -246,12 +246,45 @@ export function ProjectPage() {
         if (cancelled) {
           return
         }
-        setIterations(iterationsResponse.iterations)
-        setStats(statsResponse)
-        setNotifications(notificationsResponse)
-        setPlan(planResponse)
-        if (!isRawPlanMode) {
-          setPlanDraft(planResponse.raw)
+
+        const errorMessages: string[] = []
+
+        if (iterationsResult.status === "fulfilled") {
+          setIterations(iterationsResult.value.iterations)
+        } else {
+          setIterations([])
+          errorMessages.push("iterations")
+        }
+
+        if (statsResult.status === "fulfilled") {
+          setStats(statsResult.value)
+        } else {
+          setStats(null)
+          errorMessages.push("stats")
+        }
+
+        if (notificationsResult.status === "fulfilled") {
+          setNotifications(notificationsResult.value)
+        } else {
+          setNotifications([])
+          errorMessages.push("notifications")
+        }
+
+        if (planResult.status === "fulfilled") {
+          setPlan(planResult.value)
+          if (!isRawPlanMode) {
+            setPlanDraft(planResult.value.raw)
+          }
+        } else {
+          setPlan(null)
+          if (!isRawPlanMode) {
+            setPlanDraft("")
+          }
+          errorMessages.push("plan")
+        }
+
+        if (errorMessages.length > 0) {
+          setOverviewError(`Partial data unavailable (${errorMessages.join(", ")}).`)
         }
       } catch (error) {
         if (cancelled) {

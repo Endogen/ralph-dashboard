@@ -140,7 +140,7 @@ STATUS: READY
 - [x] 19.1: Set up nginx config for ralph.xian.technology reverse proxy
 - [x] 19.2: End-to-end testing with a real project (use antique-catalogue data)
 - [x] 19.3: Dark mode theming and visual polish
-- [ ] 19.4: Error handling and edge cases (no data, empty projects, stale PIDs)
+- [x] 19.4: Error handling and edge cases (no data, empty projects, stale PIDs)
 - [ ] 19.5: Loading states and skeleton screens
 - [ ] 19.6: Toast notifications for user actions
 - [ ] 19.7: Responsive layout adjustments
