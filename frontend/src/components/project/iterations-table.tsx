@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 
 import { apiFetch } from "@/api/client"
+import { GitDiffViewer } from "@/components/project/git-diff-viewer"
 import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
-import type { IterationDetail, IterationSummary } from "@/types/project"
+import type { GitCommitDiff, IterationDetail, IterationSummary } from "@/types/project"
 
 type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
 type SortDirection = "asc" | "desc"
@@ -167,12 +168,18 @@ export function IterationsTable({
   const [iterationDetails, setIterationDetails] = useState<Record<number, IterationDetail>>({})
   const [detailLoading, setDetailLoading] = useState<Record<number, boolean>>({})
   const [detailErrors, setDetailErrors] = useState<Record<number, string>>({})
+  const [diffByCommit, setDiffByCommit] = useState<Record<string, string>>({})
+  const [diffLoading, setDiffLoading] = useState<Record<string, boolean>>({})
+  const [diffErrors, setDiffErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setExpandedRows({})
     setIterationDetails({})
     setDetailLoading({})
     setDetailErrors({})
+    setDiffByCommit({})
+    setDiffLoading({})
+    setDiffErrors({})
   }, [projectId])
 
   const loadIterationDetail = useCallback(
@@ -195,6 +202,36 @@ export function IterationsTable({
       }
     },
     [detailLoading, iterationDetails, projectId],
+  )
+
+  const loadCommitDiff = useCallback(
+    async (commitHash: string) => {
+      const normalizedCommitHash = commitHash.trim()
+      if (
+        !projectId ||
+        !normalizedCommitHash ||
+        diffByCommit[normalizedCommitHash] !== undefined ||
+        diffLoading[normalizedCommitHash]
+      ) {
+        return
+      }
+
+      setDiffLoading((current) => ({ ...current, [normalizedCommitHash]: true }))
+      setDiffErrors((current) => ({ ...current, [normalizedCommitHash]: "" }))
+
+      try {
+        const payload = await apiFetch<GitCommitDiff>(
+          `/projects/${projectId}/git/diff/${encodeURIComponent(normalizedCommitHash)}`,
+        )
+        setDiffByCommit((current) => ({ ...current, [normalizedCommitHash]: payload.diff }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load commit diff"
+        setDiffErrors((current) => ({ ...current, [normalizedCommitHash]: message }))
+      } finally {
+        setDiffLoading((current) => ({ ...current, [normalizedCommitHash]: false }))
+      }
+    },
+    [diffByCommit, diffLoading, projectId],
   )
 
   const sortedIterations = useMemo(() => {
@@ -245,7 +282,8 @@ export function IterationsTable({
     setSortDirection(nextSort === "number" ? "desc" : "asc")
   }
 
-  const toggleRow = (iterationNumber: number) => {
+  const toggleRow = (iteration: IterationSummary) => {
+    const iterationNumber = iteration.number
     const currentlyExpanded = Boolean(expandedRows[iterationNumber])
     setExpandedRows((current) => ({ ...current, [iterationNumber]: !current[iterationNumber] }))
 
@@ -258,6 +296,9 @@ export function IterationsTable({
         return
       }
       void loadIterationDetail(iterationNumber)
+      if (iteration.commit) {
+        void loadCommitDiff(iteration.commit)
+      }
     }
   }
 
@@ -266,7 +307,7 @@ export function IterationsTable({
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iterations</h3>
         <p className="text-sm text-muted-foreground">
-          Sortable iteration history with health scoring and expandable terminal log output.
+          Sortable iteration history with health scoring, terminal logs, and syntax-highlighted git diffs.
         </p>
       </header>
 
@@ -316,7 +357,7 @@ export function IterationsTable({
                       <td className="px-3 py-2 font-mono text-xs">
                         <button
                           type="button"
-                          onClick={() => toggleRow(iteration.number)}
+                          onClick={() => toggleRow(iteration)}
                           className="mr-1 text-muted-foreground hover:text-foreground"
                           aria-label={`Toggle details for iteration ${iteration.number}`}
                           title={isExpanded ? "Collapse details" : "Expand details"}
@@ -382,6 +423,20 @@ export function IterationsTable({
                               </pre>
                             )}
                           </div>
+                          {iteration.commit ? (
+                            <div className="mt-3">
+                              <GitDiffViewer
+                                commitHash={iteration.commit}
+                                diff={diffByCommit[iteration.commit] ?? null}
+                                isLoading={Boolean(diffLoading[iteration.commit])}
+                                error={diffErrors[iteration.commit] ?? null}
+                              />
+                            </div>
+                          ) : (
+                            <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-400">
+                              No commit recorded for this iteration.
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}

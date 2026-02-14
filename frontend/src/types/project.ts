@@ -37,6 +37,11 @@ export type IterationDetail = IterationSummary & {
   log_output: string
 }
 
+export type GitCommitDiff = {
+  hash: string
+  diff: string
+}
+
 export type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number
