@@ -70,12 +70,31 @@ def _build_iteration_map(
     return merged
 
 
+MAX_LOG_PARSE_BYTES = 20 * 1024 * 1024  # Only parse log files under 20 MB
+
+
+def _safe_parse_log(log_file: Path) -> list[ParsedLogIteration]:
+    """Parse log file only if it's small enough to avoid memory issues."""
+    if not log_file.exists():
+        return []
+    try:
+        if log_file.stat().st_size > MAX_LOG_PARSE_BYTES:
+            return []
+    except OSError:
+        return []
+    return parse_ralph_log_file(log_file)
+
+
 async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     """List merged iteration summaries for a project."""
     project_path = await _resolve_project_path(project_id)
     ralph_dir = project_path / ".ralph"
-    log_iterations = parse_ralph_log_file(ralph_dir / "ralph.log")
     jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
+
+    # Prefer jsonl data; only parse log if jsonl is empty and log is small
+    log_iterations = (
+        _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
+    )
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     details = [merged[number] for number in sorted(merged)]
@@ -88,8 +107,12 @@ async def get_project_iteration_detail(
     """Get merged iteration detail for a specific iteration number."""
     project_path = await _resolve_project_path(project_id)
     ralph_dir = project_path / ".ralph"
-    log_iterations = parse_ralph_log_file(ralph_dir / "ralph.log")
     jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
+
+    # Prefer jsonl data; only parse log if jsonl is empty and log is small
+    log_iterations = (
+        _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
+    )
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     return merged.get(iteration_number)
