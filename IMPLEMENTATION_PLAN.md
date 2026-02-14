@@ -32,7 +32,7 @@ STATUS: READY
 - [x] 4.6: Add parser tests (use sample data from antique-catalogue as test fixtures)
 
 ## Phase 5: File & Git Endpoints
-- [ ] 5.1: Implement file read/write endpoints (AGENTS.md, PROMPT.md)
+- [x] 5.1: Implement file read/write endpoints (AGENTS.md, PROMPT.md)
 - [ ] 5.2: Implement specs CRUD endpoints (list, read, create, update, delete)
 - [ ] 5.3: Implement git service (log with stats, diff for specific commits)
 - [ ] 5.4: Implement git endpoints

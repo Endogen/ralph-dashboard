@@ -1,1 +1,1 @@
-"""Module package placeholder."""
+"""Project file read/write package."""

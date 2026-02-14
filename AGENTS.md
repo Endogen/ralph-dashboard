@@ -122,3 +122,4 @@ ralph-dashboard/
 - 2026-02-14: Iteration endpoints merge `.ralph/ralph.log` and `.ralph/iterations.jsonl` by iteration number; JSONL fields override summary metadata while log data provides `log_output`.
 - 2026-02-14: `PUT /api/projects/{id}/plan` writes raw markdown to `IMPLEMENTATION_PLAN.md` and returns the freshly parsed structure from the submitted content.
 - 2026-02-14: Parser fixture tests use `backend/tests/fixtures/antique-catalogue/`; log header parsing now strips ANSI color codes before matching iteration markers.
+- 2026-02-14: File endpoints map aliases `agents`/`prompt` to `AGENTS.md`/`PROMPT.md` under each resolved project path and return `{name, content}` payloads.
