@@ -10,6 +10,7 @@ from pydantic import BaseModel
 ITERATION_HEADER_RE = re.compile(
     r"^\[(?P<timestamp>\d{2}:\d{2}:\d{2})\]\s+=== Iteration (?P<number>\d+)/(?P<max>\d+) ===$"
 )
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 TOKEN_NUMBER_RE = re.compile(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?")
 ERROR_LINE_RE = re.compile(
     r"(⚠️|❌|\berror\b|\bexception\b|\bfailed\b|\btraceback\b|\bcrash\b)", re.I
@@ -48,12 +49,16 @@ def _extract_error_lines(iteration_lines: list[str]) -> list[str]:
     return errors
 
 
+def _strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", text)
+
+
 def parse_ralph_log(content: str) -> list[ParsedLogIteration]:
     """Parse raw ralph.log text into per-iteration structured records."""
     lines = content.splitlines()
     markers: list[tuple[int, re.Match[str]]] = []
     for index, line in enumerate(lines):
-        match = ITERATION_HEADER_RE.match(line.strip())
+        match = ITERATION_HEADER_RE.match(_strip_ansi(line).strip())
         if match is not None:
             markers.append((index, match))
 
