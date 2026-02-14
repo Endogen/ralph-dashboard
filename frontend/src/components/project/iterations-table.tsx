@@ -7,6 +7,8 @@ import type { GitCommitDiff, IterationDetail, IterationSummary } from "@/types/p
 
 type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
 type SortDirection = "asc" | "desc"
+type StatusFilter = "all" | "success" | "error"
+type HealthFilter = "all" | "productive" | "partial" | "failed"
 
 type IterationsTableProps = {
   iterations: IterationSummary[]
@@ -164,6 +166,9 @@ export function IterationsTable({
 }: IterationsTableProps) {
   const [sortKey, setSortKey] = useState<IterationSortKey>("number")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all")
+  const [searchFilter, setSearchFilter] = useState("")
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
   const [iterationDetails, setIterationDetails] = useState<Record<number, IterationDetail>>({})
   const [detailLoading, setDetailLoading] = useState<Record<number, boolean>>({})
@@ -180,6 +185,9 @@ export function IterationsTable({
     setDiffByCommit({})
     setDiffLoading({})
     setDiffErrors({})
+    setStatusFilter("all")
+    setHealthFilter("all")
+    setSearchFilter("")
   }, [projectId])
 
   const loadIterationDetail = useCallback(
@@ -234,8 +242,75 @@ export function IterationsTable({
     [diffByCommit, diffLoading, projectId],
   )
 
+  const normalizedSearch = searchFilter.trim().toLowerCase()
+
+  const filteredIterations = useMemo(() => {
+    return iterations.filter((iteration) => {
+      if (statusFilter === "success" && (iteration.has_errors || iteration.status !== "success")) {
+        return false
+      }
+      if (statusFilter === "error" && !iteration.has_errors && iteration.status !== "error") {
+        return false
+      }
+
+      const health = evaluateIterationHealth(iteration)
+      if (healthFilter !== "all" && health.level !== healthFilter) {
+        return false
+      }
+
+      if (!normalizedSearch) {
+        return true
+      }
+
+      const detailLog = iterationDetails[iteration.number]?.log_output ?? ""
+      const searchable = [
+        iteration.number.toString(),
+        iteration.status ?? "",
+        iteration.commit ?? "",
+        iteration.tasks_completed.join(" "),
+        health.label,
+        detailLog,
+      ]
+        .join(" ")
+        .toLowerCase()
+
+      return searchable.includes(normalizedSearch)
+    })
+  }, [healthFilter, iterationDetails, iterations, normalizedSearch, statusFilter])
+
+  useEffect(() => {
+    if (!projectId || !normalizedSearch) {
+      return
+    }
+
+    const missingIterationNumbers = iterations
+      .map((iteration) => iteration.number)
+      .filter((iterationNumber) => !iterationDetails[iterationNumber] && !detailLoading[iterationNumber])
+
+    if (missingIterationNumbers.length === 0) {
+      return
+    }
+
+    let cancelled = false
+    const hydrateLogsForSearch = async () => {
+      const batchSize = 6
+      for (let index = 0; index < missingIterationNumbers.length; index += batchSize) {
+        if (cancelled) {
+          return
+        }
+        const batch = missingIterationNumbers.slice(index, index + batchSize)
+        await Promise.all(batch.map((iterationNumber) => loadIterationDetail(iterationNumber)))
+      }
+    }
+    void hydrateLogsForSearch()
+
+    return () => {
+      cancelled = true
+    }
+  }, [detailLoading, iterationDetails, iterations, loadIterationDetail, normalizedSearch, projectId])
+
   const sortedIterations = useMemo(() => {
-    const next = [...iterations]
+    const next = [...filteredIterations]
     next.sort((left, right) => {
       let comparison = 0
 
@@ -271,7 +346,7 @@ export function IterationsTable({
       return sortDirection === "asc" ? comparison : -comparison
     })
     return next
-  }, [iterations, sortDirection, sortKey, tokenPricePer1k])
+  }, [filteredIterations, sortDirection, sortKey, tokenPricePer1k])
 
   const handleSort = (nextSort: IterationSortKey) => {
     if (sortKey === nextSort) {
@@ -307,9 +382,48 @@ export function IterationsTable({
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iterations</h3>
         <p className="text-sm text-muted-foreground">
-          Sortable iteration history with health scoring, terminal logs, and syntax-highlighted git diffs.
+          Sortable and filterable iteration history with health scoring, terminal logs, and syntax-highlighted git diffs.
         </p>
       </header>
+
+      <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[150px_170px_minmax(0,1fr)]">
+        <label className="text-xs text-muted-foreground">
+          <span className="mb-1 block">Status</span>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="all">All</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+          </select>
+        </label>
+
+        <label className="text-xs text-muted-foreground">
+          <span className="mb-1 block">Health</span>
+          <select
+            value={healthFilter}
+            onChange={(event) => setHealthFilter(event.target.value as HealthFilter)}
+            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="all">All</option>
+            <option value="productive">Productive</option>
+            <option value="partial">Partial</option>
+            <option value="failed">Failed</option>
+          </select>
+        </label>
+
+        <label className="text-xs text-muted-foreground">
+          <span className="mb-1 block">Search</span>
+          <input
+            value={searchFilter}
+            onChange={(event) => setSearchFilter(event.target.value)}
+            placeholder="Search task IDs, commits, status, or loaded log output..."
+            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground"
+          />
+        </label>
+      </div>
 
       {isLoading && iterations.length === 0 ? (
         <div className="rounded-lg border bg-background/40 p-4 text-sm text-muted-foreground">
@@ -318,6 +432,10 @@ export function IterationsTable({
       ) : iterations.length === 0 ? (
         <div className="rounded-lg border bg-background/40 p-4 text-sm text-muted-foreground">
           No iterations recorded yet.
+        </div>
+      ) : sortedIterations.length === 0 ? (
+        <div className="rounded-lg border bg-background/40 p-4 text-sm text-muted-foreground">
+          No iterations match the current filters.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
@@ -446,6 +564,12 @@ export function IterationsTable({
             </tbody>
           </table>
         </div>
+      )}
+
+      {normalizedSearch && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Search checks loaded log output for {Object.keys(iterationDetails).length}/{iterations.length} iterations.
+        </p>
       )}
     </section>
   )

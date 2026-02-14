@@ -100,7 +100,7 @@ STATUS: READY
 - [x] 13.2: Build health scoring display (colored indicators)
 - [x] 13.3: Build expandable row detail (full log output, terminal-styled)
 - [x] 13.4: Build git diff viewer (syntax highlighted)
-- [ ] 13.5: Add filters (status, health, search)
+- [x] 13.5: Add filters (status, health, search)
 
 ## Phase 14: Specs Tab
 - [ ] 14.1: Build file browser sidebar (list specs/*.md files)
