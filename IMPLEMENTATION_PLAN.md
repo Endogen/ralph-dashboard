@@ -19,7 +19,7 @@ STATUS: READY
 ## Phase 3: Project Discovery & Management
 - [x] 3.1: Implement project discovery (scan configured dirs for .ralph/ subdirectories)
 - [x] 3.2: Create project models (Pydantic) with status detection (running/paused/stopped/complete)
-- [ ] 3.3: Implement project registration/unregistration endpoints
+- [x] 3.3: Implement project registration/unregistration endpoints
 - [ ] 3.4: Implement GET /api/projects (list) and GET /api/projects/{id} (detail)
 - [ ] 3.5: Add project tests
 
