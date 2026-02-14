@@ -9,6 +9,7 @@ import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
 import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
+import { PlanRenderer } from "@/components/project/plan-renderer"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
@@ -18,6 +19,7 @@ import type {
   IterationListResponse,
   IterationSummary,
   NotificationEntry,
+  ParsedImplementationPlan,
   ProjectStats,
 } from "@/types/project"
 
@@ -49,6 +51,7 @@ export function ProjectPage() {
 
   const [iterations, setIterations] = useState<IterationSummary[]>([])
   const [notifications, setNotifications] = useState<NotificationEntry[]>([])
+  const [plan, setPlan] = useState<ParsedImplementationPlan | null>(null)
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
@@ -113,6 +116,7 @@ export function ProjectPage() {
       if (!id) {
         setIterations([])
         setNotifications([])
+        setPlan(null)
         setStats(null)
         setOverviewError(null)
         setOverviewLoading(false)
@@ -123,10 +127,11 @@ export function ProjectPage() {
       setOverviewError(null)
 
       try {
-        const [iterationsResponse, statsResponse, notificationsResponse] = await Promise.all([
+        const [iterationsResponse, statsResponse, notificationsResponse, planResponse] = await Promise.all([
           apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
           apiFetch<ProjectStats>(`/projects/${id}/stats`),
           apiFetch<NotificationEntry[]>(`/projects/${id}/notifications`),
+          apiFetch<ParsedImplementationPlan>(`/projects/${id}/plan`),
         ])
         if (cancelled) {
           return
@@ -134,6 +139,7 @@ export function ProjectPage() {
         setIterations(iterationsResponse.iterations)
         setStats(statsResponse)
         setNotifications(notificationsResponse)
+        setPlan(planResponse)
       } catch (error) {
         if (cancelled) {
           return
@@ -142,6 +148,7 @@ export function ProjectPage() {
         setOverviewError(message)
         setIterations([])
         setNotifications([])
+        setPlan(null)
         setStats(null)
       } finally {
         if (!cancelled) {
@@ -228,6 +235,10 @@ export function ProjectPage() {
 
         <div className="mt-4">
           <RecentActivityFeed iterations={sortedIterations} notifications={notifications} />
+        </div>
+
+        <div className="mt-4">
+          <PlanRenderer plan={plan} isLoading={overviewLoading} />
         </div>
 
         <div className="mt-4 rounded-xl border bg-background/50 p-4">

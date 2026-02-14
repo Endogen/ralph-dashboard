@@ -76,3 +76,26 @@ export type NotificationEntry = {
   details: string | null
   source: string | null
 }
+
+export type ParsedPlanTask = {
+  id: string | null
+  description: string
+  done: boolean
+  indent: number
+}
+
+export type ParsedPlanPhase = {
+  name: string
+  tasks: ParsedPlanTask[]
+  done_count: number
+  total_count: number
+  status: "pending" | "in_progress" | "complete"
+}
+
+export type ParsedImplementationPlan = {
+  status: string | null
+  phases: ParsedPlanPhase[]
+  tasks_done: number
+  tasks_total: number
+  raw: string
+}

@@ -90,7 +90,7 @@ STATUS: READY
 - [x] 11.8: Wire up real-time chart updates via WebSocket
 
 ## Phase 12: Plan Tab
-- [ ] 12.1: Build plan renderer (collapsible phases, task checkboxes, status badges)
+- [x] 12.1: Build plan renderer (collapsible phases, task checkboxes, status badges)
 - [ ] 12.2: Implement interactive checkboxes (toggle saves to file via API)
 - [ ] 12.3: Build raw markdown editor mode (Monaco with toggle)
 - [ ] 12.4: Add task metadata display (completed iteration, commit link)
