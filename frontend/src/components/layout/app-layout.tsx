@@ -4,11 +4,13 @@ import { Settings2 } from "lucide-react"
 import { Outlet } from "react-router-dom"
 
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
 
 export function AppLayout() {
   const projects = useProjectsStore((state) => state.projects)
   const fetchProjects = useProjectsStore((state) => state.fetchProjects)
+  const { connected, reconnecting } = useWebSocket({ projects: projects.map((project) => project.id) })
 
   useEffect(() => {
     void fetchProjects()
@@ -29,7 +31,20 @@ export function AppLayout() {
                 Sidebar, routing shell, and content area are now active.
               </p>
             </div>
-            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-3">
+              <span
+                className={`rounded-full px-2 py-1 text-xs font-medium ${
+                  reconnecting
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                    : connected
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+              </span>
+              <Settings2 className="h-4 w-4 text-muted-foreground" />
+            </div>
           </header>
 
           <section className="flex-1">
