@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ralph
+.ralph/ralph.log
+.ralph/ralph.pid
+.ralph/pending-notification.txt
+.ralph/last-notification.txt
+.ralph/iterations.jsonl
+.ralph/pause
+.ralph/inject.md
+
+# SQLite
+*.db
+*.sqlite3
+
+# Env
+.env
+.env.local
