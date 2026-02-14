@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app.iterations.log_parser import parse_ralph_log_file
+from app.plan.parser import parse_implementation_plan_file
 from app.ws.file_watcher import FileChangeEvent
 from app.ws.hub import hub
 
@@ -15,8 +16,13 @@ class WatcherEventDispatcher:
     def __init__(self) -> None:
         self._started_iterations: dict[str, set[int]] = defaultdict(set)
         self._completed_iterations: dict[str, set[int]] = defaultdict(set)
+        self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
 
     async def handle_change(self, change: FileChangeEvent) -> None:
+        if change.path.name == "IMPLEMENTATION_PLAN.md":
+            await self._handle_plan_change(change)
+            return
+
         if change.path.name != "ralph.log":
             return
         if change.path.parent.name != ".ralph":
@@ -52,6 +58,42 @@ class WatcherEventDispatcher:
                         "errors": iteration.error_lines,
                     },
                 )
+
+    async def _handle_plan_change(self, change: FileChangeEvent) -> None:
+        parsed = parse_implementation_plan_file(change.path)
+        if parsed is None:
+            return
+
+        phases = [
+            {
+                "name": phase.name,
+                "done": phase.done_count,
+                "total": phase.total_count,
+                "status": phase.status,
+            }
+            for phase in parsed.phases
+        ]
+        snapshot = (
+            parsed.tasks_done,
+            parsed.tasks_total,
+            tuple(
+                (phase["name"], phase["done"], phase["total"], phase["status"]) for phase in phases
+            ),
+        )
+        if self._plan_snapshots.get(change.project_id) == snapshot:
+            return
+        self._plan_snapshots[change.project_id] = snapshot
+
+        await hub.emit(
+            "plan_updated",
+            change.project_id,
+            {
+                "tasks_done": parsed.tasks_done,
+                "tasks_total": parsed.tasks_total,
+                "phases": phases,
+                "status": parsed.status,
+            },
+        )
 
 
 watcher_event_dispatcher = WatcherEventDispatcher()

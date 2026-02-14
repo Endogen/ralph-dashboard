@@ -139,3 +139,4 @@ ralph-dashboard/
 - 2026-02-14: WebSocket hub lives in `app/ws/hub.py` with per-connection project subscriptions; `/api/ws` currently supports `subscribe`, `unsubscribe`, and `ping` (`pong`) messages plus `emit`/`broadcast` helpers for backend event producers.
 - 2026-02-14: File watcher service (`app/ws/file_watcher.py`) now runs in app lifespan, maintains watchdog observers per discovered/registered project, and filters events to `.ralph` runtime files, root control files, and `specs/*.md`.
 - 2026-02-14: Watcher dispatch now parses `.ralph/ralph.log` changes and emits websocket `iteration_started` plus `iteration_completed` envelopes (status inferred from log errors) while deduplicating by project+iteration.
+- 2026-02-14: `IMPLEMENTATION_PLAN.md` watcher events are parsed and emitted as websocket `plan_updated` payloads with per-phase done/total/status; duplicate snapshots are suppressed per project.
