@@ -3,15 +3,21 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.auth.router import router as auth_router
+from app.auth.service import InvalidTokenError, validate_access_token
 from app.database import init_database
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+PUBLIC_API_PATHS = {
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/refresh",
+}
 
 
 @asynccontextmanager
@@ -20,10 +26,36 @@ async def app_lifespan(_: FastAPI):
     yield
 
 
+def is_public_api_path(path: str) -> bool:
+    """Return True when the request path should bypass API auth checks."""
+    normalized_path = path[:-1] if path != "/" and path.endswith("/") else path
+    if not normalized_path.startswith("/api"):
+        return True
+    return normalized_path in PUBLIC_API_PATHS
+
+
 def create_app(frontend_dist: Path | None = None) -> FastAPI:
     """Build and configure the FastAPI application instance."""
     app = FastAPI(title="Ralph Dashboard API", version="0.1.0", lifespan=app_lifespan)
     app.include_router(auth_router)
+
+    @app.middleware("http")
+    async def authenticate_api_requests(request: Request, call_next):
+        if is_public_api_path(request.url.path):
+            return await call_next(request)
+
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+        try:
+            payload = validate_access_token(token)
+        except InvalidTokenError:
+            return JSONResponse(status_code=401, content={"detail": "Invalid access token"})
+
+        request.state.auth_subject = payload.sub
+        return await call_next(request)
 
     @app.get("/api/health", tags=["health"])
     async def healthcheck() -> dict[str, str]:
