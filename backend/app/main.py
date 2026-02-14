@@ -12,6 +12,7 @@ from app.auth.service import InvalidTokenError, validate_access_token
 from app.database import init_database
 from app.files.router import router as files_router
 from app.files.specs_router import router as specs_router
+from app.git_service.router import router as git_router
 from app.iterations.router import router as iterations_router
 from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
@@ -45,6 +46,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(files_router)
     app.include_router(specs_router)
+    app.include_router(git_router)
     app.include_router(iterations_router)
     app.include_router(plan_router)
     app.include_router(projects_router)

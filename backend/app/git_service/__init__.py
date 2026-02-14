@@ -1,1 +1,1 @@
-"""Module package placeholder."""
+"""Git service package."""
