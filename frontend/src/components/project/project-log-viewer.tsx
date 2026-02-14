@@ -25,10 +25,18 @@ type AnsiSegment = {
   style: AnsiStyle
 }
 
+type ParsedLogLine = {
+  raw: string
+  segments: AnsiSegment[]
+}
+
 const ANSI_ESCAPE = String.fromCharCode(27)
 const ANSI_PATTERN = new RegExp(`${ANSI_ESCAPE}\\[([0-9;]*)m`, "g")
 const BOTTOM_OFFSET_PX = 20
 const LOG_ERROR_PATTERN = /(error|failed|exception|traceback|fatal|❌|⚠)/i
+const LOG_VIEWPORT_HEIGHT_PX = 520
+const LOG_LINE_HEIGHT_PX = 18
+const LOG_OVERSCAN_LINES = 20
 
 const ANSI_COLOR_CLASS: Record<string, string> = {
   "30": "text-zinc-900",
@@ -160,6 +168,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
   const [error, setError] = useState<string | null>(null)
   const [isAutoScroll, setIsAutoScroll] = useState(true)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [scrollTop, setScrollTop] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterMode, setFilterMode] = useState<LogFilterMode>("all")
   const [iterationFrom, setIterationFrom] = useState("")
@@ -186,6 +195,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
     const nextIsAtBottom = distanceFromBottom <= BOTTOM_OFFSET_PX
     setIsAtBottom((current) => (current === nextIsAtBottom ? current : nextIsAtBottom))
+    setScrollTop(viewport.scrollTop)
   }, [])
 
   const handleToggleAutoScroll = useCallback(() => {
@@ -207,6 +217,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       if (!projectId) {
         setIsAutoScroll(true)
         setIsAtBottom(true)
+        setScrollTop(0)
         setSearchTerm("")
         setFilterMode("all")
         setIterationFrom("")
@@ -349,14 +360,53 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
     return filteredLines.join("\n")
   }, [filterMode, hasInvalidRange, hasIterationRange, logContent, normalizedSearchTerm, parsedFrom, parsedTo])
 
+  const parsedLogLines = useMemo<ParsedLogLine[]>(() => {
+    if (filteredLogContent.length === 0) {
+      return []
+    }
+    return filteredLogContent.split(/\r?\n/).map((raw) => ({
+      raw,
+      segments: parseAnsiText(raw),
+    }))
+  }, [filteredLogContent])
+
+  const virtualizedWindow = useMemo(() => {
+    const totalLines = parsedLogLines.length
+    if (totalLines === 0) {
+      return {
+        startIndex: 0,
+        endIndex: 0,
+        offsetY: 0,
+        totalHeight: 0,
+      }
+    }
+
+    const visibleLineCount = Math.max(1, Math.ceil(LOG_VIEWPORT_HEIGHT_PX / LOG_LINE_HEIGHT_PX))
+    const baseStart = Math.floor(scrollTop / LOG_LINE_HEIGHT_PX)
+    const unclampedStart = Math.max(0, baseStart - LOG_OVERSCAN_LINES)
+    const maxStartIndex = Math.max(0, totalLines - visibleLineCount)
+    const startIndex = Math.min(unclampedStart, maxStartIndex)
+    const endIndex = Math.min(totalLines, startIndex + visibleLineCount + LOG_OVERSCAN_LINES * 2)
+
+    return {
+      startIndex,
+      endIndex,
+      offsetY: startIndex * LOG_LINE_HEIGHT_PX,
+      totalHeight: totalLines * LOG_LINE_HEIGHT_PX,
+    }
+  }, [parsedLogLines.length, scrollTop])
+
+  const visibleLines = useMemo(
+    () => parsedLogLines.slice(virtualizedWindow.startIndex, virtualizedWindow.endIndex),
+    [parsedLogLines, virtualizedWindow.endIndex, virtualizedWindow.startIndex],
+  )
+
   useEffect(() => {
     if (!isAutoScroll) {
       return
     }
     scrollToBottom()
   }, [filteredLogContent, isAutoScroll, scrollToBottom])
-
-  const ansiSegments = useMemo(() => parseAnsiText(filteredLogContent), [filteredLogContent])
 
   return (
     <section className="rounded-xl border bg-card p-4">
@@ -440,17 +490,37 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
                   : "No log output yet."}
             </p>
           ) : (
-            <pre className="whitespace-pre-wrap break-words">
-              {ansiSegments.map((segment, index) => (
-                <span key={index} className={styleToClass(segment.style)}>
-                  {segment.text}
-                </span>
-              ))}
-            </pre>
+            <div className="relative min-w-full" style={{ height: `${virtualizedWindow.totalHeight}px` }}>
+              <div
+                className="absolute inset-x-0 top-0"
+                style={{ transform: `translateY(${virtualizedWindow.offsetY}px)` }}
+              >
+                {visibleLines.map((line, lineOffset) => {
+                  const lineIndex = virtualizedWindow.startIndex + lineOffset
+                  return (
+                    <div
+                      key={lineIndex}
+                      className="whitespace-pre"
+                      style={{ height: `${LOG_LINE_HEIGHT_PX}px`, lineHeight: `${LOG_LINE_HEIGHT_PX}px` }}
+                    >
+                      {line.raw.length === 0 ? (
+                        <span className="text-zinc-100">&nbsp;</span>
+                      ) : (
+                        line.segments.map((segment, segmentIndex) => (
+                          <span key={segmentIndex} className={styleToClass(segment.style)}>
+                            {segment.text}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
 
-        {!isAutoScroll && !isAtBottom && !isLoading && !error && logContent.length > 0 ? (
+        {!isAutoScroll && !isAtBottom && !isLoading && !error && parsedLogLines.length > 0 ? (
           <Button
             type="button"
             variant="secondary"

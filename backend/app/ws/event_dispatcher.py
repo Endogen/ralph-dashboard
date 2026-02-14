@@ -20,6 +20,8 @@ class WatcherEventDispatcher:
         self._completed_iterations: dict[str, set[int]] = defaultdict(set)
         self._log_offsets: dict[str, int] = {}
         self._log_mtimes_ns: dict[str, int] = {}
+        self._log_ctimes_ns: dict[str, int] = {}
+        self._log_prefixes: dict[str, bytes] = {}
         self._log_remainders: dict[str, str] = {}
         self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
         self._last_notification_keys: dict[str, tuple[str, str, str | None, int | None]] = {}
@@ -85,30 +87,42 @@ class WatcherEventDispatcher:
     def _read_log_append_lines(self, change: FileChangeEvent) -> str | None:
         previous_offset = self._log_offsets.get(change.project_id, 0)
         previous_mtime = self._log_mtimes_ns.get(change.project_id)
+        previous_ctime = self._log_ctimes_ns.get(change.project_id)
+        previous_prefix = self._log_prefixes.get(change.project_id)
         try:
             file_stats = change.path.stat()
             with change.path.open("rb") as handle:
                 size = file_stats.st_size
+                probe_size = min(1024, size)
+                handle.seek(0)
+                current_prefix = handle.read(probe_size)
                 if size < previous_offset:
                     previous_offset = 0
                     self._log_remainders.pop(change.project_id, None)
-                elif (
-                    size == previous_offset
-                    and previous_mtime is not None
-                    and file_stats.st_mtime_ns != previous_mtime
-                ):
-                    previous_offset = 0
-                    self._log_remainders.pop(change.project_id, None)
+                elif size == previous_offset:
+                    rewritten_by_time = (
+                        previous_mtime is not None and file_stats.st_mtime_ns != previous_mtime
+                    ) or (previous_ctime is not None and file_stats.st_ctime_ns != previous_ctime)
+                    rewritten_by_prefix = (
+                        previous_prefix is not None and current_prefix != previous_prefix
+                    )
+                    if rewritten_by_time or rewritten_by_prefix:
+                        previous_offset = 0
+                        self._log_remainders.pop(change.project_id, None)
                 handle.seek(previous_offset)
                 chunk = handle.read()
         except OSError:
             self._log_offsets.pop(change.project_id, None)
             self._log_mtimes_ns.pop(change.project_id, None)
+            self._log_ctimes_ns.pop(change.project_id, None)
+            self._log_prefixes.pop(change.project_id, None)
             self._log_remainders.pop(change.project_id, None)
             return None
 
         self._log_offsets[change.project_id] = size
         self._log_mtimes_ns[change.project_id] = file_stats.st_mtime_ns
+        self._log_ctimes_ns[change.project_id] = file_stats.st_ctime_ns
+        self._log_prefixes[change.project_id] = current_prefix
         if not chunk:
             return None
 

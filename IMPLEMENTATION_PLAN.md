@@ -119,7 +119,7 @@ STATUS: READY
 - [x] 16.2: Implement real-time log streaming via WebSocket
 - [x] 16.3: Add auto-scroll toggle and "scroll to bottom" button
 - [x] 16.4: Add search/filter functionality
-- [ ] 16.5: Implement virtualized rendering for performance (large logs)
+- [x] 16.5: Implement virtualized rendering for performance (large logs)
 - [ ] 16.6: Add jump-to-iteration navigation
 
 ## Phase 17: Config Tab
