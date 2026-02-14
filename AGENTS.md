@@ -187,3 +187,4 @@ ralph-dashboard/
 - 2026-02-14: `ProjectLogViewer` now virtualizes rendered log lines (fixed-height rows + overscan) so large logs keep DOM size bounded while preserving ANSI coloring and existing follow/search/filter behavior.
 - 2026-02-14: Websocket log-tail rewrite detection now falls back to comparing a small leading-byte prefix when file size is unchanged, preventing missed `log_append` events when same-size rewrites occur without observable mtime granularity changes.
 - 2026-02-14: Log tab now supports jump-to-iteration navigation from detected markers in the current view (select + Go, plus Previous/Next relative to current scroll position), and jumping switches viewer out of follow mode for manual inspection.
+- 2026-02-14: Config UI now loads/saves `/api/projects/{id}/config` in `ProjectConfigPanel`, including CLI/flags/max-iterations/test-command fields, editable model pricing rows, and project-path copy support.

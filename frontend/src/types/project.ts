@@ -102,6 +102,14 @@ export type ProjectStats = {
   tokens_by_phase: PhaseTokenUsage[]
 }
 
+export type LoopConfig = {
+  cli: string
+  flags: string
+  max_iterations: number
+  test_command: string
+  model_pricing: Record<string, number>
+}
+
 export type NotificationEntry = {
   timestamp: string
   prefix: string | null

@@ -123,9 +123,9 @@ STATUS: READY
 - [x] 16.6: Add jump-to-iteration navigation
 
 ## Phase 17: Config Tab
-- [ ] 17.1: Build config form (CLI dropdown, flags, max iterations, test command)
-- [ ] 17.2: Build model pricing editor section
-- [ ] 17.3: Implement save to .ralph/config.json
+- [x] 17.1: Build config form (CLI dropdown, flags, max iterations, test command)
+- [x] 17.2: Build model pricing editor section
+- [x] 17.3: Implement save to .ralph/config.json
 
 ## Phase 18: Ralph.sh Modifications
 - [ ] 18.1: Add iterations.jsonl writing (structured JSON after each iteration)

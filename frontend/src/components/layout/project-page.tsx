@@ -17,6 +17,7 @@ import { SpecFileBrowser } from "@/components/project/spec-file-browser"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { CodeFilesPane } from "@/components/project/code-files-pane"
+import { ProjectConfigPanel } from "@/components/project/project-config-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
@@ -478,6 +479,10 @@ export function ProjectPage() {
 
         <div className="mt-4">
           <ProjectLogViewer projectId={id} liveChunk={liveLogChunk} />
+        </div>
+
+        <div className="mt-4">
+          <ProjectConfigPanel projectId={id} projectPath={activeProject?.path ?? null} />
         </div>
         {(projectLoading || overviewLoading) && (
           <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>
