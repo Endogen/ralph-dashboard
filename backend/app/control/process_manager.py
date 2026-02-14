@@ -128,6 +128,27 @@ async def start_project_process(
     return ProcessStartResult(project_id=project_id, pid=process.pid, command=resolved_command)
 
 
+async def pause_project_process(project_id: str) -> bool:
+    """Create .ralph/pause sentinel file. Returns true when newly paused."""
+    project_path = await _resolve_project_path(project_id)
+    ralph_dir = project_path / ".ralph"
+    ralph_dir.mkdir(parents=True, exist_ok=True)
+    pause_file = ralph_dir / "pause"
+    already_paused = pause_file.exists()
+    pause_file.touch(exist_ok=True)
+    return not already_paused
+
+
+async def resume_project_process(project_id: str) -> bool:
+    """Remove .ralph/pause sentinel file. Returns true when pause was cleared."""
+    project_path = await _resolve_project_path(project_id)
+    pause_file = project_path / ".ralph" / "pause"
+    if not pause_file.exists() or not pause_file.is_file():
+        return False
+    pause_file.unlink()
+    return True
+
+
 def terminate_pid(pid: int) -> None:
     """Best-effort terminate helper for tests/callers."""
     try:

@@ -131,3 +131,4 @@ ralph-dashboard/
 - 2026-02-14: Markdown report generation is available via `GET /api/projects/{project_id}/report`, combining project status, plan progress, iteration table, and error summary.
 - 2026-02-14: Process manager start writes `.ralph/ralph.pid`, rejects duplicate live PIDs, and defaults to `<project>/ralph.sh` with fallback to dashboard `scripts/ralph.sh`.
 - 2026-02-14: Stop logic treats `/proc/<pid>/stat` state `Z` as not running, which avoids false positives from zombie PIDs after SIGTERM/SIGKILL.
+- 2026-02-14: Pause/resume helpers are idempotent: pause creates/touches `.ralph/pause` and resume removes it, each returning whether state changed.

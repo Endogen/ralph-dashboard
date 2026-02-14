@@ -12,7 +12,9 @@ from app.config import get_settings
 from app.control.process_manager import (
     ProcessAlreadyRunningError,
     is_project_running,
+    pause_project_process,
     read_project_pid,
+    resume_project_process,
     start_project_process,
     stop_project_process,
     terminate_pid,
@@ -112,3 +114,42 @@ async def test_stop_project_process_returns_false_when_not_running(
 
     assert not stopped
     assert not (project / ".ralph" / "ralph.pid").exists()
+
+
+@pytest.mark.anyio
+async def test_pause_project_process_creates_pause_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    paused = await pause_project_process("control-project")
+    pause_file = project / ".ralph" / "pause"
+    paused_again = await pause_project_process("control-project")
+
+    assert paused
+    assert not paused_again
+    assert pause_file.exists()
+    assert pause_file.is_file()
+
+
+@pytest.mark.anyio
+async def test_resume_project_process_removes_pause_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    pause_file = project / ".ralph" / "pause"
+    pause_file.write_text("", encoding="utf-8")
+
+    resumed = await resume_project_process("control-project")
+    resumed_again = await resume_project_process("control-project")
+
+    assert resumed
+    assert not resumed_again
+    assert not pause_file.exists()
