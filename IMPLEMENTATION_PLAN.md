@@ -40,7 +40,7 @@ STATUS: READY
 
 ## Phase 6: Stats & Notifications
 - [x] 6.1: Implement stats aggregation service (tokens, costs, velocity, projections, health breakdown)
-- [ ] 6.2: Implement stats endpoint
+- [x] 6.2: Implement stats endpoint
 - [ ] 6.3: Implement notification history endpoint (read pending + last notification files, plus archived)
 - [ ] 6.4: Implement report generation (markdown format)
 - [ ] 6.5: Add stats tests

@@ -16,6 +16,7 @@ from app.git_service.router import router as git_router
 from app.iterations.router import router as iterations_router
 from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
+from app.stats.router import router as stats_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
@@ -50,6 +51,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(iterations_router)
     app.include_router(plan_router)
     app.include_router(projects_router)
+    app.include_router(stats_router)
 
     @app.middleware("http")
     async def authenticate_api_requests(request: Request, call_next):

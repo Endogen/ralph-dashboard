@@ -126,3 +126,4 @@ ralph-dashboard/
 - 2026-02-14: Specs CRUD endpoints enforce single-file `.md` names (no path separators) to prevent path traversal and keep operations confined to `project/specs/`.
 - 2026-02-14: Git service resolves project repos by id, returns short 7-char hashes with commit stats, and uses `git show --format=''` for diff payloads.
 - 2026-02-14: Stats aggregation currently uses default cost rate `$0.006 / 1K tokens`, plan `tasks_done/tasks_total`, and merged iteration data for velocity/projection/health calculations.
+- 2026-02-14: Stats endpoint is available at `GET /api/projects/{project_id}/stats` and directly returns the aggregation model produced by `aggregate_project_stats`.
