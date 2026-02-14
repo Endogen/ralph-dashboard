@@ -25,6 +25,12 @@ class ProjectSummary(BaseModel):
     status: ProjectStatus
 
 
+class ProjectDetail(ProjectSummary):
+    ralph_dir: Path
+    plan_file: Path | None = None
+    log_file: Path | None = None
+
+
 def project_id_from_path(project_path: Path) -> str:
     """Build a stable slug-like project identifier from directory name."""
     slug = project_path.name.lower().replace("_", "-").strip()

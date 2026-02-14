@@ -115,3 +115,4 @@ ralph-dashboard/
 - 2026-02-14: Project discovery scans configured roots recursively for `.ralph/` and skips heavy/noisy folders like `node_modules`, `.git`, and cache dirs.
 - 2026-02-14: Project status detection precedence is: running+pause file => `paused`, running without pause => `running`, otherwise `STATUS: COMPLETE` in plan => `complete`, else `stopped`.
 - 2026-02-14: Manual project registrations are persisted in SQLite setting key `registered_project_paths` as a JSON array of absolute paths.
+- 2026-02-14: `GET /api/projects` and `GET /api/projects/{id}` return data from the union of discovered and manually registered paths, deduped by absolute path.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from app.projects.models import ProjectStatus, ProjectSummary, project_id_from_path
+from app.projects.models import ProjectDetail, ProjectStatus, ProjectSummary, project_id_from_path
 
 
 def _read_pid(pid_file: Path) -> int | None:
@@ -73,4 +73,21 @@ def build_project_summary(project_path: Path) -> ProjectSummary:
         name=resolved_path.name,
         path=resolved_path,
         status=detect_project_status(resolved_path),
+    )
+
+
+def build_project_detail(project_path: Path) -> ProjectDetail:
+    """Build a detail model for a discovered project path."""
+    resolved_path = project_path.expanduser().resolve()
+    ralph_dir = resolved_path / ".ralph"
+    plan_file = resolved_path / "IMPLEMENTATION_PLAN.md"
+    log_file = ralph_dir / "ralph.log"
+    return ProjectDetail(
+        id=project_id_from_path(resolved_path),
+        name=resolved_path.name,
+        path=resolved_path,
+        status=detect_project_status(resolved_path),
+        ralph_dir=ralph_dir,
+        plan_file=plan_file if plan_file.exists() else None,
+        log_file=log_file if log_file.exists() else None,
     )

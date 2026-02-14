@@ -7,9 +7,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from app.projects.models import ProjectSummary
+from app.projects.models import ProjectDetail, ProjectSummary
 from app.projects.service import (
     ProjectRegistrationError,
+    get_project_detail,
+    list_projects,
     register_project_path,
     unregister_project_by_id,
 )
@@ -20,6 +22,22 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 class RegisterProjectRequest(BaseModel):
     path: str
+
+
+@router.get("", response_model=list[ProjectSummary])
+async def get_projects() -> list[ProjectSummary]:
+    return await list_projects()
+
+
+@router.get("/{project_id}", response_model=ProjectDetail)
+async def get_project(project_id: str) -> ProjectDetail:
+    project = await get_project_detail(project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project not found: {project_id}",
+        )
+    return project
 
 
 @router.post("", response_model=ProjectSummary, status_code=status.HTTP_201_CREATED)

@@ -7,7 +7,8 @@ from pathlib import Path
 
 from app.database import get_setting, set_setting
 from app.projects.discovery import discover_project_paths
-from app.projects.models import project_id_from_path
+from app.projects.models import ProjectDetail, ProjectSummary, project_id_from_path
+from app.projects.status import build_project_detail, build_project_summary
 
 REGISTERED_PROJECTS_KEY = "registered_project_paths"
 
@@ -84,3 +85,19 @@ async def discover_all_project_paths() -> list[Path]:
     discovered = discover_project_paths()
     registered = await get_registered_project_paths()
     return _normalize_paths([*discovered, *registered])
+
+
+async def list_projects() -> list[ProjectSummary]:
+    """Return project summaries across discovered and registered projects."""
+    paths = await discover_all_project_paths()
+    return [build_project_summary(path) for path in paths]
+
+
+async def get_project_detail(project_id: str) -> ProjectDetail | None:
+    """Return a single project detail model by project id."""
+    paths = await discover_all_project_paths()
+    for path in paths:
+        detail = build_project_detail(path)
+        if detail.id == project_id:
+            return detail
+    return None
