@@ -20,6 +20,7 @@ from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
+from app.ws.file_watcher import file_watcher_service
 from app.ws.router import router as ws_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +35,11 @@ PUBLIC_API_PATHS = {
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
     await init_database()
-    yield
+    await file_watcher_service.start()
+    try:
+        yield
+    finally:
+        await file_watcher_service.stop()
 
 
 def is_public_api_path(path: str) -> bool:

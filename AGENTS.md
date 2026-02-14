@@ -137,3 +137,4 @@ ralph-dashboard/
 - 2026-02-14: Control API routes now live under `/api/projects/{project_id}` (`start`, `stop`, `pause`, `resume`, `inject`, `GET/PUT config`); start merges request overrides with persisted config and passes values via `RALPH_*` env vars.
 - 2026-02-14: Control router handlers are covered by direct async tests (`backend/tests/test_control_router.py`) including config round-trip, start override behavior, and pause/resume/inject flows without relying on `TestClient`.
 - 2026-02-14: WebSocket hub lives in `app/ws/hub.py` with per-connection project subscriptions; `/api/ws` currently supports `subscribe`, `unsubscribe`, and `ping` (`pong`) messages plus `emit`/`broadcast` helpers for backend event producers.
+- 2026-02-14: File watcher service (`app/ws/file_watcher.py`) now runs in app lifespan, maintains watchdog observers per discovered/registered project, and filters events to `.ralph` runtime files, root control files, and `specs/*.md`.
