@@ -87,7 +87,7 @@ STATUS: READY
 - [x] 11.5: Build token usage by phase pie chart
 - [x] 11.6: Build iteration health timeline (color-coded strip)
 - [x] 11.7: Build recent activity feed
-- [ ] 11.8: Wire up real-time chart updates via WebSocket
+- [x] 11.8: Wire up real-time chart updates via WebSocket
 
 ## Phase 12: Plan Tab
 - [ ] 12.1: Build plan renderer (collapsible phases, task checkboxes, status badges)

@@ -162,3 +162,4 @@ ralph-dashboard/
 - 2026-02-14: `TokenUsagePhaseChart` now renders a donut from stats `tokens_by_phase`, sorted by token volume, with exact-value tooltip and centered total token count.
 - 2026-02-14: `IterationHealthTimeline` now classifies each iteration as productive/partial/failed using task completion, commit presence, error flags, and test status, then renders a compact clickable health strip.
 - 2026-02-14: `RecentActivityFeed` now merges iteration-derived events (completion/tasks/errors) with `/notifications` history, sorts by timestamp descending, and renders the latest activity cards on Overview.
+- 2026-02-14: Overview charts now live-refresh via a project-scoped `useWebSocket` subscription in `ProjectPage`; relevant events are debounced (300ms) before reloading iterations/stats/notifications.

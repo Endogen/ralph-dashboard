@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { useParams } from "react-router-dom"
 
@@ -12,6 +12,7 @@ import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
+import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import type {
   IterationListResponse,
@@ -51,6 +52,18 @@ export function ProjectPage() {
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
+  const [overviewRefreshToken, setOverviewRefreshToken] = useState(0)
+  const refreshTimerRef = useRef<number | null>(null)
+
+  const queueOverviewRefresh = useCallback(() => {
+    if (refreshTimerRef.current !== null) {
+      return
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      setOverviewRefreshToken((token) => token + 1)
+      refreshTimerRef.current = null
+    }, 300)
+  }, [])
 
   useEffect(() => {
     void fetchActiveProject(id ?? null)
@@ -58,6 +71,40 @@ export function ProjectPage() {
       clearActiveProject()
     }
   }, [clearActiveProject, fetchActiveProject, id])
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleOverviewSocketEvent = useCallback(
+    (event: WebSocketEnvelope) => {
+      if (!id || event.project !== id) {
+        return
+      }
+
+      const shouldRefresh =
+        event.type === "iteration_started" ||
+        event.type === "iteration_completed" ||
+        event.type === "plan_updated" ||
+        event.type === "notification" ||
+        event.type === "status_changed"
+
+      if (shouldRefresh) {
+        queueOverviewRefresh()
+      }
+    },
+    [id, queueOverviewRefresh],
+  )
+
+  useWebSocket({
+    enabled: Boolean(id),
+    projects: id ? [id] : [],
+    onEvent: handleOverviewSocketEvent,
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -108,12 +155,9 @@ export function ProjectPage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, overviewRefreshToken])
 
-  const sortedIterations = useMemo(
-    () => [...iterations].sort((left, right) => left.number - right.number),
-    [iterations],
-  )
+  const sortedIterations = [...iterations].sort((left, right) => left.number - right.number)
   const latestIteration = sortedIterations[sortedIterations.length - 1]
   const iterationLabel =
     latestIteration && latestIteration.max_iterations
