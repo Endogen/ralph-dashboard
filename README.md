@@ -59,12 +59,12 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Browser (React 19 + Vite 7 + Tailwind 4)  │
-│  ┌─────────┐ ┌──────────┐ ┌─────────────┐  │
-│  │ Zustand  │ │ Recharts │ │   Monaco    │  │
-│  │ stores   │ │ charts   │ │   editor    │  │
-│  └────┬─────┘ └──────────┘ └─────────────┘  │
+┌──────────────────────────────────────────────┐
+│  Browser (React 19 + Vite 7 + Tailwind 4)    │
+│  ┌──────────┐ ┌──────────┐ ┌─────────────┐   │
+│  │ Zustand  │ │ Recharts │ │   Monaco    │   │
+│  │ stores   │ │ charts   │ │   editor    │   │
+│  └────┬─────┘ └──────────┘ └─────────────┘   │
 │       │  REST + WebSocket                    │
 └───────┼──────────────────────────────────────┘
         │
@@ -74,19 +74,19 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
         │
 ┌───────┼──────────────────────────────────────┐
 │  FastAPI backend (uvicorn)                   │
-│  ┌──────────┐ ┌───────────┐ ┌────────────┐  │
-│  │ REST API │ │ WebSocket │ │  File      │  │
-│  │ routes   │ │ hub       │ │  watcher   │  │
-│  └──────────┘ └───────────┘ └────────────┘  │
-│  ┌──────────┐ ┌───────────┐ ┌────────────┐  │
-│  │ Plan     │ │ Iteration │ │  Git       │  │
-│  │ parser   │ │ parser    │ │  service   │  │
-│  └──────────┘ └───────────┘ └────────────┘  │
-│  ┌──────────┐ ┌───────────┐ ┌────────────┐  │
-│  │ Process  │ │ Stats &   │ │  JWT auth  │  │
-│  │ manager  │ │ projector │ │  (SQLite)  │  │
-│  └──────────┘ └───────────┘ └────────────┘  │
-└──────────────────────────────────────────────┘
+│  ┌──────────┐ ┌───────────┐ ┌────────────┐   │
+│  │ REST API │ │ WebSocket │ │  File      │   │
+│  │ routes   │ │ hub       │ │  watcher   │   │
+│  └──────────┘ └───────────┘ └────────────┘   │
+│  ┌──────────┐ ┌───────────┐ ┌────────────┐   │
+│  │ Plan     │ │ Iteration │ │  Git       │   │
+│  │ parser   │ │ parser    │ │  service   │   │
+│  └──────────┘ └───────────┘ └────────────┘   │
+│  ┌──────────┐ ┌───────────┐ ┌────────────┐   │
+│  │ Process  │ │ Stats &   │ │  JWT auth  │   │
+│  │ manager  │ │ projector │ │  (SQLite)  │   │
+│  └──────────┘ └───────────┘ └────────────┘   │
+└───────┼──────────────────────────────────────┘
         │
 ┌───────┼──────────────────────────────────────┐
 │  Filesystem                                  │
