@@ -107,8 +107,8 @@ async def get_project_iteration_detail(
     ralph_dir = project_path / ".ralph"
     jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
 
-    # Prefer jsonl data; only parse log if jsonl is empty and log is small
-    log_iterations = _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
+    # Always parse log for detail view to get raw_output
+    log_iterations = _safe_parse_log(ralph_dir / "ralph.log")
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     return merged.get(iteration_number)

@@ -148,7 +148,8 @@ function iterationCost(tokensUsed: number | null, tokenPricePer1k: number): numb
   if (tokensUsed === null || !Number.isFinite(tokensUsed)) {
     return null
   }
-  return (tokensUsed / 1000) * tokenPricePer1k
+  // tokens are already in k-tokens (e.g. 49.426 = 49,426 tokens)
+  return tokensUsed * tokenPricePer1k
 }
 
 function getSortIndicator(column: IterationSortKey, activeSort: IterationSortKey, direction: SortDirection): string {

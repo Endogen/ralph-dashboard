@@ -71,9 +71,9 @@ async def test_get_project_iteration_detail(
 
     detail = await get_project_iteration_detail("demo-project", 1)
     assert detail is not None
-    # When jsonl data is present, log is not parsed (performance optimization)
-    # log_output is only populated when falling back to log-only parsing
+    # Detail view always parses log to get raw_output for the log viewer
     assert isinstance(detail.log_output, str)
+    assert len(detail.log_output) > 0
     assert detail.status == "success"
 
 

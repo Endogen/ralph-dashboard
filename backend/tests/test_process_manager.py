@@ -46,7 +46,7 @@ def _pid_is_alive(pid: int) -> bool:
 
 
 @pytest.mark.anyio
-async def test_start_project_process_writes_pid(
+async def test_start_project_process_returns_pid(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
@@ -56,11 +56,10 @@ async def test_start_project_process_writes_pid(
 
     started = await start_project_process("control-project", command=["sleep", "30"])
     try:
-        pid_file = project / ".ralph" / "ralph.pid"
-        assert pid_file.exists()
-        assert int(pid_file.read_text(encoding="utf-8")) == started.pid
-        assert await read_project_pid("control-project") == started.pid
-        assert await is_project_running("control-project")
+        # Dashboard no longer writes PID file — ralph.sh manages it.
+        # The returned PID should still be valid.
+        assert started.pid > 0
+        assert _pid_is_alive(started.pid)
     finally:
         terminate_pid(started.pid)
         for _ in range(20):
@@ -73,13 +72,17 @@ async def test_start_project_process_writes_pid(
 async def test_start_project_process_rejects_duplicate_start(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     started = await start_project_process("control-project", command=["sleep", "30"])
     try:
+        # Simulate ralph.sh writing its own PID file after launch
+        pid_file = project / ".ralph" / "ralph.pid"
+        pid_file.write_text(str(started.pid), encoding="utf-8")
+
         with pytest.raises(ProcessAlreadyRunningError):
             await start_project_process("control-project", command=["sleep", "30"])
     finally:
@@ -99,7 +102,11 @@ async def test_stop_project_process_stops_and_cleans_pid(
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    await start_project_process("control-project", command=["sleep", "30"])
+    started = await start_project_process("control-project", command=["sleep", "30"])
+    # Simulate ralph.sh writing its own PID file after launch
+    pid_file = project / ".ralph" / "ralph.pid"
+    pid_file.write_text(str(started.pid), encoding="utf-8")
+
     stopped = await stop_project_process("control-project", grace_period_seconds=0.2)
 
     assert stopped

@@ -134,23 +134,26 @@ export function AppLayout() {
               </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {projects.map((project) => (
-                <NavLink
-                  key={project.id}
-                  to={`/project/${project.id}`}
-                  className={({ isActive }) =>
-                    `flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-                      isActive
-                        ? "bg-primary/15 text-foreground"
-                        : "bg-background/60 text-muted-foreground"
-                    }`
-                  }
-                >
-                  <span className={`h-2 w-2 rounded-full ${mobileStatusClass[project.status]}`} />
-                  <span className="max-w-[160px] truncate">{project.name}</span>
-                </NavLink>
-              ))}
+            <div className="relative">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {projects.map((project) => (
+                  <NavLink
+                    key={project.id}
+                    to={`/project/${project.id}`}
+                    className={({ isActive }) =>
+                      `flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                        isActive
+                          ? "bg-primary/15 text-foreground"
+                          : "bg-background/60 text-muted-foreground"
+                      }`
+                    }
+                  >
+                    <span className={`h-2 w-2 rounded-full ${mobileStatusClass[project.status]}`} />
+                    <span className="max-w-[160px] truncate">{project.name}</span>
+                  </NavLink>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background to-transparent" />
             </div>
           </section>
 

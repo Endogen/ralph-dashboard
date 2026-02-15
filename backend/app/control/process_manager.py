@@ -144,7 +144,9 @@ async def start_project_process(
             env=launch_env,
         )
 
-    pid_file.write_text(str(process.pid), encoding="utf-8")
+    # Let ralph.sh manage its own PID file to avoid PID conflicts.
+    # The script writes $$ to ralph.pid on startup; if we also write the
+    # Popen PID, the script finds a running PID and exits immediately.
     return ProcessStartResult(project_id=project_id, pid=process.pid, command=resolved_command)
 
 

@@ -13,7 +13,8 @@ DEFAULT_COST_PER_1K_TOKENS = 0.006
 
 
 def _cost_from_tokens(tokens: float, cost_per_1k_tokens: float) -> float:
-    return (tokens / 1000.0) * cost_per_1k_tokens
+    # tokens are already in k-tokens (e.g. 49.426 means 49,426 tokens)
+    return tokens * cost_per_1k_tokens
 
 
 def _build_task_phase_map(plan) -> dict[str, str]:
