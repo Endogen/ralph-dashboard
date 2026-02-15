@@ -36,6 +36,18 @@ type LiveLogChunk = {
   lines: string
 }
 
+type TabKey = "overview" | "plan" | "iterations" | "specs" | "code" | "log" | "config"
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "plan", label: "Plan" },
+  { key: "iterations", label: "Iterations" },
+  { key: "specs", label: "Specs" },
+  { key: "code", label: "Code" },
+  { key: "log", label: "Log" },
+  { key: "config", label: "Config" },
+]
+
 function formatDuration(valueInSeconds: number): string {
   if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
     return "0m"
@@ -189,6 +201,10 @@ export function ProjectPage() {
   const refreshTimerRef = useRef<number | null>(null)
   const logChunkIdRef = useRef(0)
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabKey>("overview")
+  const [hasUnreadLog, setHasUnreadLog] = useState(false)
+
   const queueOverviewRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) {
       return
@@ -217,7 +233,15 @@ export function ProjectPage() {
   useEffect(() => {
     setLiveLogChunk(null)
     logChunkIdRef.current = 0
+    setHasUnreadLog(false)
   }, [id])
+
+  // Clear unread indicator when switching to Log tab
+  useEffect(() => {
+    if (activeTab === "log") {
+      setHasUnreadLog(false)
+    }
+  }, [activeTab])
 
   const handleOverviewSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
@@ -235,6 +259,9 @@ export function ProjectPage() {
         }
         logChunkIdRef.current += 1
         setLiveLogChunk({ id: logChunkIdRef.current, lines })
+        // Mark log as unread (the effect reading activeTab via ref would be stale,
+        // so we use functional update and let the "log" tab effect clear it)
+        setHasUnreadLog(true)
         return
       }
 
@@ -486,8 +513,138 @@ export function ProjectPage() {
     return <ProjectPageSkeleton />
   }
 
+  const renderTabContent = () => {
+    // Loading/error shown inside the active tab area
+    if (projectLoading || overviewLoading) {
+      return (
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading project details...</p>
+      )
+    }
+
+    if (overviewError) {
+      return (
+        <p className="py-8 text-center text-sm text-rose-600 dark:text-rose-400">
+          {overviewError}
+        </p>
+      )
+    }
+
+    switch (activeTab) {
+      case "overview":
+        return (
+          <div className="space-y-4">
+            <StatusPanel
+              status={status}
+              iterationLabel={iterationLabel}
+              runningFor={runtimeLabel}
+              cliLabel="codex"
+              modeLabel={modeLabel}
+            />
+
+            <StatsGrid
+              totalTokens={tokensUsed}
+              estimatedCostUsd={estimatedCostUsd}
+              iterationsCompleted={iterationsCompleted}
+              averageIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
+              tasksCompleted={tasksCompleted}
+              tasksTotal={tasksTotal}
+              errorCount={errorCount}
+              successRate={successRate}
+            />
+
+            <div className="overflow-hidden">
+              <ProgressTimelineChart iterations={sortedIterations} tasksTotal={tasksTotal} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="overflow-hidden">
+                <TaskBurndownChart iterations={sortedIterations} tasksTotal={tasksTotal} />
+              </div>
+              <div className="overflow-hidden">
+                <TokenUsagePhaseChart data={stats?.tokens_by_phase ?? []} totalTokens={tokensUsed} />
+              </div>
+            </div>
+
+            <div className="overflow-hidden">
+              <IterationHealthTimeline iterations={sortedIterations} />
+            </div>
+
+            <RecentActivityFeed iterations={sortedIterations} notifications={notifications} />
+          </div>
+        )
+
+      case "plan":
+        return (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={toggleRawPlanMode}
+                className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-background/80"
+              >
+                {isRawPlanMode ? "Rendered View" : "Raw Markdown Mode"}
+              </button>
+            </div>
+
+            {isRawPlanMode ? (
+              <PlanMarkdownEditor
+                value={planDraft}
+                onChange={setPlanDraft}
+                onSave={handleSavePlanRaw}
+                isSaving={isSavingPlanRaw}
+              />
+            ) : (
+              <PlanRenderer
+                plan={plan}
+                projectId={id}
+                taskMetadata={taskMetadata}
+                isLoading={overviewLoading}
+                onToggleTask={handleTogglePlanTask}
+                isSavingTask={isSavingPlanTask || isSavingPlanRaw}
+              />
+            )}
+          </div>
+        )
+
+      case "iterations":
+        return (
+          <div className="max-w-full overflow-x-auto">
+            <IterationsTable
+              iterations={iterations}
+              projectId={id}
+              isLoading={overviewLoading}
+            />
+          </div>
+        )
+
+      case "specs":
+        return <SpecFileBrowser projectId={id} />
+
+      case "code":
+        return (
+          <div className="overflow-hidden">
+            <CodeFilesPane projectId={id} />
+          </div>
+        )
+
+      case "log":
+        return (
+          <div className="overflow-hidden">
+            <ProjectLogViewer projectId={id} liveChunk={liveLogChunk} />
+          </div>
+        )
+
+      case "config":
+        return <ProjectConfigPanel projectId={id} projectPath={activeProject?.path ?? null} />
+
+      default:
+        return null
+    }
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-col gap-4">
+      {/* Top bar — always visible */}
       <ProjectTopBar
         projectName={projectName}
         status={status}
@@ -497,108 +654,36 @@ export function ProjectPage() {
         estimatedCostUsd={estimatedCostUsd}
       />
 
-      <section className="rounded-xl border bg-card p-6">
-        <StatusPanel
-          status={status}
-          iterationLabel={iterationLabel}
-          runningFor={runtimeLabel}
-          cliLabel="codex"
-          modeLabel={modeLabel}
-        />
-
-        <div className="mt-4">
-          <StatsGrid
-            totalTokens={tokensUsed}
-            estimatedCostUsd={estimatedCostUsd}
-            iterationsCompleted={iterationsCompleted}
-            averageIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
-            tasksCompleted={tasksCompleted}
-            tasksTotal={tasksTotal}
-            errorCount={errorCount}
-            successRate={successRate}
-          />
-        </div>
-
-        <div className="mt-4">
-          <ProgressTimelineChart iterations={sortedIterations} tasksTotal={tasksTotal} />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <TaskBurndownChart iterations={sortedIterations} tasksTotal={tasksTotal} />
-          <TokenUsagePhaseChart data={stats?.tokens_by_phase ?? []} totalTokens={tokensUsed} />
-        </div>
-
-        <div className="mt-4">
-          <IterationHealthTimeline iterations={sortedIterations} />
-        </div>
-
-        <div className="mt-4">
-          <RecentActivityFeed iterations={sortedIterations} notifications={notifications} />
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-2 flex justify-end">
+      {/* Tab bar */}
+      <nav className="-mb-2 overflow-x-auto border-b border-border" aria-label="Project tabs">
+        <div className="flex min-w-max">
+          {TABS.map((tab) => (
             <button
+              key={tab.key}
               type="button"
-              onClick={toggleRawPlanMode}
-              className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-background/80"
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative shrink-0 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                activeTab === tab.key
+                  ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
+                  : "text-muted-foreground hover:text-foreground/80"
+              }`}
             >
-              {isRawPlanMode ? "Rendered View" : "Raw Markdown Mode"}
+              {tab.label}
+              {/* Unread log dot */}
+              {tab.key === "log" && hasUnreadLog && activeTab !== "log" && (
+                <span className="absolute -top-0.5 right-1 size-2 rounded-full bg-primary" />
+              )}
             </button>
-          </div>
-
-          {isRawPlanMode ? (
-            <PlanMarkdownEditor
-              value={planDraft}
-              onChange={setPlanDraft}
-              onSave={handleSavePlanRaw}
-              isSaving={isSavingPlanRaw}
-            />
-          ) : (
-            <PlanRenderer
-              plan={plan}
-              projectId={id}
-              taskMetadata={taskMetadata}
-              isLoading={overviewLoading}
-              onToggleTask={handleTogglePlanTask}
-              isSavingTask={isSavingPlanTask || isSavingPlanRaw}
-            />
-          )}
+          ))}
         </div>
+      </nav>
 
-        <div className="mt-4">
-          <IterationsTable
-            iterations={iterations}
-            projectId={id}
-            isLoading={overviewLoading}
-          />
-        </div>
-
-        <div className="mt-4">
-          <SpecFileBrowser projectId={id} />
-        </div>
-
-        <div className="mt-4">
-          <CodeFilesPane projectId={id} />
-        </div>
-
-        <div className="mt-4">
-          <ProjectLogViewer projectId={id} liveChunk={liveLogChunk} />
-        </div>
-
-        <div className="mt-4">
-          <ProjectConfigPanel projectId={id} projectPath={activeProject?.path ?? null} />
-        </div>
-        {(projectLoading || overviewLoading) && (
-          <p className="mt-3 text-sm text-muted-foreground">Loading project details...</p>
-        )}
-        {overviewError && (
-          <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">
-            Failed to load overview metrics ({overviewError}).
-          </p>
-        )}
+      {/* Active tab content */}
+      <section className="min-h-0 overflow-hidden rounded-xl border bg-card p-4 sm:p-6">
+        {renderTabContent()}
       </section>
 
+      {/* Control bar — always visible at bottom */}
       <ProjectControlBar
         status={status}
         iterationLabel={iterationLabel}
