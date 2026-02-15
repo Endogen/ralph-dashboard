@@ -2,6 +2,7 @@ import { useMemo } from "react"
 
 import { AlertTriangle, Bell, CheckCircle2, ListChecks } from "lucide-react"
 
+import { displayTokens } from "@/lib/utils"
 import type { IterationSummary, NotificationEntry } from "@/types/project"
 
 type ActivityKind = "iteration" | "task" | "error" | "notification"
@@ -41,7 +42,8 @@ function formatTokens(value: number | null): string {
   if (value === null || value === undefined) {
     return "token usage unavailable"
   }
-  return `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} tokens`
+  // Convert from k-tokens to actual tokens for display
+  return `${displayTokens(value).toLocaleString("en-US")} tokens`
 }
 
 function buildIterationEvents(iterations: IterationSummary[]): ActivityItem[] {

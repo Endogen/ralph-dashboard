@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 
+import { displayTokens } from "@/lib/utils"
 import {
   Area,
   Bar,
@@ -100,7 +101,7 @@ function buildTimelineData(iterations: IterationSummary[], tasksTotal: number): 
       timeMs,
       iteration: iteration.number,
       tasksCumulative: cumulativeTasks,
-      tokens: iteration.tokens_used,
+      tokens: iteration.tokens_used != null ? displayTokens(iteration.tokens_used) : null,
       projectionTasks: null,
       errorTasks: hasError ? cumulativeTasks : null,
       status,
@@ -175,7 +176,7 @@ function TimelineTooltip({ active, payload }: TimelineTooltipProps) {
       <p className="font-semibold">Iteration {point.iteration ?? "?"}</p>
       <p className="text-muted-foreground">{formatTimestamp(point.timeMs)}</p>
       <p className="mt-1">Tasks (cumulative): {point.tasksCumulative ?? 0}</p>
-      <p>Tokens: {point.tokens?.toLocaleString("en-US", { maximumFractionDigits: 2 }) ?? "n/a"}</p>
+      <p>Tokens: {point.tokens?.toLocaleString("en-US") ?? "n/a"}</p>
       <p>Status: {formatStatus(point.status)}</p>
     </div>
   )
