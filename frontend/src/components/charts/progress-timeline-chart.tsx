@@ -195,7 +195,7 @@ export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimeli
     <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Progress Timeline</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="break-words text-sm text-muted-foreground">
           Tasks completed over time with token consumption and projection.
         </p>
       </header>

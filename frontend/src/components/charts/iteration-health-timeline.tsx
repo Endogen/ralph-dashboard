@@ -42,7 +42,7 @@ export function IterationHealthTimeline({
     <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iteration Health Timeline</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="break-words text-sm text-muted-foreground">
           Productive (green), partial (yellow), and failed (red) iteration outcomes.
         </p>
       </header>

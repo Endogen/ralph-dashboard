@@ -44,12 +44,12 @@ const TEST_CLASSES: Record<"passed" | "failed" | "na", string> = {
   na: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
 }
 
-const COLUMNS: Array<{ key: IterationSortKey; label: string }> = [
+const COLUMNS: Array<{ key: IterationSortKey; label: string; hiddenOnMobile?: boolean }> = [
   { key: "number", label: "#" },
   { key: "status", label: "Status" },
   { key: "health", label: "Health" },
-  { key: "duration", label: "Duration" },
-  { key: "tokens", label: "Tokens" },
+  { key: "duration", label: "Duration", hiddenOnMobile: true },
+  { key: "tokens", label: "Tokens", hiddenOnMobile: true },
   { key: "cost", label: "Cost" },
   { key: "tasks", label: "Tasks" },
   { key: "commit", label: "Commit" },
@@ -381,7 +381,7 @@ export function IterationsTable({
     <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iterations</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="break-words text-sm text-muted-foreground">
           Sortable and filterable iteration history with health scoring, terminal logs, and syntax-highlighted git diffs.
         </p>
       </header>
@@ -443,7 +443,7 @@ export function IterationsTable({
             <thead className="bg-background/70">
               <tr className="border-b">
                 {COLUMNS.map((column) => (
-                  <th key={column.key} className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th key={column.key} className={`px-3 py-2 text-left font-medium text-muted-foreground ${column.hiddenOnMobile ? "hidden sm:table-cell" : ""}`}>
                     <button
                       type="button"
                       onClick={() => handleSort(column.key)}
@@ -499,8 +499,8 @@ export function IterationsTable({
                           <span className="font-mono text-[10px] opacity-80">({healthMeta.score})</span>
                         </span>
                       </td>
-                      <td className="px-3 py-2">{formatDuration(iteration.duration_seconds)}</td>
-                      <td className="px-3 py-2 font-mono">{formatTokens(iteration.tokens_used)}</td>
+                      <td className="hidden px-3 py-2 sm:table-cell">{formatDuration(iteration.duration_seconds)}</td>
+                      <td className="hidden px-3 py-2 font-mono sm:table-cell">{formatTokens(iteration.tokens_used)}</td>
                       <td className="px-3 py-2 font-mono">{formatUsd(cost)}</td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {iteration.tasks_completed.length > 0 ? iteration.tasks_completed.join(", ") : "None"}

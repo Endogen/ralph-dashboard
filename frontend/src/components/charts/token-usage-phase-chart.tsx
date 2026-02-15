@@ -59,7 +59,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
     <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Token Usage by Phase</h3>
-        <p className="text-sm text-muted-foreground">Token consumption distribution across implementation phases.</p>
+        <p className="break-words text-sm text-muted-foreground">Token consumption distribution across implementation phases.</p>
       </header>
 
       {chartData.length === 0 ? (

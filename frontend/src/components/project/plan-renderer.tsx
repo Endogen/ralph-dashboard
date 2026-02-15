@@ -84,7 +84,7 @@ export function PlanRenderer({
     <section className="rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Implementation Plan</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="break-words text-sm text-muted-foreground">
           Collapsible phase view with completion state and checklist rendering.
         </p>
       </header>
@@ -130,7 +130,7 @@ export function PlanRenderer({
                       {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{phase.name}</p>
+                      <p className="break-words text-sm font-semibold sm:truncate">{phase.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {phase.done_count}/{phase.total_count} tasks ({percentage(phase.done_count, phase.total_count)}
                         %)

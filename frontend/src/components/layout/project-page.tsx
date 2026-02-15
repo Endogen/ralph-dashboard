@@ -656,13 +656,17 @@ export function ProjectPage() {
 
       {/* Tab bar */}
       <nav className="-mb-2 overflow-x-auto border-b border-border" aria-label="Project tabs">
-        <div className="flex min-w-max">
+        <div className="flex">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative shrink-0 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              onClick={() => {
+                setActiveTab(tab.key)
+                // Reset scroll position to prevent left-clipping on mobile
+                window.scrollTo({ left: 0 })
+              }}
+              className={`relative shrink-0 px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 sm:py-2.5 sm:text-sm ${
                 activeTab === tab.key
                   ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
                   : "text-muted-foreground hover:text-foreground/80"
