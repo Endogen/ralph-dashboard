@@ -80,7 +80,7 @@ export function AppLayout() {
           reconnecting={reconnecting}
         />
 
-        <main className="flex min-h-[80vh] flex-1 flex-col gap-4 p-0 md:p-2">
+        <main className="flex min-h-[80vh] min-w-0 flex-1 flex-col gap-4 p-0 md:p-2">
           <section className="space-y-2 md:hidden">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export function AppLayout() {
             </div>
           </section>
 
-          <section className="flex-1">
+          <section className="min-w-0 flex-1">
             <Outlet />
           </section>
         </main>

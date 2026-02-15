@@ -643,7 +643,7 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-0 max-w-full flex-col gap-4">
+    <div className="flex min-h-0 min-w-0 max-w-full flex-col gap-4">
       {/* Top bar — always visible */}
       <ProjectTopBar
         projectName={projectName}
@@ -683,7 +683,7 @@ export function ProjectPage() {
       </nav>
 
       {/* Active tab content */}
-      <section className="min-h-0 overflow-hidden p-0 sm:p-0">
+      <section className="min-h-0 overflow-hidden p-0 pb-4 sm:p-0 sm:pb-4">
         {renderTabContent()}
       </section>
 
