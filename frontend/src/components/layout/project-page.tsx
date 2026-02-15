@@ -151,6 +151,7 @@ export function ProjectPage() {
   const [liveLogChunk, setLiveLogChunk] = useState<LiveLogChunk | null>(null)
   const refreshTimerRef = useRef<number | null>(null)
   const logChunkIdRef = useRef(0)
+  const initialFetchDoneRef = useRef(false)
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabKey>("overview")
@@ -185,6 +186,7 @@ export function ProjectPage() {
     setLiveLogChunk(null)
     logChunkIdRef.current = 0
     setHasUnreadLog(false)
+    initialFetchDoneRef.current = false
   }, [id])
 
   // Clear unread indicator when switching to Log tab
@@ -252,7 +254,13 @@ export function ProjectPage() {
         return
       }
 
-      setOverviewLoading(true)
+      // Only show loading spinner on the initial fetch — background
+      // refreshes (triggered by WebSocket events) update data silently
+      // so child components keep their local state (expanded rows, etc.)
+      const isBackgroundRefresh = initialFetchDoneRef.current
+      if (!isBackgroundRefresh) {
+        setOverviewLoading(true)
+      }
       setOverviewError(null)
 
       try {
@@ -318,7 +326,10 @@ export function ProjectPage() {
         setStats(null)
       } finally {
         if (!cancelled) {
-          setOverviewLoading(false)
+          initialFetchDoneRef.current = true
+          if (!isBackgroundRefresh) {
+            setOverviewLoading(false)
+          }
         }
       }
     }
