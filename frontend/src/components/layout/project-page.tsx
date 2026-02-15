@@ -403,6 +403,74 @@ export function ProjectPage() {
   const status = activeProject?.status ?? "stopped"
   const modeLabel = status === "running" || status === "paused" ? "BUILDING" : "READY"
   const taskMetadata = buildTaskMetadata(sortedIterations)
+
+  // --- Control bar handlers ---
+  const handleStart = useCallback(async () => {
+    if (!id) return
+    try {
+      await apiFetch(`/projects/${id}/start`, { method: "POST", body: JSON.stringify({}) })
+      pushToast({ title: "Loop started", description: "Ralph loop is starting…", tone: "success" })
+      queueOverviewRefresh()
+      void fetchActiveProject(id)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to start loop"
+      pushToast({ title: "Start failed", description: msg, tone: "error" })
+    }
+  }, [id, pushToast, queueOverviewRefresh, fetchActiveProject])
+
+  const handleStop = useCallback(async () => {
+    if (!id) return
+    try {
+      const result = await apiFetch<{ stopped: boolean }>(`/projects/${id}/stop`, { method: "POST" })
+      if (result.stopped) {
+        pushToast({ title: "Loop stopped", description: "Process terminated", tone: "success" })
+      } else {
+        pushToast({ title: "Nothing to stop", description: "No running process found", tone: "info" })
+      }
+      queueOverviewRefresh()
+      void fetchActiveProject(id)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to stop loop"
+      pushToast({ title: "Stop failed", description: msg, tone: "error" })
+    }
+  }, [id, pushToast, queueOverviewRefresh, fetchActiveProject])
+
+  const handlePause = useCallback(async () => {
+    if (!id) return
+    try {
+      await apiFetch(`/projects/${id}/pause`, { method: "POST" })
+      pushToast({ title: "Loop paused", description: "Will pause after current iteration", tone: "success" })
+      queueOverviewRefresh()
+      void fetchActiveProject(id)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to pause loop"
+      pushToast({ title: "Pause failed", description: msg, tone: "error" })
+    }
+  }, [id, pushToast, queueOverviewRefresh, fetchActiveProject])
+
+  const handleResume = useCallback(async () => {
+    if (!id) return
+    try {
+      await apiFetch(`/projects/${id}/resume`, { method: "POST" })
+      pushToast({ title: "Loop resumed", description: "Resuming iterations", tone: "success" })
+      queueOverviewRefresh()
+      void fetchActiveProject(id)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to resume loop"
+      pushToast({ title: "Resume failed", description: msg, tone: "error" })
+    }
+  }, [id, pushToast, queueOverviewRefresh, fetchActiveProject])
+
+  const handleInject = useCallback(async (message: string) => {
+    if (!id) return
+    try {
+      await apiFetch(`/projects/${id}/inject`, { method: "POST", body: JSON.stringify({ message }) })
+      pushToast({ title: "Instruction injected", description: "Will be picked up next iteration", tone: "success" })
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to inject message"
+      pushToast({ title: "Inject failed", description: msg, tone: "error" })
+    }
+  }, [id, pushToast])
   const isInitialLoading =
     (projectLoading || overviewLoading) &&
     !activeProject &&
@@ -598,6 +666,11 @@ export function ProjectPage() {
         iterationLabel={iterationLabel}
         runtimeLabel={runtimeLabel}
         tokensUsed={tokensUsed}
+        onStart={handleStart}
+        onStop={handleStop}
+        onPause={handlePause}
+        onResume={handleResume}
+        onInject={handleInject}
       />
     </div>
   )
