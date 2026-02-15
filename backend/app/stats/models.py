@@ -37,3 +37,4 @@ class ProjectStats(BaseModel):
     velocity: VelocityStats = Field(default_factory=VelocityStats)
     health_breakdown: HealthBreakdown = Field(default_factory=HealthBreakdown)
     tokens_by_phase: list[PhaseTokenUsage] = Field(default_factory=list)
+    cost_per_1k_tokens: float = 0.006

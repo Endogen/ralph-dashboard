@@ -4,12 +4,23 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from app.control.models import LoopConfig
+from app.control.process_manager import read_project_config
 from app.iterations.models import IterationSummary
 from app.iterations.service import list_project_iterations
 from app.plan.service import get_project_plan
 from app.stats.models import HealthBreakdown, PhaseTokenUsage, ProjectStats, VelocityStats
 
 DEFAULT_COST_PER_1K_TOKENS = 0.006
+
+
+def _resolve_cost_per_1k(config: LoopConfig) -> float:
+    """Look up the cost/k-token for the active CLI from model_pricing config."""
+    cli = config.cli.strip().lower()
+    for model, price in config.model_pricing.items():
+        if model.strip().lower() == cli:
+            return price
+    return DEFAULT_COST_PER_1K_TOKENS
 
 
 def _cost_from_tokens(tokens: float, cost_per_1k_tokens: float) -> float:
@@ -62,11 +73,13 @@ async def aggregate_project_stats(project_id: str) -> ProjectStats:
     """Aggregate project stats from iteration and plan data."""
     iterations = await list_project_iterations(project_id)
     plan = await get_project_plan(project_id)
+    config = await read_project_config(project_id)
+    cost_per_1k = _resolve_cost_per_1k(config)
 
     total_iterations = len(iterations)
     total_tokens = float(sum(item.tokens_used or 0.0 for item in iterations))
     total_duration_seconds = float(sum(item.duration_seconds or 0.0 for item in iterations))
-    total_cost_usd = _cost_from_tokens(total_tokens, DEFAULT_COST_PER_1K_TOKENS)
+    total_cost_usd = _cost_from_tokens(total_tokens, cost_per_1k)
 
     avg_duration = total_duration_seconds / total_iterations if total_iterations else 0.0
     avg_tokens = total_tokens / total_iterations if total_iterations else 0.0
@@ -91,7 +104,7 @@ async def aggregate_project_stats(project_id: str) -> ProjectStats:
         else 0.0
     )
     projected_total_cost_usd = total_cost_usd + _cost_from_tokens(
-        remaining_tokens_projection, DEFAULT_COST_PER_1K_TOKENS
+        remaining_tokens_projection, cost_per_1k
     )
 
     task_phase_map = _build_task_phase_map(plan)
@@ -114,4 +127,5 @@ async def aggregate_project_stats(project_id: str) -> ProjectStats:
         ),
         health_breakdown=_health_breakdown(iterations),
         tokens_by_phase=_phase_token_usage(iterations, task_phase_map),
+        cost_per_1k_tokens=cost_per_1k,
     )

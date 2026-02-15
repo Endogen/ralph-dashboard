@@ -100,6 +100,7 @@ export type ProjectStats = {
   velocity: VelocityStats
   health_breakdown: HealthBreakdown
   tokens_by_phase: PhaseTokenUsage[]
+  cost_per_1k_tokens: number
 }
 
 export type ProcessMetrics = {

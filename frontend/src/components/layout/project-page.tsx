@@ -514,6 +514,7 @@ export function ProjectPage() {
               iterations={iterations}
               projectId={id}
               isLoading={overviewLoading}
+              tokenPricePer1k={stats?.cost_per_1k_tokens}
             />
           </div>
         )
