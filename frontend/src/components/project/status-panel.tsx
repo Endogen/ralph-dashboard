@@ -42,7 +42,7 @@ export function StatusPanel({ status, iterationLabel, runningFor, cliLabel, mode
   const meta = statusMeta[status]
 
   return (
-    <section className="rounded-xl border bg-card p-5">
+    <section className="rounded-xl bg-card/50 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Overview Status</h2>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${meta.badgeClass}`}>
@@ -51,28 +51,28 @@ export function StatusPanel({ status, iterationLabel, runningFor, cliLabel, mode
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border bg-background/70 p-3">
+        <div className="rounded-lg bg-background/50 p-3">
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Repeat2 className="h-3.5 w-3.5" />
             Iteration
           </p>
           <p className="mt-1 text-sm font-medium">{iterationLabel}</p>
         </div>
-        <div className="rounded-lg border bg-background/70 p-3">
+        <div className="rounded-lg bg-background/50 p-3">
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock3 className="h-3.5 w-3.5" />
             Running Time
           </p>
           <p className="mt-1 text-sm font-medium">{runningFor}</p>
         </div>
-        <div className="rounded-lg border bg-background/70 p-3">
+        <div className="rounded-lg bg-background/50 p-3">
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Cpu className="h-3.5 w-3.5" />
             CLI
           </p>
           <p className="mt-1 text-sm font-medium">{cliLabel}</p>
         </div>
-        <div className="rounded-lg border bg-background/70 p-3">
+        <div className="rounded-lg bg-background/50 p-3">
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Activity className="h-3.5 w-3.5" />
             Mode

@@ -141,7 +141,7 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
   const data = useMemo(() => buildBurndownData(iterations, tasksTotal), [iterations, tasksTotal])
 
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Task Burndown</h3>
         <p className="text-sm text-muted-foreground">Ideal vs actual tasks remaining across iterations.</p>

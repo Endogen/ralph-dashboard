@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { FolderPlus, MoonStar, Settings2, Sun } from "lucide-react"
+import { FolderPlus, MoonStar, Sun } from "lucide-react"
 import { NavLink, Outlet } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
@@ -67,81 +67,71 @@ export function AppLayout() {
   }, [fetchProjects])
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[1200px] gap-4 p-4 md:p-6">
-        <AppSidebar projects={projects} onAddProject={() => setAddProjectOpen(true)} />
+        <AppSidebar
+          projects={projects}
+          onAddProject={() => setAddProjectOpen(true)}
+          resolvedTheme={resolvedTheme}
+          toggleTheme={toggleTheme}
+          preference={preference}
+          setPreference={setPreference}
+          connected={connected}
+          reconnecting={reconnecting}
+        />
 
-        <main className="flex min-h-[80vh] flex-1 flex-col gap-4 rounded-2xl border bg-card/55 p-4 shadow-xl shadow-slate-200/35 backdrop-blur-sm dark:shadow-slate-950/35 md:p-6">
-          <header className="flex items-center justify-between rounded-xl border bg-background/80 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Workspace
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Dark mode follows system defaults and can be overridden from the header.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="rounded-full border bg-background/60 p-2 hover:bg-background"
-                title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4 text-amber-500" />
-                ) : (
-                  <MoonStar className="h-4 w-4 text-slate-600" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreference("system")}
-                disabled={preference === "system"}
-                className="rounded-md border bg-background/60 px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
-                title="Use system theme preference"
-              >
-                Auto
-              </button>
-              <span
-                className={`rounded-full px-2 py-1 text-xs font-medium ${
-                  reconnecting
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                    : connected
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
-                }`}
-              >
-                {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
-              </span>
-              <Settings2 className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </header>
-
+        <main className="flex min-h-[80vh] flex-1 flex-col gap-4 p-0 md:p-2">
           <section className="space-y-2 md:hidden">
             <div className="flex items-center justify-between gap-2">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `rounded-md border px-3 py-2 text-sm font-medium ${
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background/70 text-muted-foreground"
-                  }`
-                }
-              >
-                Dashboard
-              </NavLink>
-              <button
-                type="button"
-                onClick={() => setAddProjectOpen(true)}
-                className="flex items-center gap-1 rounded-md border bg-background/70 px-3 py-2 text-sm font-medium text-muted-foreground"
-              >
-                <FolderPlus className="h-4 w-4" />
-                Add
-              </button>
+              <div className="flex items-center gap-2">
+                <NavLink
+                  to="/"
+                  end
+                  className={({ isActive }) =>
+                    `rounded-md border px-3 py-2 text-sm font-medium ${
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background/70 text-muted-foreground"
+                    }`
+                  }
+                >
+                  Dashboard
+                </NavLink>
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-medium ${
+                    reconnecting
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                      : connected
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="rounded-full border bg-background/60 p-2 hover:bg-background"
+                  title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+                  {resolvedTheme === "dark" ? (
+                    <Sun className="h-4 w-4 text-amber-500" />
+                  ) : (
+                    <MoonStar className="h-4 w-4 text-slate-600" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddProjectOpen(true)}
+                  className="flex items-center gap-1 rounded-md border bg-background/70 px-3 py-2 text-sm font-medium text-muted-foreground"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">

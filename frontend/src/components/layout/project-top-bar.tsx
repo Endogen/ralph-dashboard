@@ -63,7 +63,7 @@ export function ProjectTopBar({
   const meta = statusMeta[status]
 
   return (
-    <header className="rounded-xl border bg-background/70 p-4">
+    <header className="rounded-xl bg-background/50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{projectName}</h1>
@@ -74,20 +74,20 @@ export function ProjectTopBar({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-        <div className="flex items-center gap-2 rounded-lg border bg-card/60 px-3 py-2">
+      <div className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex items-center gap-2 rounded-lg bg-card/40 px-3 py-2">
           <LoaderCircle className="h-4 w-4 text-primary" />
           <span>{iterationLabel}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-card/60 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg bg-card/40 px-3 py-2">
           <Clock3 className="h-4 w-4 text-primary" />
           <span>{runtimeLabel}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-card/60 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg bg-card/40 px-3 py-2">
           <Coins className="h-4 w-4 text-primary" />
           <span>{formatTokens(tokensUsed)} tokens</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-card/60 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg bg-card/40 px-3 py-2">
           <Wallet className="h-4 w-4 text-primary" />
           <span>{formatCost(estimatedCostUsd)}</span>
         </div>

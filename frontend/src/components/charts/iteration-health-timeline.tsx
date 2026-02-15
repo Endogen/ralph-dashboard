@@ -39,7 +39,7 @@ export function IterationHealthTimeline({
   )
 
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Iteration Health Timeline</h3>
         <p className="text-sm text-muted-foreground">

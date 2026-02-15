@@ -37,9 +37,9 @@ export function ProjectControlBar({
   }
 
   return (
-    <section className="sticky bottom-4 z-10 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur">
+    <section className="sticky bottom-4 z-10 max-w-full overflow-hidden rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={onStart}>
             Start
           </Button>
@@ -54,9 +54,9 @@ export function ProjectControlBar({
           </Button>
         </div>
 
-        <div className="flex flex-1 gap-2">
+        <div className="flex min-w-0 flex-1 gap-2">
           <input
-            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
             placeholder="Inject instructions for next iteration..."
             value={injectText}
             onChange={(event) => setInjectText(event.target.value)}

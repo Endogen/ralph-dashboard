@@ -1,4 +1,4 @@
-import { CircleDot, FolderPlus, Gauge, PlayCircle, Square, TriangleAlert } from "lucide-react"
+import { CircleDot, FolderPlus, Gauge, MoonStar, PlayCircle, Square, Sun, TriangleAlert } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,12 @@ import type { ProjectStatus, ProjectSummary } from "@/types/project"
 type AppSidebarProps = {
   projects: ProjectSummary[]
   onAddProject?: () => void
+  resolvedTheme?: string
+  toggleTheme?: () => void
+  preference?: string
+  setPreference?: (pref: "light" | "dark" | "system") => void
+  connected?: boolean
+  reconnecting?: boolean
 }
 
 type StatusMeta = {
@@ -30,7 +36,7 @@ const projectIcon: Record<ProjectStatus, typeof PlayCircle> = {
   error: TriangleAlert,
 }
 
-export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
+export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme, preference, setPreference, connected, reconnecting }: AppSidebarProps) {
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
       isActive
@@ -74,7 +80,48 @@ export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
         })}
       </div>
 
-      <footer className="mt-4 border-t pt-4">
+      <footer className="mt-4 space-y-3 border-t pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {toggleTheme && (
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="rounded-full border bg-background/60 p-2 hover:bg-background"
+                title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {resolvedTheme === "dark" ? (
+                  <Sun className="h-4 w-4 text-amber-500" />
+                ) : (
+                  <MoonStar className="h-4 w-4 text-slate-600" />
+                )}
+              </button>
+            )}
+            {setPreference && (
+              <button
+                type="button"
+                onClick={() => setPreference("system")}
+                disabled={preference === "system"}
+                className="rounded-md border bg-background/60 px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+                title="Use system theme preference"
+              >
+                Auto
+              </button>
+            )}
+          </div>
+          <span
+            className={`rounded-full px-2 py-1 text-xs font-medium ${
+              reconnecting
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                : connected
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                  : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+            }`}
+          >
+            {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+          </span>
+        </div>
         <Button className="w-full justify-start gap-2" onClick={onAddProject} variant="outline">
           <FolderPlus className="h-4 w-4" />
           Add Project
