@@ -1,6 +1,6 @@
 # Ralph Dashboard
 
-A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https://github.com/Endogen/ralph-loop) AI agent sessions. Watch your AI coding agents build software — live charts, iteration tracking, plan progress, log streaming, and full process control from your browser.
+A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://ghuntley.com/ralph/) AI agent sessions. Ralph is a technique — in its purest form, a bash loop that feeds a prompt to an AI coding tool over and over, building software iteratively. This dashboard lets you watch it happen live — charts, iteration tracking, plan progress, log streaming, and full process control from your browser.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12+-blue)
@@ -240,7 +240,7 @@ Open `http://localhost:8420` and log in.
 
 ## Complete Setup Guide
 
-A step-by-step guide to get Ralph Dashboard running from scratch on a fresh server. This covers installing the dashboard, setting up [Ralph Loop](https://github.com/Endogen/ralph-loop), and getting your first AI coding session monitored.
+A step-by-step guide to get Ralph Dashboard running from scratch on a fresh server. This covers installing the dashboard, setting up the Ralph loop script, and getting your first AI coding session monitored.
 
 ### Prerequisites
 
@@ -304,11 +304,13 @@ Open `http://localhost:8420` in your browser and log in.
 
 ### Step 5: Set Up Ralph Loop
 
-The dashboard monitors projects that use [Ralph Loop](https://github.com/Endogen/ralph-loop) — an AI coding loop runner that manages iterative coding sessions with tools like Codex or Claude Code.
+The dashboard monitors projects that use a [Ralph loop](https://ghuntley.com/ralph/) — an iterative AI coding technique where a script feeds a prompt to a coding tool (Codex, Claude Code, etc.) in a loop, building software one task at a time.
+
+The `ralph.sh` script is included in this repo at `scripts/ralph.sh`:
 
 ```bash
-# Get ralph.sh (the loop runner)
-curl -o ~/ralph.sh https://raw.githubusercontent.com/Endogen/ralph-loop/main/ralph.sh
+# Copy the loop runner somewhere convenient
+cp scripts/ralph.sh ~/ralph.sh
 chmod +x ~/ralph.sh
 ```
 
@@ -453,7 +455,7 @@ ralph-dashboard/
 │       ├── stores/            # Zustand state stores
 │       └── types/             # TypeScript type definitions
 ├── scripts/
-│   ├── ralph.sh               # Ralph loop runner (copy from ralph-loop repo)
+│   ├── ralph.sh               # Ralph loop runner script
 │   └── nginx/                 # Example nginx config
 └── specs/                     # Design specification documents
 ```
