@@ -9,6 +9,8 @@ import {
   Wallet,
 } from "lucide-react"
 
+import { displayTokens } from "@/lib/utils"
+
 type StatsGridProps = {
   totalTokens: number
   estimatedCostUsd: number
@@ -50,7 +52,7 @@ export function StatsGrid({
   successRate,
 }: StatsGridProps) {
   const items: StatItem[] = [
-    { label: "Total Tokens", value: formatInt(totalTokens), icon: Coins },
+    { label: "Total Tokens", value: formatInt(displayTokens(totalTokens)), icon: Coins },
     { label: "Estimated Cost", value: formatUsd(estimatedCostUsd), icon: Wallet },
     { label: "Iterations", value: formatInt(iterationsCompleted), icon: Repeat2 },
     { label: "Avg Duration", value: averageIterationDuration, icon: Gauge },

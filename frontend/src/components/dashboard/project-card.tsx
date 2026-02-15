@@ -1,6 +1,7 @@
 import { Clock3, Coins, GitBranch } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { displayTokens } from "@/lib/utils"
 import type { ProjectStatus } from "@/types/project"
 
 type IterationHealth = "productive" | "partial" | "failed"
@@ -41,7 +42,8 @@ const healthCellClass: Record<IterationHealth, string> = {
 }
 
 function formatTokens(tokens: number): string {
-  return new Intl.NumberFormat("en-US").format(tokens)
+  // Convert from k-tokens to actual tokens for display
+  return new Intl.NumberFormat("en-US").format(displayTokens(tokens))
 }
 
 function formatUsd(amount: number): string {

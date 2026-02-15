@@ -2,6 +2,7 @@ import { useMemo } from "react"
 
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
+import { displayTokens } from "@/lib/utils"
 import type { PhaseTokenUsage } from "@/types/project"
 
 const PHASE_COLORS = [
@@ -26,7 +27,8 @@ type TokenTooltipProps = {
 }
 
 function formatTokens(value: number): string {
-  return value.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  // Convert from k-tokens to actual tokens for display
+  return displayTokens(value).toLocaleString("en-US")
 }
 
 function TokenTooltip({ active, payload }: TokenTooltipProps) {
@@ -42,7 +44,7 @@ function TokenTooltip({ active, payload }: TokenTooltipProps) {
   return (
     <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-lg">
       <p className="font-semibold">{item.name}</p>
-      <p className="mt-1">{formatTokens(item.value)} tokens</p>
+      <p className="mt-1">{item.value.toLocaleString("en-US")} tokens</p>
     </div>
   )
 }
@@ -52,7 +54,8 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
     return data
       .filter((item) => item.tokens > 0)
       .sort((left, right) => right.tokens - left.tokens)
-      .map((item) => ({ phase: item.phase, tokens: item.tokens }))
+      // Convert k-tokens to actual tokens for chart display
+      .map((item) => ({ phase: item.phase, tokens: displayTokens(item.tokens) }))
   }, [data])
 
   return (

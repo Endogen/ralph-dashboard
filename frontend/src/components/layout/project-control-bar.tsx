@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { displayTokens } from "@/lib/utils"
 import type { ProjectStatus } from "@/types/project"
 
 type ProjectControlBarProps = {
@@ -68,7 +69,7 @@ export function ProjectControlBar({
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        {iterationLabel} - {runtimeLabel} - {tokensUsed.toLocaleString("en-US")} tokens
+        {iterationLabel} - {runtimeLabel} - {displayTokens(tokensUsed).toLocaleString("en-US")} tokens
       </p>
     </section>
   )

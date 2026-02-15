@@ -1,5 +1,6 @@
 import { Clock3, Coins, LoaderCircle, Wallet } from "lucide-react"
 
+import { displayTokens } from "@/lib/utils"
 import type { ProjectStatus } from "@/types/project"
 
 type ProjectTopBarProps = {
@@ -49,7 +50,8 @@ function formatCost(value: number): string {
 }
 
 function formatTokens(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value)
+  // Convert from k-tokens to actual tokens for display
+  return new Intl.NumberFormat("en-US").format(displayTokens(value))
 }
 
 export function ProjectTopBar({

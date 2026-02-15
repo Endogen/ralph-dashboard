@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { apiFetch } from "@/api/client"
 import { GitDiffViewer } from "@/components/project/git-diff-viewer"
 import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
+import { displayTokens } from "@/lib/utils"
 import type { GitCommitDiff, IterationDetail, IterationSummary } from "@/types/project"
 
 type IterationSortKey = "number" | "status" | "health" | "duration" | "tokens" | "cost" | "tasks" | "commit" | "test"
@@ -126,10 +127,9 @@ function formatTokens(tokens: number | null): string {
   if (tokens === null || !Number.isFinite(tokens)) {
     return "n/a"
   }
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: tokens % 1 === 0 ? 0 : 1,
-    maximumFractionDigits: 1,
-  }).format(tokens)
+  // Convert from k-tokens to actual tokens for display
+  const actual = displayTokens(tokens)
+  return new Intl.NumberFormat("en-US").format(actual)
 }
 
 function formatUsd(value: number | null): string {
