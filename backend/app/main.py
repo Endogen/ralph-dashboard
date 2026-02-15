@@ -20,6 +20,7 @@ from app.plan.router import router as plan_router
 from app.projects.router import router as projects_router
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
+from app.system.router import router as system_router
 from app.ws.event_dispatcher import watcher_event_dispatcher
 from app.ws.file_watcher import file_watcher_service
 from app.ws.router import router as ws_router
@@ -66,6 +67,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(projects_router)
     app.include_router(report_router)
     app.include_router(stats_router)
+    app.include_router(system_router)
     app.include_router(ws_router)
 
     @app.middleware("http")

@@ -102,6 +102,36 @@ export type ProjectStats = {
   tokens_by_phase: PhaseTokenUsage[]
 }
 
+export type ProcessMetrics = {
+  pid: number | null
+  rss_mb: number
+  children_rss_mb: number
+  total_rss_mb: number
+  cpu_percent: number
+  child_count: number
+}
+
+export type SystemMetrics = {
+  ram_total_mb: number
+  ram_used_mb: number
+  ram_available_mb: number
+  ram_percent: number
+  cpu_load_1m: number
+  cpu_load_5m: number
+  cpu_load_15m: number
+  cpu_core_count: number
+  disk_total_gb: number
+  disk_used_gb: number
+  disk_free_gb: number
+  disk_percent: number
+  uptime_seconds: number
+}
+
+export type ProjectSystemInfo = {
+  process: ProcessMetrics
+  system: SystemMetrics
+}
+
 export type LoopConfig = {
   cli: string
   flags: string

@@ -18,6 +18,7 @@ import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { CodeFilesPane } from "@/components/project/code-files-pane"
 import { ProjectConfigPanel } from "@/components/project/project-config-panel"
+import { SystemPanel } from "@/components/project/system-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
@@ -36,7 +37,7 @@ type LiveLogChunk = {
   lines: string
 }
 
-type TabKey = "overview" | "plan" | "iterations" | "specs" | "code" | "log" | "config"
+type TabKey = "overview" | "plan" | "iterations" | "specs" | "code" | "log" | "config" | "system"
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -46,6 +47,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "code", label: "Code" },
   { key: "log", label: "Log" },
   { key: "config", label: "Config" },
+  { key: "system", label: "System" },
 ]
 
 function formatDuration(valueInSeconds: number): string {
@@ -535,6 +537,9 @@ export function ProjectPage() {
 
       case "config":
         return <ProjectConfigPanel projectId={id} projectPath={activeProject?.path ?? null} />
+
+      case "system":
+        return <SystemPanel projectId={id} />
 
       default:
         return null
