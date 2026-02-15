@@ -307,11 +307,6 @@ pytest tests/ -q
 
 All 112 tests should pass.
 
-## Related
-
-- **[Ralph Loop](https://github.com/Endogen/ralph-loop)** — The AI agent loop runner that this dashboard monitors
-- **[Xian](https://github.com/XianChain/xian-core)** — L1 blockchain with native Python smart contracts
-
 ## License
 
 MIT
