@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronRight, Hourglass } from "lucide-react"
 
 import type { ParsedImplementationPlan } from "@/types/project"
 
@@ -9,7 +9,6 @@ type PlanRendererProps = {
   projectId?: string
   taskMetadata?: Record<string, { iteration: number | null; commit: string | null }>
   isLoading: boolean
-  onToggleTask?: (phaseIndex: number, taskIndex: number, nextDone: boolean) => void
   isSavingTask?: boolean
 }
 
@@ -45,7 +44,6 @@ export function PlanRenderer({
   projectId,
   taskMetadata = {},
   isLoading,
-  onToggleTask,
   isSavingTask = false,
 }: PlanRendererProps) {
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
@@ -114,7 +112,7 @@ export function PlanRenderer({
             </div>
           </div>
 
-          {plan.phases.map((phase, phaseIndex) => {
+          {plan.phases.map((phase) => {
             const isExpanded = expandedPhases.has(phase.name)
             const statusMeta = phaseStatusMeta[phase.status]
 
@@ -159,19 +157,17 @@ export function PlanRenderer({
                         className="rounded-md bg-background/50 px-2 py-2"
                         style={{ marginLeft: `${Math.min(task.indent, 12)}px` }}
                       >
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={task.done}
-                            onChange={(event) => onToggleTask?.(phaseIndex, index, event.target.checked)}
-                            disabled={!onToggleTask || isSavingTask}
-                            className="h-4 w-4 rounded border-slate-300 text-primary"
-                          />
+                        <div className="flex items-center gap-2 text-sm">
+                          {task.done ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                          ) : (
+                            <Hourglass className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                          )}
                           <span className={task.done ? "text-muted-foreground line-through" : ""}>
                             {task.id ? `${task.id}: ` : ""}
                             {task.description}
                           </span>
-                        </label>
+                        </div>
                         {task.done && task.id && taskMetadata[task.id] && (
                           <p className="mt-1 pl-6 text-[11px] text-muted-foreground">
                             Completed in iteration {taskMetadata[task.id].iteration ?? "n/a"}

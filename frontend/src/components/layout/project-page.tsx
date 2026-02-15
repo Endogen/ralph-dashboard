@@ -499,7 +499,6 @@ export function ProjectPage() {
                 projectId={id}
                 taskMetadata={taskMetadata}
                 isLoading={overviewLoading}
-                onToggleTask={undefined}
                 isSavingTask={isSavingPlanTask || isSavingPlanRaw}
               />
             )}
