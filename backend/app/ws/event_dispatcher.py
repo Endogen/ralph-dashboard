@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections import defaultdict
-from functools import partial
 
 from app.notifications.service import parse_notification_file
 from app.plan.parser import parse_implementation_plan_file
@@ -89,8 +87,7 @@ class WatcherEventDispatcher:
 
     async def _handle_iterations_change(self, change: FileChangeEvent) -> None:
         """Read the last line of iterations.jsonl to detect new iterations."""
-        loop = asyncio.get_running_loop()
-        record = await loop.run_in_executor(None, self._read_last_jsonl_record, change.path)
+        record = self._read_last_jsonl_record(change.path)
         if record is None:
             return
 
@@ -130,8 +127,7 @@ class WatcherEventDispatcher:
             )
 
     async def _handle_log_change(self, change: FileChangeEvent) -> None:
-        loop = asyncio.get_running_loop()
-        lines = await loop.run_in_executor(None, self._read_log_append_lines, change)
+        lines = self._read_log_append_lines(change)
         if lines:
             await hub.emit("log_append", change.project_id, {"lines": lines})
 
@@ -208,8 +204,7 @@ class WatcherEventDispatcher:
         return "".join(lines)
 
     async def _handle_plan_change(self, change: FileChangeEvent) -> None:
-        loop = asyncio.get_running_loop()
-        parsed = await loop.run_in_executor(None, parse_implementation_plan_file, change.path)
+        parsed = parse_implementation_plan_file(change.path)
         if parsed is None:
             return
 
@@ -245,8 +240,7 @@ class WatcherEventDispatcher:
         )
 
     async def _handle_notification_change(self, change: FileChangeEvent) -> None:
-        loop = asyncio.get_running_loop()
-        entry = await loop.run_in_executor(None, parse_notification_file, change.path)
+        entry = parse_notification_file(change.path)
         if entry is None:
             return
 
@@ -269,8 +263,7 @@ class WatcherEventDispatcher:
         )
 
     async def _emit_status_if_changed(self, change: FileChangeEvent) -> None:
-        loop = asyncio.get_running_loop()
-        current = (await loop.run_in_executor(None, detect_project_status, change.project_path)).value
+        current = detect_project_status(change.project_path).value
         previous = self._statuses.get(change.project_id)
         if previous == current:
             return

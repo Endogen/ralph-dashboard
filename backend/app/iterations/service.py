@@ -92,9 +92,7 @@ async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
 
     # Prefer jsonl data; only parse log if jsonl is empty and log is small
-    log_iterations = (
-        _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
-    )
+    log_iterations = _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     details = [merged[number] for number in sorted(merged)]
@@ -110,9 +108,7 @@ async def get_project_iteration_detail(
     jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
 
     # Prefer jsonl data; only parse log if jsonl is empty and log is small
-    log_iterations = (
-        _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
-    )
+    log_iterations = _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     return merged.get(iteration_number)

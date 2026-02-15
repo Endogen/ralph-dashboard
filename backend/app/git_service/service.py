@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import asyncio
 from pathlib import Path
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
@@ -48,57 +48,60 @@ async def get_git_log(project_id: str, limit: int = 50, offset: int = 0) -> list
     computing per-commit stats via GitPython (which spawns one subprocess
     per commit and can be very slow for large repos).
     """
-    import asyncio
     import re
+    from asyncio.subprocess import PIPE
 
     project_path = await _resolve_project_path(project_id)
-    repo = _open_repo(project_path)
+    _open_repo(project_path)
 
-    def _run_git_log() -> list[GitCommitSummary]:
-        separator = "---RALPH_SEP---"
-        fmt = f"%H{separator}%an{separator}%aI{separator}%s"
-        try:
-            raw = repo.git.log(
-                f"--max-count={limit}",
-                f"--skip={offset}",
-                f"--format={fmt}",
-                "--shortstat",
-            )
-        except Exception:
-            return []
+    separator = "---RALPH_SEP---"
+    fmt = f"%H{separator}%an{separator}%aI{separator}%s"
+    process = await asyncio.create_subprocess_exec(
+        "git",
+        "-C",
+        str(project_path),
+        "log",
+        f"--max-count={limit}",
+        f"--skip={offset}",
+        f"--format={fmt}",
+        "--shortstat",
+        stdout=PIPE,
+        stderr=PIPE,
+    )
+    stdout, _ = await process.communicate()
+    if process.returncode != 0:
+        return []
 
-        stat_re = re.compile(
-            r"(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?"
-        )
+    raw = stdout.decode("utf-8", errors="replace")
+    stat_re = re.compile(
+        r"(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?"
+    )
 
-        result: list[GitCommitSummary] = []
-        current: dict | None = None
-        for line in raw.splitlines():
-            if separator in line:
-                if current is not None:
-                    result.append(GitCommitSummary(**current))
-                parts = line.split(separator, 3)
-                current = {
-                    "hash": parts[0][:7],
-                    "author": parts[1],
-                    "date": parts[2],
-                    "message": parts[3] if len(parts) > 3 else "",
-                    "files_changed": 0,
-                    "insertions": 0,
-                    "deletions": 0,
-                }
-            elif current is not None:
-                m = stat_re.search(line)
-                if m:
-                    current["files_changed"] = int(m.group(1) or 0)
-                    current["insertions"] = int(m.group(2) or 0)
-                    current["deletions"] = int(m.group(3) or 0)
-        if current is not None:
-            result.append(GitCommitSummary(**current))
-        return result
-
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _run_git_log)
+    result: list[GitCommitSummary] = []
+    current: dict | None = None
+    for line in raw.splitlines():
+        if separator in line:
+            if current is not None:
+                result.append(GitCommitSummary(**current))
+            parts = line.split(separator, 3)
+            current = {
+                "hash": parts[0][:7],
+                "author": parts[1],
+                "date": parts[2],
+                "message": parts[3] if len(parts) > 3 else "",
+                "files_changed": 0,
+                "insertions": 0,
+                "deletions": 0,
+            }
+        elif current is not None:
+            m = stat_re.search(line)
+            if m:
+                current["files_changed"] = int(m.group(1) or 0)
+                current["insertions"] = int(m.group(2) or 0)
+                current["deletions"] = int(m.group(3) or 0)
+    if current is not None:
+        result.append(GitCommitSummary(**current))
+    return result
 
 
 async def get_git_diff(project_id: str, commit_hash: str) -> GitCommitDiff:

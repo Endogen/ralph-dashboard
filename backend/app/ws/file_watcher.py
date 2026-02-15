@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -21,6 +23,7 @@ from watchdog.observers import Observer
 
 from app.projects.models import project_id_from_path
 from app.projects.service import discover_all_project_paths
+from app.ws.hub import hub
 
 WATCHED_ROOT_FILES = {"IMPLEMENTATION_PLAN.md", "AGENTS.md", "PROMPT.md"}
 WATCHED_RALPH_FILES = {
@@ -31,13 +34,19 @@ WATCHED_RALPH_FILES = {
     "pause",
 }
 # Only react to real content changes, not access/attribute metadata events.
-_RELEVANT_EVENT_TYPES = {EVENT_TYPE_CREATED, EVENT_TYPE_DELETED, EVENT_TYPE_MODIFIED, EVENT_TYPE_MOVED}
+_RELEVANT_EVENT_TYPES = {
+    EVENT_TYPE_CREATED,
+    EVENT_TYPE_DELETED,
+    EVENT_TYPE_MODIFIED,
+    EVENT_TYPE_MOVED,
+}
 # Minimum seconds between queuing events for the same file.
 _DEBOUNCE_SECONDS = 0.5
 # Hard cap on pending events to prevent unbounded memory growth.
 _MAX_QUEUE_SIZE = 200
 
 OnFileChange = Callable[["FileChangeEvent"], Awaitable[None]]
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -56,7 +65,7 @@ def _is_relevant_path(project_path: Path, file_path: Path) -> bool:
         file_str = str(file_path)
         if not file_str.startswith(proj_str):
             return False
-        relative = file_str[len(proj_str):].lstrip("/")
+        relative = file_str[len(proj_str) :].lstrip("/")
     except (TypeError, ValueError):
         return False
 
@@ -178,12 +187,21 @@ class FileWatcherService:
         desired: dict[str, Path] = {project_id_from_path(path): path for path in desired_paths}
 
         stale_ids = [project_id for project_id in self._observers if project_id not in desired]
+        added_ids: list[str] = []
         for project_id in stale_ids:
             self._stop_observer(project_id)
 
         for project_id, project_path in desired.items():
             if project_id not in self._observers:
                 self._start_observer(project_id, project_path)
+                added_ids.append(project_id)
+
+        if added_ids or stale_ids:
+            await self._emit_projects_refreshed(
+                added=sorted(added_ids),
+                removed=sorted(stale_ids),
+                observed=sorted(self._observers),
+            )
 
     async def _consume_events(self) -> None:
         last_handled: dict[str, float] = {}
@@ -192,19 +210,10 @@ class FileWatcherService:
             try:
                 if self._on_change is not None:
                     key = f"{change.project_id}:{change.path}"
-                    now = asyncio.get_event_loop().time()
+                    now = asyncio.get_running_loop().time()
                     if now - last_handled.get(key, 0.0) < _DEBOUNCE_SECONDS:
                         continue
                     last_handled[key] = now
-                    # Drain any duplicate events that piled up during handling.
-                    drained = 0
-                    while not self._queue.empty() and drained < 50:
-                        try:
-                            self._queue.get_nowait()
-                            self._queue.task_done()
-                            drained += 1
-                        except asyncio.QueueEmpty:
-                            break
                     await self._on_change(change)
             except Exception:
                 pass  # Don't let a handler error kill the consumer loop.
@@ -251,6 +260,26 @@ class FileWatcherService:
             return
         observer.stop()
         observer.join(timeout=1.0)
+
+    async def _emit_projects_refreshed(
+        self, *, added: list[str], removed: list[str], observed: list[str]
+    ) -> None:
+        payload = {
+            "type": "watcher_projects_refreshed",
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "data": {
+                "added": added,
+                "removed": removed,
+                "observed": observed,
+                "count": len(observed),
+            },
+        }
+        try:
+            await hub.broadcast(payload)
+        except Exception:
+            LOGGER.warning(
+                "Failed to emit watcher_projects_refreshed websocket event", exc_info=True
+            )
 
 
 file_watcher_service = FileWatcherService()
