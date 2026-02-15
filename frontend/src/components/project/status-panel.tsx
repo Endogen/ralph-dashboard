@@ -42,7 +42,7 @@ export function StatusPanel({ status, iterationLabel, runningFor, cliLabel, mode
   const meta = statusMeta[status]
 
   return (
-    <section className="rounded-xl bg-card/50 p-5">
+    <section className="rounded-xl p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Overview Status</h2>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${meta.badgeClass}`}>

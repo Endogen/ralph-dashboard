@@ -297,7 +297,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
   }, [applyConfig, buildPayload, projectId, pushToast])
 
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="rounded-xl p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Config</h3>
         <p className="text-sm text-muted-foreground">

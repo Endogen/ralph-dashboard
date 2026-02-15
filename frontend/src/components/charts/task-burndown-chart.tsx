@@ -141,7 +141,7 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
   const data = useMemo(() => buildBurndownData(iterations, tasksTotal), [iterations, tasksTotal])
 
   return (
-    <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
+    <section className="max-w-full overflow-hidden p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Task Burndown</h3>
         <p className="break-words text-sm text-muted-foreground">Ideal vs actual tasks remaining across iterations.</p>
@@ -152,9 +152,9 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
           Burndown requires iteration and task data.
         </div>
       ) : (
-        <div className="h-[300px] w-full">
+        <div className="h-[300px] w-full overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
+            <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis
                 dataKey="timeMs"
@@ -167,7 +167,7 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
               />
               <YAxis tick={{ fontSize: 12 }} domain={[0, tasksTotal]} />
               <Tooltip content={<BurndownTooltip />} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Area
                 type="linear"
                 dataKey="behindBase"

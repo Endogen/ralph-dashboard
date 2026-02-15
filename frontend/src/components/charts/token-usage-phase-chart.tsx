@@ -56,7 +56,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
   }, [data])
 
   return (
-    <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
+    <section className="max-w-full overflow-hidden p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Token Usage by Phase</h3>
         <p className="break-words text-sm text-muted-foreground">Token consumption distribution across implementation phases.</p>
@@ -67,7 +67,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
           No phase token data available yet.
         </div>
       ) : (
-        <div className="relative h-[300px] w-full">
+        <div className="relative h-[300px] w-full overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -87,7 +87,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
                 ))}
               </Pie>
               <Tooltip content={<TokenTooltip />} />
-              <Legend verticalAlign="bottom" height={40} iconType="circle" />
+              <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

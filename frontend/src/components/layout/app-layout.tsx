@@ -67,7 +67,7 @@ export function AppLayout() {
   }, [fetchProjects])
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+    <div className="min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[1200px] gap-4 p-4 md:p-6">
         <AppSidebar
           projects={projects}

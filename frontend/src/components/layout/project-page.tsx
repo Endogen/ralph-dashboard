@@ -643,7 +643,7 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-0 max-w-full flex-col gap-4 overflow-hidden">
+    <div className="flex min-h-0 max-w-full flex-col gap-4">
       {/* Top bar — always visible */}
       <ProjectTopBar
         projectName={projectName}

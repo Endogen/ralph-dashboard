@@ -81,7 +81,7 @@ export function PlanRenderer({
   }
 
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="rounded-xl p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Implementation Plan</h3>
         <p className="break-words text-sm text-muted-foreground">

@@ -192,7 +192,7 @@ export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimeli
   }, [data, tasksTotal])
 
   return (
-    <section className="max-w-full overflow-hidden rounded-xl border bg-card p-4">
+    <section className="max-w-full overflow-hidden p-4">
       <header className="mb-3">
         <h3 className="text-base font-semibold">Progress Timeline</h3>
         <p className="break-words text-sm text-muted-foreground">
@@ -205,9 +205,9 @@ export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimeli
           No iteration data yet.
         </div>
       ) : (
-        <div className="h-[320px] w-full">
+        <div className="h-[320px] w-full overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 10, right: 20, left: 8, bottom: 4 }}>
+            <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis
                 dataKey="timeMs"
@@ -221,7 +221,7 @@ export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimeli
               <YAxis yAxisId="tasks" tick={{ fontSize: 12 }} domain={[0, tasksUpperBound]} />
               <YAxis yAxisId="tokens" orientation="right" tick={{ fontSize: 12 }} />
               <Tooltip content={<TimelineTooltip />} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Area
                 yAxisId="tasks"
                 type="monotone"
