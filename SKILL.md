@@ -504,6 +504,248 @@ Response:
 
 ---
 
+## From Idea to Running Loop
+
+This section covers the complete workflow for turning a project description into a running Ralph loop monitored by the dashboard. Follow these steps in order.
+
+### Step 1: Create the project directory
+
+```bash
+mkdir -p ~/projects/my-project
+cd ~/projects/my-project
+git init
+```
+
+The directory must be under one of the paths in `RALPH_PROJECT_DIRS` (default: `~/projects`).
+
+### Step 2: Write specs from the description
+
+Create a `specs/` directory with one or more markdown files describing what to build. Start with an overview, then break down backend and frontend if applicable.
+
+```bash
+mkdir -p specs
+```
+
+**`specs/overview.md`** — the main spec:
+```markdown
+# Project Name
+
+## Goal
+
+[Paste or expand the project description into a clear goal statement]
+
+## Tech Stack
+
+### Backend
+- Python 3.12+, FastAPI, SQLAlchemy 2.0 (async), SQLite, pytest
+
+### Frontend
+- React 19, TypeScript, Vite, Tailwind CSS 4, shadcn/ui
+
+## Success Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+## Architecture
+
+[Describe the high-level architecture: directory structure, API design, data models]
+```
+
+Add `specs/backend.md` and `specs/frontend.md` for detailed requirements if the project is large enough. Be specific about data models, API endpoints, UI components, and behavior.
+
+**Tip:** The more detailed your specs, the better Ralph performs. Vague specs lead to vague implementations.
+
+### Step 3: Create the implementation plan
+
+Create `IMPLEMENTATION_PLAN.md` in the project root. This is the task list Ralph works through — it picks the highest-priority incomplete task each iteration.
+
+```markdown
+# Implementation Plan
+
+STATUS: IN PROGRESS
+
+## Phase 1: Project Setup
+- [ ] 1.1: Initialize backend project (FastAPI, pyproject.toml, virtual env)
+- [ ] 1.2: Create database models
+- [ ] 1.3: Initialize frontend project (React, Vite, TypeScript, Tailwind)
+
+## Phase 2: Core Backend
+- [ ] 2.1: Implement user authentication
+- [ ] 2.2: Implement CRUD endpoints for main resource
+- [ ] 2.3: Add search and filtering
+
+## Phase 3: Frontend UI
+- [ ] 3.1: Create app layout with navigation
+- [ ] 3.2: Build main list/grid view
+- [ ] 3.3: Build detail view
+
+## Phase 4: Testing & Polish
+- [ ] 4.1: Write backend tests (≥80% coverage)
+- [ ] 4.2: Write frontend tests (≥80% coverage)
+- [ ] 4.3: Final UI polish and responsive fixes
+```
+
+**Critical format rules:**
+- Tasks MUST use `- [ ]` (unchecked) or `- [x]` (done) checkbox syntax
+- Task IDs MUST be numeric with dots: `1.1`, `1.2`, `2.1`, etc. — Ralph uses these to track which tasks were completed in each iteration
+- Format: `- [ ] 1.1: Description of the task`
+- Group tasks into phases with `## Phase N: Name` headers
+- Order tasks by dependency — Ralph works top-to-bottom
+- Keep tasks granular (30min–2hr of AI work each)
+
+### Step 4: Create AGENTS.md
+
+This file gives the AI agent project context and the commands it needs to run for backpressure (lint, test, build).
+
+```markdown
+# AGENTS.md
+
+## Project
+
+[One-paragraph project description]
+
+## Commands
+
+- **Install backend**: `cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
+- **Install frontend**: `cd frontend && npm install --legacy-peer-deps`
+- **Test backend**: `cd backend && .venv/bin/pytest tests/ -q --tb=short`
+- **Test frontend**: `cd frontend && npx vitest run --reporter=verbose`
+- **Build frontend**: `cd frontend && npm run build`
+- **Lint backend**: `cd backend && .venv/bin/ruff check . --fix`
+
+## Backpressure
+
+Run after each implementation:
+1. Lint (if backend changes)
+2. Run tests (if backend changes)
+3. Type check (if frontend changes)
+4. Build (if frontend changes)
+
+## Architecture Notes
+
+[Key architectural decisions the agent should know about]
+
+## Learnings
+
+*(Agent appends operational learnings here during the loop)*
+```
+
+The **Backpressure** section is important — these are the commands Ralph's agent runs after each change to catch errors before committing. If tests fail, the agent retries before moving on.
+
+### Step 5: Create PROMPT.md
+
+This is the prompt fed to the AI tool every iteration. It tells the agent what to do and how to behave.
+
+```markdown
+# Ralph BUILDING Loop
+
+## Goal
+
+[What you're building — 1-2 sentences]
+
+## Context
+
+- Read: specs/*.md for detailed requirements
+- Read: IMPLEMENTATION_PLAN.md for the current task list
+- Read: AGENTS.md for project context, commands, and learnings
+
+## Rules
+
+1. Pick the highest priority incomplete task from IMPLEMENTATION_PLAN.md
+2. Investigate relevant code before changing
+3. Implement the task fully
+4. Run backpressure commands from AGENTS.md
+5. If tests pass: commit with clear message, mark task done in IMPLEMENTATION_PLAN.md
+6. If tests fail: try to fix (max 3 attempts), then notify
+7. Update AGENTS.md with any operational learnings
+
+## Tech Stack
+
+[List exact versions so the agent doesn't guess]
+
+## Notifications
+
+When you need input or hit a blocker, write to .ralph/pending-notification.txt:
+```json
+{"prefix":"ERROR","message":"Brief description","details":"Full context..."}
+```
+
+Prefixes: DECISION, ERROR, BLOCKED, PROGRESS, DONE
+
+## Completion
+
+When all tasks are done, add `STATUS: COMPLETE` to IMPLEMENTATION_PLAN.md.
+```
+
+### Step 6: Initial commit
+
+```bash
+git add -A
+git commit -m "initial project setup with specs and plan"
+```
+
+Ralph needs a git repo — it commits after each successful iteration and tracks diffs.
+
+### Step 7: Start the loop
+
+**Option A: Via the dashboard API** (if dashboard is running):
+
+```bash
+# Login first
+TOKEN=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"USER","password":"PASS"}' | jq -r '.access_token')
+
+# Start the loop
+curl -s -X POST "$BASE_URL/api/projects/my-project/start" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"max_iterations": 50, "cli": "codex", "flags": "--full-auto"}' | jq
+```
+
+**Option B: Directly via ralph.sh**:
+
+```bash
+cd ~/projects/my-project
+/path/to/ralph.sh --max-iterations 50 --cli codex --full-auto
+```
+
+The loop creates `.ralph/` automatically on first run. The dashboard picks up the project within seconds.
+
+### Step 8: Monitor and intervene
+
+Once running, use the dashboard API to monitor progress:
+
+```bash
+# Check stats
+curl -s -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/projects/my-project/stats" | \
+  jq '{tasks: "\(.tasks_done)/\(.tasks_total)", iterations: .total_iterations, cost: .total_cost_usd}'
+
+# Inject instructions if the agent needs guidance
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "$BASE_URL/api/projects/my-project/inject" \
+  -d '{"message":"Use async SQLAlchemy sessions, not sync."}'
+
+# Check for notifications (agent asking for help)
+curl -s -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/projects/my-project/notifications" | jq
+```
+
+### Summary: minimum files needed
+
+```
+my-project/
+├── specs/
+│   └── overview.md          # What to build (detailed)
+├── IMPLEMENTATION_PLAN.md   # Phased task checklist
+├── AGENTS.md                # Build commands + context
+├── PROMPT.md                # Loop prompt template
+└── .git/                    # Must be a git repo
+```
+
+Ralph creates `.ralph/` on first run. Everything else (iterations.jsonl, ralph.log, config.json) is generated automatically.
+
+---
+
 ## Common Workflows
 
 ### Check if any loops are running
