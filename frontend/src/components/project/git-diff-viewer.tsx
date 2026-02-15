@@ -35,7 +35,7 @@ export function GitDiffViewer({ commitHash, diff, isLoading, error }: GitDiffVie
       ) : normalizedDiff.length === 0 ? (
         <p className="text-zinc-400">No diff available for this commit.</p>
       ) : (
-        <pre className="max-h-[320px] overflow-auto whitespace-pre pr-2 text-[11px] leading-5">
+        <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-all pr-2 text-[11px] leading-5">
           {normalizedDiff.split("\n").map((line, index) => (
             <span key={`${commitHash}-${index}`} className={`block ${diffLineClass(line)}`}>
               {line}

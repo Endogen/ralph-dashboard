@@ -440,7 +440,7 @@ export function IterationsTable({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full text-sm">
+          <table className="w-full text-sm">
             <thead className="bg-background/70">
               <tr className="border-b">
                 {COLUMNS.map((column) => (
@@ -526,7 +526,7 @@ export function IterationsTable({
                     </tr>
                     {isExpanded && (
                       <tr className="border-b bg-background/40 last:border-b-0">
-                        <td colSpan={COLUMNS.length} className="px-3 py-3">
+                        <td colSpan={COLUMNS.length} className="max-w-0 px-3 py-3">
                           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-100">
                             <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-zinc-300">
                               <span>Iteration {iteration.number} log output</span>
