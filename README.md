@@ -128,7 +128,6 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
 ### Prerequisites
 - Python 3.12+
 - Node.js 22+
-- A directory containing Ralph Loop projects (each with a `.ralph/` subdirectory)
 
 ### 1. Clone
 
