@@ -7,9 +7,47 @@ description: Monitor and control Ralph Loop AI agent sessions via the Ralph Dash
 
 Interact with a [Ralph Dashboard](https://github.com/Endogen/ralph-dashboard) instance to monitor and control Ralph Loop sessions.
 
+## First-Time Installation
+
+If the dashboard isn't running yet, follow these steps. If it's already deployed, skip to [Setup](#setup).
+
+```bash
+# 1. Clone and install
+git clone https://github.com/Endogen/ralph-dashboard.git
+cd ralph-dashboard
+
+# 2. Backend
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+# 3. Frontend
+cd ../frontend
+npm install --legacy-peer-deps
+npm run build
+cd ..
+
+# 4. Create login credentials
+cd backend
+.venv/bin/python -m app.auth.setup_user --username yourname
+# Prompts for password. Saved to ~/.config/ralph-dashboard/credentials.yaml
+
+# 5. Generate a secret key
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+
+# 6. Start the dashboard
+export RALPH_SECRET_KEY="<your-generated-key>"
+export RALPH_PROJECT_DIRS="$HOME/projects"  # directories to scan for .ralph/ projects
+export RALPH_PORT=8420
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port $RALPH_PORT
+```
+
+For production deployment with systemd and nginx, see the [README](https://github.com/Endogen/ralph-dashboard#production-deployment).
+
 ## Setup
 
-You need:
+To use the API, you need:
 - **Base URL** of the dashboard (e.g. `https://ralph.example.com` or `http://localhost:8420`)
 - **Username and password** for JWT authentication
 
@@ -209,6 +247,47 @@ curl -s -H "$AUTH" "$BASE_URL/api/projects/{id}/report" | jq -r '.content'
 ```
 
 Returns a human-readable markdown report of the project's progress.
+
+---
+
+### System Metrics
+
+#### Get system and process metrics
+
+```bash
+curl -s -H "$AUTH" "$BASE_URL/api/projects/{id}/system" | jq
+```
+
+Response:
+```json
+{
+  "process": {
+    "pid": 12345,
+    "rss_mb": 85.2,
+    "children_rss_mb": 312.4,
+    "total_rss_mb": 397.6,
+    "cpu_percent": 12.5,
+    "child_count": 3
+  },
+  "system": {
+    "ram_total_mb": 16384.0,
+    "ram_used_mb": 8192.0,
+    "ram_available_mb": 8192.0,
+    "ram_percent": 50.0,
+    "cpu_load_1m": 1.2,
+    "cpu_load_5m": 0.8,
+    "cpu_load_15m": 0.6,
+    "cpu_core_count": 8,
+    "disk_total_gb": 500.0,
+    "disk_used_gb": 120.0,
+    "disk_free_gb": 380.0,
+    "disk_percent": 24.0,
+    "uptime_seconds": 864000.0
+  }
+}
+```
+
+Process metrics are gathered from the PID in `.ralph/ralph.pid`. If the loop isn't running, `process.pid` is `null` and memory/CPU values are `0`.
 
 ---
 
