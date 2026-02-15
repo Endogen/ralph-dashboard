@@ -481,9 +481,6 @@ export function IterationsTable({
                       aria-label={`Iteration ${iteration.number} — ${isExpanded ? "collapse" : "expand"} details`}
                     >
                       <td className="px-3 py-2 font-mono text-xs">
-                        <span className="mr-1 text-muted-foreground">
-                          {isExpanded ? "▾" : "▸"}
-                        </span>
                         {iteration.number}
                       </td>
                       <td className="px-3 py-2">
