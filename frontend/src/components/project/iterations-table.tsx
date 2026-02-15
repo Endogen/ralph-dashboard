@@ -471,17 +471,19 @@ export function IterationsTable({
                 const detailText = detail?.log_output?.trim() || "No log output available for this iteration."
                 return (
                   <Fragment key={iteration.number}>
-                    <tr className="border-b bg-background/20 hover:bg-background/50">
+                    <tr
+                      className="cursor-pointer border-b bg-background/20 hover:bg-background/50"
+                      onClick={() => toggleRow(iteration)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleRow(iteration); } }}
+                      aria-expanded={isExpanded}
+                      aria-label={`Iteration ${iteration.number} — ${isExpanded ? "collapse" : "expand"} details`}
+                    >
                       <td className="px-3 py-2 font-mono text-xs">
-                        <button
-                          type="button"
-                          onClick={() => toggleRow(iteration)}
-                          className="mr-1 text-muted-foreground hover:text-foreground"
-                          aria-label={`Toggle details for iteration ${iteration.number}`}
-                          title={isExpanded ? "Collapse details" : "Expand details"}
-                        >
+                        <span className="mr-1 text-muted-foreground">
                           {isExpanded ? "▾" : "▸"}
-                        </button>
+                        </span>
                         {iteration.number}
                       </td>
                       <td className="px-3 py-2">
@@ -510,6 +512,7 @@ export function IterationsTable({
                           <a
                             href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
                             className="underline decoration-dotted"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {iteration.commit}
                           </a>
