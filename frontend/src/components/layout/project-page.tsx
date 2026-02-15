@@ -675,7 +675,7 @@ export function ProjectPage() {
               {tab.label}
               {/* Unread log dot */}
               {tab.key === "log" && hasUnreadLog && activeTab !== "log" && (
-                <span className="absolute -top-0.5 right-1 size-2 rounded-full bg-primary" />
+                <span className="absolute right-0.5 top-1 size-2 rounded-full bg-primary" />
               )}
             </button>
           ))}
