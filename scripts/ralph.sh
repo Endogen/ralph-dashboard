@@ -466,12 +466,14 @@ for i in $(seq 1 "$MAX_ITERS"); do
 
   log "${BLUE}=== Iteration $i/$MAX_ITERS ===${NC}"
 
+  CLAUDE_JSON_MODE=false
   case "$CLI" in
     codex)
       CMD="codex exec $CLI_FLAGS"
       ;;
     claude)
-      CMD="claude --print $CLI_FLAGS"
+      CMD="claude --print --output-format json $CLI_FLAGS"
+      CLAUDE_JSON_MODE=true
       ;;
     opencode)
       CMD="opencode run"
@@ -494,11 +496,46 @@ for i in $(seq 1 "$MAX_ITERS"); do
     AGENT_EXIT_CODE=$?
   fi
 
+  # For Claude JSON mode: extract result text and token usage from JSON response
+  CLAUDE_TOKENS=""
+  if [[ "$CLAUDE_JSON_MODE" == "true" && -n "$AGENT_OUTPUT" ]]; then
+    CLAUDE_RESULT="$(printf '%s' "$AGENT_OUTPUT" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get('result', ''))
+except: print('')
+" 2>/dev/null || true)"
+    CLAUDE_TOKENS="$(printf '%s' "$AGENT_OUTPUT" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    usage = data.get('usage', {})
+    total = (usage.get('input_tokens', 0) + usage.get('cache_creation_input_tokens', 0)
+             + usage.get('cache_read_input_tokens', 0) + usage.get('output_tokens', 0))
+    print(f'{total / 1000:.3f}')
+except: pass
+" 2>/dev/null || true)"
+    # Replace AGENT_OUTPUT with just the result text for logging
+    if [[ -n "$CLAUDE_RESULT" ]]; then
+      AGENT_OUTPUT="$CLAUDE_RESULT"
+    fi
+  fi
+
   if [[ -n "$AGENT_OUTPUT" ]]; then
     printf '%s\n' "$AGENT_OUTPUT" | tee -a "$LOG_FILE"
   fi
 
+  # Append token info to log so the dashboard log parser can find it
+  if [[ -n "$CLAUDE_TOKENS" ]]; then
+    printf 'tokens used\n%s\n' "$CLAUDE_TOKENS" | tee -a "$LOG_FILE"
+  fi
+
   TOKENS="$(extract_token_count "$AGENT_OUTPUT" || true)"
+  # Use Claude JSON tokens if text extraction found nothing
+  if [[ -z "$TOKENS" && -n "$CLAUDE_TOKENS" ]]; then
+    TOKENS="$CLAUDE_TOKENS"
+  fi
 
   TEST_PASSED="null"
   TEST_OUTPUT=""
