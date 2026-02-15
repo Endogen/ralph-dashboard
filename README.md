@@ -56,6 +56,60 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
 - **Live events** — plan updates, iteration completions, status changes, log appends, notifications
 - **Per-project subscriptions** — only receive events for projects you're viewing
 
+## How Project Tracking Works
+
+The dashboard automatically discovers and tracks Ralph Loop projects — no registration or configuration per project is needed.
+
+### Discovery
+
+On startup (and periodically via filesystem watchers), the dashboard scans all directories listed in `RALPH_PROJECT_DIRS` (default: `~/projects`) recursively. Any directory containing a `.ralph/` subdirectory is recognized as a Ralph Loop project.
+
+```
+~/projects/
+├── my-app/              ← tracked (has .ralph/)
+│   ├── .ralph/
+│   ├── PROMPT.md
+│   └── ...
+├── some-library/        ← NOT tracked (no .ralph/)
+│   └── src/
+└── another-project/     ← tracked (has .ralph/)
+    └── .ralph/
+```
+
+**That's all you need:** put your project under a scanned directory and make sure the Ralph Loop script has created the `.ralph/` folder. The dashboard picks it up automatically.
+
+### What the dashboard reads
+
+From `.ralph/`:
+
+| File | Purpose |
+|------|---------|
+| `iterations.jsonl` | Structured data per iteration (timing, tokens, tasks, commits, test results) |
+| `ralph.pid` | PID of the running loop process — used to detect running/stopped state |
+| `ralph.log` | Human-readable log output, streamed live via WebSocket |
+| `config.json` | Loop configuration (CLI tool, flags, max iterations, test command) |
+| `pause` | Sentinel file — presence means the loop is paused |
+| `inject.md` | Runtime instructions injected into the next iteration |
+| `pending-notification.txt` | Current pending notification from the agent |
+
+From the project root:
+
+| File | Purpose |
+|------|---------|
+| `IMPLEMENTATION_PLAN.md` | Task list with completion status, parsed into an interactive board |
+| `AGENTS.md` | Project context and agent instructions |
+| `PROMPT.md` | The prompt template used each iteration |
+| `specs/*.md` | Requirement/design spec files |
+
+### Minimum viable setup
+
+To get a project tracked by the dashboard, you need at minimum:
+
+1. A project directory under one of the `RALPH_PROJECT_DIRS` paths
+2. A `.ralph/` subdirectory inside it (created automatically by `ralph.sh`)
+
+Everything else is optional — the dashboard gracefully handles missing files and shows whatever data is available.
+
 ## Architecture
 
 ```
