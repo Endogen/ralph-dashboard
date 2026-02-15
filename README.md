@@ -18,7 +18,7 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
 - **Recent activity feed** — merged stream of iteration completions, task checkoffs, errors, and notifications
 
 ### 📋 Plan Management
-- **Interactive task board** — rendered from `IMPLEMENTATION_PLAN.md` with clickable checkboxes
+- **Task board** — rendered from `IMPLEMENTATION_PLAN.md` with phase progress, checkmark/hourglass status icons
 - **Phase progress bars** — per-phase completion tracking with task counts
 - **Raw markdown editor** — toggle to edit the plan directly with live save
 - **Task metadata** — shows which iteration completed each task and links to the commit
@@ -50,6 +50,12 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph Loop](https
 - **Start / Stop / Pause / Resume** Ralph loops directly from the dashboard
 - **Sticky control bar** — always-visible bottom bar with quick actions
 - **Status detection** — reads `.ralph/ralph.pid` and process state in real time
+
+### 🖥️ System Metrics
+- **Loop process stats** — RAM usage (RSS), CPU %, child process count, PID monitoring
+- **Server metrics** — total/used/available RAM, CPU load averages (1m/5m/15m), disk usage, uptime
+- **Color-coded gauges** — green/amber/red thresholds for resource usage
+- **Auto-refresh** — polls every 5 seconds with live timestamp
 
 ### 🔔 Real-Time Updates
 - **WebSocket push** via filesystem watchers (watchdog + inotify)
@@ -175,6 +181,7 @@ Everything else is optional — the dashboard gracefully handles missing files a
 | **File Watching** | watchdog (inotify on Linux) |
 | **Git** | GitPython |
 | **Auth** | JWT (python-jose) + bcrypt (passlib) |
+| **System Metrics** | psutil |
 | **Reverse Proxy** | Nginx with Let's Encrypt TLS |
 
 ## Quick Start
@@ -231,6 +238,134 @@ cd backend
 
 Open `http://localhost:8420` and log in.
 
+## Complete Setup Guide
+
+A step-by-step guide to get Ralph Dashboard running from scratch on a fresh server. This covers installing the dashboard, setting up [Ralph Loop](https://github.com/Endogen/ralph-loop), and getting your first AI coding session monitored.
+
+### Prerequisites
+
+- A Linux server (Ubuntu 22.04+ recommended) or macOS
+- Python 3.12+
+- Node.js 22+ and npm
+- Git
+- An AI coding CLI tool ([Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), etc.)
+
+### Step 1: Install the Dashboard
+
+```bash
+# Clone the repository
+git clone https://github.com/Endogen/ralph-dashboard.git
+cd ralph-dashboard
+
+# Set up the backend
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Build the frontend
+cd ../frontend
+npm install --legacy-peer-deps
+npm run build
+cd ..
+```
+
+### Step 2: Create Login Credentials
+
+```bash
+cd backend
+.venv/bin/python -m app.auth.setup_user --username yourname
+# You'll be prompted for a password
+# Credentials are saved to ~/.config/ralph-dashboard/credentials.yaml
+```
+
+### Step 3: Generate a Secret Key
+
+```bash
+# Generate a secure key for JWT signing
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# Save this — you'll need it for the environment config
+```
+
+### Step 4: Configure and Start
+
+```bash
+# Set environment variables
+export RALPH_SECRET_KEY="your-generated-secret-key"
+export RALPH_PROJECT_DIRS="$HOME/projects"  # where your coding projects live
+export RALPH_PORT=8420
+
+# Start the dashboard
+cd backend
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port $RALPH_PORT
+```
+
+Open `http://localhost:8420` in your browser and log in.
+
+### Step 5: Set Up Ralph Loop
+
+The dashboard monitors projects that use [Ralph Loop](https://github.com/Endogen/ralph-loop) — an AI coding loop runner that manages iterative coding sessions with tools like Codex or Claude Code.
+
+```bash
+# Get ralph.sh (the loop runner)
+curl -o ~/ralph.sh https://raw.githubusercontent.com/Endogen/ralph-loop/main/ralph.sh
+chmod +x ~/ralph.sh
+```
+
+### Step 6: Prepare a Project
+
+```bash
+mkdir -p ~/projects/my-project
+cd ~/projects/my-project
+
+# Create the project files Ralph Loop expects
+cat > AGENTS.md << 'EOF'
+# My Project
+
+## Build Commands
+- Build: `npm run build`
+- Test: `npm test`
+- Lint: `npx eslint .`
+EOF
+
+cat > PROMPT.md << 'EOF'
+You are building my-project. Read AGENTS.md for context.
+Follow IMPLEMENTATION_PLAN.md for tasks.
+Work on one task per iteration.
+EOF
+
+cat > IMPLEMENTATION_PLAN.md << 'EOF'
+# Implementation Plan
+
+STATUS: IN PROGRESS
+
+## Phase 1: Setup
+- [ ] 1.1: Initialize project structure
+- [ ] 1.2: Add core dependencies
+EOF
+
+# Initialize git
+git init && git add -A && git commit -m "initial"
+```
+
+### Step 7: Start a Ralph Loop
+
+```bash
+cd ~/projects/my-project
+
+# Start the loop (uses Codex by default)
+~/ralph.sh --max-iterations 10 --full-auto
+
+# Or specify a different CLI tool
+~/ralph.sh --cli claude --max-iterations 10 --full-auto
+```
+
+The loop creates `.ralph/` automatically. Refresh the dashboard — your project should appear in the sidebar.
+
+### Step 8: (Optional) Production Setup
+
+For a persistent deployment, set up a systemd service and nginx reverse proxy. See the [Production Deployment](#production-deployment) section above.
+
 ## Production Deployment
 
 ### Systemd service
@@ -285,12 +420,13 @@ sudo certbot --nginx -d your.domain.com
 | `RALPH_SECRET_KEY` | *(required)* | Secret key for JWT signing |
 | `RALPH_PROJECT_DIRS` | `~/projects` | Comma-separated directories to scan for `.ralph/` projects |
 | `RALPH_PORT` | `8420` | Backend server port |
+| `RALPH_CREDENTIALS_FILE` | `~/.config/ralph-dashboard/credentials.yaml` | Path to credentials file |
 
 ## Project Structure
 
 ```
 ralph-dashboard/
-├── backend/                   # FastAPI backend (54 Python files)
+├── backend/                   # FastAPI backend (58 Python files)
 │   ├── app/
 │   │   ├── auth/              # JWT authentication & user management
 │   │   ├── control/           # Process lifecycle (start/stop/pause/inject)
@@ -301,9 +437,10 @@ ralph-dashboard/
 │   │   ├── plan/              # IMPLEMENTATION_PLAN.md parser
 │   │   ├── projects/          # Project discovery, registration, status
 │   │   ├── stats/             # Aggregation, projections, reports
+│   │   ├── system/            # System & process metrics (psutil)
 │   │   └── ws/                # WebSocket hub, file watcher, event dispatcher
-│   └── tests/                 # 112 tests (pytest)
-├── frontend/                  # React SPA (42 TS/TSX files)
+│   └── tests/                 # 126 tests (pytest)
+├── frontend/                  # React SPA (43 TS/TSX files)
 │   └── src/
 │       ├── api/               # API client with auth refresh
 │       ├── components/
@@ -337,6 +474,7 @@ All API endpoints are under `/api/` and require a Bearer JWT token (except `/api
 | `GET` | `/api/projects/{id}/iterations` | List iterations (filterable) |
 | `GET` | `/api/projects/{id}/iterations/{n}` | Iteration detail with log output |
 | `GET` | `/api/projects/{id}/stats` | Aggregated stats & projections |
+| `GET` | `/api/projects/{id}/system` | System & process metrics |
 | `GET` | `/api/projects/{id}/notifications` | Notification history |
 | `GET` | `/api/projects/{id}/git/log` | Commit history |
 | `GET` | `/api/projects/{id}/git/diff/{hash}` | Commit diff |
@@ -358,7 +496,7 @@ source .venv/bin/activate
 pytest tests/ -q
 ```
 
-All 112 tests should pass.
+All 126 tests should pass.
 
 ## License
 
