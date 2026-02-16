@@ -46,6 +46,12 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 - **Iteration navigation** — jump between iteration markers in the log
 - **Auto-scroll** with pin/unpin toggle
 
+### 📦 Project Archiving
+- **Manual archive/unarchive** — hide inactive projects from the dashboard, restore them anytime
+- **Archive page** — browse archived projects without loading iteration data
+- **Auto-archive** — configurable: automatically archive projects with no activity for N days
+- **Settings panel** — toggle auto-archiving and adjust the inactivity threshold
+
 ### 🎮 Process Control
 - **Start / Stop / Pause / Resume** Ralph loops directly from the dashboard
 - **Sticky control bar** — always-visible bottom bar with quick actions
@@ -469,7 +475,11 @@ All API endpoints are under `/api/` and require a Bearer JWT token (except `/api
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/auth/login` | Login (returns access + refresh tokens) |
 | `POST` | `/api/auth/refresh` | Refresh access token |
-| `GET` | `/api/projects` | List all discovered projects |
+| `GET` | `/api/projects` | List active projects (excludes archived) |
+| `GET` | `/api/projects/archived` | List archived projects |
+| `GET/PUT` | `/api/projects/archive/settings` | Auto-archive configuration |
+| `POST` | `/api/projects/{id}/archive` | Archive a project |
+| `POST` | `/api/projects/{id}/unarchive` | Unarchive a project |
 | `GET` | `/api/projects/{id}` | Project detail |
 | `GET` | `/api/projects/{id}/plan` | Parsed implementation plan |
 | `PUT` | `/api/projects/{id}/plan` | Update plan markdown |
