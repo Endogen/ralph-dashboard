@@ -74,9 +74,9 @@ export function ProjectCard({
   return (
     <article className="rounded-xl border bg-card p-4 shadow-sm transition hover:shadow-md">
       <header className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold">{name}</h3>
-          <p className="text-xs text-muted-foreground">ID: {id}</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-semibold">{name}</h3>
+          <p className="truncate text-xs text-muted-foreground">ID: {id}</p>
         </div>
         <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClassName[status]}`}>
           {statusLabel[status]}
