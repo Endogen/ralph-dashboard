@@ -70,37 +70,49 @@ export function DashboardPage() {
     fetchProjectData()
   }, [fetchProjectData])
 
-  const gridItems = useMemo<ProjectGridItem[]>(
-    () =>
-      projects.map((project) => {
-        const data = dataMap[project.id]
-        const stats = data?.stats ?? null
-        const iterations = data?.iterations ?? []
+  const gridItems = useMemo<ProjectGridItem[]>(() => {
+    const items = projects.map((project) => {
+      const data = dataMap[project.id]
+      const stats = data?.stats ?? null
+      const iterations = data?.iterations ?? []
 
-        const currentIteration = stats?.total_iterations ?? 0
-        const maxFromIter = iterations.find((i) => i.max_iterations != null)?.max_iterations
-        const maxIterations = maxFromIter ?? currentIteration
+      const currentIteration = stats?.total_iterations ?? 0
+      const maxFromIter = iterations.find((i) => i.max_iterations != null)?.max_iterations
+      const maxIterations = maxFromIter ?? currentIteration
 
-        const sorted = [...iterations].sort((a, b) => a.number - b.number)
-        const latestIteration = sorted[sorted.length - 1]
-        const lastActivityLabel = relativeTimeLabel(latestIteration?.end_timestamp)
+      const sorted = [...iterations].sort((a, b) => a.number - b.number)
+      const latestIteration = sorted[sorted.length - 1]
+      const lastActivityLabel = relativeTimeLabel(latestIteration?.end_timestamp)
 
-        const healthStrip = iterations.length > 0 ? buildHealthStrip(iterations) : []
+      const healthStrip = iterations.length > 0 ? buildHealthStrip(iterations) : []
 
-        return {
-          id: project.id,
-          name: project.name,
-          status: project.status,
-          currentIteration,
-          maxIterations,
-          totalTokens: stats?.total_tokens ?? 0,
-          estimatedCostUsd: stats?.total_cost_usd ?? 0,
-          lastActivityLabel,
-          healthStrip,
-        }
-      }),
-    [projects, dataMap],
-  )
+      const firstTimestamp = sorted[0]?.start_timestamp ?? null
+
+      return {
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        currentIteration,
+        maxIterations,
+        totalTokens: stats?.total_tokens ?? 0,
+        estimatedCostUsd: stats?.total_cost_usd ?? 0,
+        lastActivityLabel,
+        healthStrip,
+        _firstTimestamp: firstTimestamp,
+      }
+    })
+
+    // Sort newest projects first (most recent first iteration timestamp),
+    // projects with no iterations go to the top
+    items.sort((a, b) => {
+      if (!a._firstTimestamp && !b._firstTimestamp) return 0
+      if (!a._firstTimestamp) return -1
+      if (!b._firstTimestamp) return 1
+      return new Date(b._firstTimestamp).getTime() - new Date(a._firstTimestamp).getTime()
+    })
+
+    return items
+  }, [projects, dataMap])
 
   return (
     <div className="space-y-4">

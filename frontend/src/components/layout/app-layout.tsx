@@ -10,15 +10,6 @@ import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
 import type { ProjectStatus } from "@/types/project"
-
-const mobileStatusClass: Record<ProjectStatus, string> = {
-  running: "bg-emerald-500",
-  paused: "bg-amber-500",
-  stopped: "bg-slate-400",
-  complete: "bg-teal-500",
-  error: "bg-rose-500",
-}
-
 export function AppLayout() {
   const [addProjectOpen, setAddProjectOpen] = useState(false)
   const { preference, resolvedTheme, setPreference, toggleTheme } = useTheme()
@@ -81,79 +72,55 @@ export function AppLayout() {
         />
 
         <main className="flex min-h-[80vh] min-w-0 flex-1 flex-col gap-4 p-0 md:p-2">
-          <section className="space-y-2 md:hidden">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <NavLink
-                  to="/"
-                  end
-                  className={({ isActive }) =>
-                    `rounded-md border px-3 py-2 text-sm font-medium ${
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-background/70 text-muted-foreground"
-                    }`
-                  }
-                >
-                  Dashboard
-                </NavLink>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs font-medium ${
-                    reconnecting
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                      : connected
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                        : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="rounded-full border bg-background/60 p-2 hover:bg-background"
-                  title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                  aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                >
-                  {resolvedTheme === "dark" ? (
-                    <Sun className="h-4 w-4 text-amber-500" />
-                  ) : (
-                    <MoonStar className="h-4 w-4 text-slate-600" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddProjectOpen(true)}
-                  className="flex items-center gap-1 rounded-md border bg-background/70 px-3 py-2 text-sm font-medium text-muted-foreground"
-                >
-                  <FolderPlus className="h-4 w-4" />
-                  Add
-                </button>
-              </div>
+          <section className="flex items-center justify-between gap-2 md:hidden">
+            <div className="flex items-center gap-2">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `rounded-md border px-3 py-2 text-sm font-medium ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background/70 text-muted-foreground"
+                  }`
+                }
+              >
+                Dashboard
+              </NavLink>
+              <span
+                className={`rounded-full px-2 py-1 text-xs font-medium ${
+                  reconnecting
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                    : connected
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+                }`}
+              >
+                {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+              </span>
             </div>
-
-            <div className="relative">
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {projects.map((project) => (
-                  <NavLink
-                    key={project.id}
-                    to={`/project/${project.id}`}
-                    className={({ isActive }) =>
-                      `flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-                        isActive
-                          ? "bg-primary/15 text-foreground"
-                          : "bg-background/60 text-muted-foreground"
-                      }`
-                    }
-                  >
-                    <span className={`h-2 w-2 rounded-full ${mobileStatusClass[project.status]}`} />
-                    <span className="max-w-[160px] truncate">{project.name}</span>
-                  </NavLink>
-                ))}
-              </div>
-              <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background to-transparent" />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="rounded-full border bg-background/60 p-2 hover:bg-background"
+                title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {resolvedTheme === "dark" ? (
+                  <Sun className="h-4 w-4 text-amber-500" />
+                ) : (
+                  <MoonStar className="h-4 w-4 text-slate-600" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddProjectOpen(true)}
+                className="flex items-center gap-1 rounded-md border bg-background/70 px-3 py-2 text-sm font-medium text-muted-foreground"
+              >
+                <FolderPlus className="h-4 w-4" />
+                Add
+              </button>
             </div>
           </section>
 
