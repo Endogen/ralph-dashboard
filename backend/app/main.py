@@ -1,5 +1,7 @@
 """FastAPI application entrypoint."""
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,6 +19,7 @@ from app.git_service.router import router as git_router
 from app.iterations.router import router as iterations_router
 from app.notifications.router import router as notifications_router
 from app.plan.router import router as plan_router
+from app.projects.archive import auto_archive_check
 from app.projects.router import router as projects_router
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
@@ -24,6 +27,8 @@ from app.system.router import router as system_router
 from app.ws.event_dispatcher import watcher_event_dispatcher
 from app.ws.file_watcher import file_watcher_service
 from app.ws.router import router as ws_router
+
+LOGGER = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
@@ -34,14 +39,79 @@ PUBLIC_API_PATHS = {
 }
 
 
+async def _run_auto_archive() -> None:
+    """Check all projects and auto-archive inactive ones based on settings."""
+    from app.iterations.service import list_project_iterations
+    from app.projects.service import list_projects
+
+    try:
+        projects = await list_projects()
+        activity_map: dict[str, float | None] = {}
+
+        for project in projects:
+            try:
+                iterations = await list_project_iterations(project.id)
+                if iterations:
+                    sorted_iters = sorted(iterations, key=lambda i: i.number)
+                    last = sorted_iters[-1]
+                    ts = last.end_timestamp or last.start_timestamp
+                    if ts:
+                        from datetime import datetime
+
+                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                        activity_map[project.id] = dt.timestamp()
+                    else:
+                        activity_map[project.id] = None
+                else:
+                    activity_map[project.id] = None
+            except Exception:
+                activity_map[project.id] = None
+
+        newly_archived = await auto_archive_check(activity_map)
+        if newly_archived:
+            LOGGER.info("Auto-archived %d project(s): %s", len(newly_archived), newly_archived)
+    except Exception:
+        LOGGER.warning("Auto-archive check failed", exc_info=True)
+
+
+AUTO_ARCHIVE_INTERVAL_SECONDS = 3600  # Check every hour
+
+
+async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
+    """Periodically run auto-archive checks."""
+    # Initial check after a short delay
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=30)
+        return  # stopped before first check
+    except asyncio.TimeoutError:
+        pass
+
+    while not stop_event.is_set():
+        await _run_auto_archive()
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=AUTO_ARCHIVE_INTERVAL_SECONDS)
+            return
+        except asyncio.TimeoutError:
+            pass
+
+
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
     await init_database()
     file_watcher_service.set_on_change(watcher_event_dispatcher.handle_change)
     await file_watcher_service.start()
+
+    auto_archive_stop = asyncio.Event()
+    auto_archive_task = asyncio.create_task(_auto_archive_loop(auto_archive_stop))
     try:
         yield
     finally:
+        auto_archive_stop.set()
+        auto_archive_task.cancel()
+        try:
+            await auto_archive_task
+        except asyncio.CancelledError:
+            pass
         await file_watcher_service.stop()
 
 

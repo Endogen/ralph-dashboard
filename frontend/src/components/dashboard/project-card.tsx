@@ -1,4 +1,4 @@
-import { Clock3, Coins, GitBranch } from "lucide-react"
+import { Archive, Clock3, Coins, GitBranch } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { displayTokens } from "@/lib/utils"
@@ -17,6 +17,7 @@ type ProjectCardProps = {
   lastActivityLabel: string
   healthStrip: IterationHealth[]
   onOpen?: (projectId: string) => void
+  onArchive?: (projectId: string) => void
 }
 
 const statusLabel: Record<ProjectStatus, string> = {
@@ -66,6 +67,7 @@ export function ProjectCard({
   lastActivityLabel,
   healthStrip,
   onOpen,
+  onArchive,
 }: ProjectCardProps) {
   const progress = maxIterations > 0 ? Math.min((currentIteration / maxIterations) * 100, 100) : 0
 
@@ -122,9 +124,20 @@ export function ProjectCard({
         </div>
       </div>
 
-      <Button className="mt-4 w-full" variant="outline" onClick={() => onOpen?.(id)}>
-        Open Project
-      </Button>
+      <div className="mt-4 flex gap-2">
+        <Button className="flex-1" variant="outline" onClick={() => onOpen?.(id)}>
+          Open Project
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => onArchive?.(id)}
+          title="Archive project"
+        >
+          <Archive className="h-4 w-4" />
+        </Button>
+      </div>
     </article>
   )
 }

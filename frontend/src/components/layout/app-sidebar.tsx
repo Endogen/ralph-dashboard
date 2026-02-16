@@ -1,4 +1,4 @@
-import { CircleDot, FolderPlus, Gauge, MoonStar, PlayCircle, Square, Sun, TriangleAlert } from "lucide-react"
+import { Archive, CircleDot, FolderPlus, Gauge, MoonStar, PlayCircle, Square, Sun, TriangleAlert } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -51,10 +51,14 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
         <p className="text-xs text-muted-foreground">Projects</p>
       </header>
 
-      <nav className="mt-4">
+      <nav className="mt-4 space-y-1">
         <NavLink to="/" className={navClass} end>
           <Gauge className="h-4 w-4" />
           Dashboard
+        </NavLink>
+        <NavLink to="/archive" className={navClass}>
+          <Archive className="h-4 w-4" />
+          Archive
         </NavLink>
       </nav>
 

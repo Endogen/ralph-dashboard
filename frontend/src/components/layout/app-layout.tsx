@@ -87,6 +87,18 @@ export function AppLayout() {
               >
                 Dashboard
               </NavLink>
+              <NavLink
+                to="/archive"
+                className={({ isActive }) =>
+                  `rounded-md border px-3 py-2 text-sm font-medium ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background/70 text-muted-foreground"
+                  }`
+                }
+              >
+                Archive
+              </NavLink>
               <span
                 className={`rounded-full px-2 py-1 text-xs font-medium ${
                   reconnecting

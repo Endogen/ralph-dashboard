@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { apiFetch } from "@/api/client"
+import { archiveProject } from "@/api/archive"
 import { ProjectGrid, type ProjectGridItem } from "@/components/dashboard/project-grid"
 import { useProjectsStore } from "@/stores/projects-store"
+import { useToastStore } from "@/stores/toast-store"
 import type { IterationListResponse, IterationSummary, ProjectStats } from "@/types/project"
 
 type PerProjectData = {
@@ -42,6 +44,8 @@ export function DashboardPage() {
   const projects = useProjectsStore((state) => state.projects)
   const isLoading = useProjectsStore((state) => state.isLoading)
   const error = useProjectsStore((state) => state.error)
+  const fetchProjects = useProjectsStore((state) => state.fetchProjects)
+  const pushToast = useToastStore((state) => state.pushToast)
 
   const [dataMap, setDataMap] = useState<Record<string, PerProjectData>>({})
   const [statsLoading, setStatsLoading] = useState(false)
@@ -114,6 +118,24 @@ export function DashboardPage() {
     return items
   }, [projects, dataMap])
 
+  const handleArchive = useCallback(
+    async (projectId: string) => {
+      const project = projects.find((p) => p.id === projectId)
+      try {
+        await archiveProject(projectId)
+        await fetchProjects()
+        pushToast({
+          title: "Project archived",
+          description: project?.name ?? projectId,
+          tone: "success",
+        })
+      } catch {
+        pushToast({ title: "Failed to archive project", tone: "error" })
+      }
+    },
+    [projects, fetchProjects, pushToast],
+  )
+
   return (
     <div className="space-y-4">
       <header>
@@ -125,6 +147,7 @@ export function DashboardPage() {
         isLoading={isLoading || statsLoading}
         error={error}
         onOpenProject={(projectId) => navigate(`/project/${projectId}`)}
+        onArchiveProject={handleArchive}
       />
     </div>
   )

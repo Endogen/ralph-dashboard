@@ -21,9 +21,10 @@ type ProjectGridProps = {
   isLoading?: boolean
   error?: string | null
   onOpenProject?: (projectId: string) => void
+  onArchiveProject?: (projectId: string) => void
 }
 
-export function ProjectGrid({ projects, isLoading, error, onOpenProject }: ProjectGridProps) {
+export function ProjectGrid({ projects, isLoading, error, onOpenProject, onArchiveProject }: ProjectGridProps) {
   if (isLoading) {
     return (
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -89,6 +90,7 @@ export function ProjectGrid({ projects, isLoading, error, onOpenProject }: Proje
           lastActivityLabel={project.lastActivityLabel}
           healthStrip={project.healthStrip}
           onOpen={onOpenProject}
+          onArchive={onArchiveProject}
         />
       ))}
     </section>
