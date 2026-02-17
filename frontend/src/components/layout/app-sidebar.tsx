@@ -1,4 +1,4 @@
-import { Archive, CircleDot, FolderPlus, Gauge, MoonStar, PlayCircle, Square, Sun, TriangleAlert } from "lucide-react"
+import { Archive, CircleDot, FolderPlus, Gauge, MoonStar, PlayCircle, Sparkles, Square, Sun, TriangleAlert } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -59,6 +59,10 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
         <NavLink to="/archive" className={navClass}>
           <Archive className="h-4 w-4" />
           Archive
+        </NavLink>
+        <NavLink to="/wizard" className={navClass}>
+          <Sparkles className="h-4 w-4" />
+          New Project
         </NavLink>
       </nav>
 

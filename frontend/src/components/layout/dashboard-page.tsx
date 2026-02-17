@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
+import { Sparkles } from "lucide-react"
+
 import { apiFetch } from "@/api/client"
 import { archiveProject } from "@/api/archive"
+import { Button } from "@/components/ui/button"
 import { ProjectGrid, type ProjectGridItem } from "@/components/dashboard/project-grid"
 import { useProjectsStore } from "@/stores/projects-store"
 import { useToastStore } from "@/stores/toast-store"
@@ -138,9 +141,15 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Project Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Overview of registered Ralph loop projects.</p>
+      <header className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Project Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Overview of registered Ralph loop projects.</p>
+        </div>
+        <Button onClick={() => navigate("/wizard")} className="gap-2 shrink-0">
+          <Sparkles className="h-4 w-4" />
+          New Project
+        </Button>
       </header>
       <ProjectGrid
         projects={gridItems}

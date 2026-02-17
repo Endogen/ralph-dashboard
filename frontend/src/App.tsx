@@ -5,6 +5,7 @@ import { ArchivePage } from "@/components/layout/archive-page"
 import { DashboardPage } from "@/components/layout/dashboard-page"
 import { LoginPage } from "@/components/layout/login-page"
 import { ProjectPage } from "@/components/layout/project-page"
+import { WizardPage } from "@/components/wizard/wizard-page"
 import { useAuthStore } from "@/stores/auth-store"
 
 function RequireAuth() {
@@ -31,6 +32,7 @@ export function App() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<RequireAuth />}>
         <Route index element={<DashboardPage />} />
+        <Route path="wizard" element={<WizardPage />} />
         <Route path="archive" element={<ArchivePage />} />
         <Route path="project/:id/*" element={<ProjectPage />} />
       </Route>

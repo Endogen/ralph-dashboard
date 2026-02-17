@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { FolderPlus, MoonStar, Sun } from "lucide-react"
-import { NavLink, Outlet } from "react-router-dom"
+import { FolderPlus, MoonStar, Sparkles, Sun } from "lucide-react"
+import { NavLink, Outlet, useNavigate } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
@@ -11,6 +11,7 @@ import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
 import { useProjectsStore } from "@/stores/projects-store"
 import type { ProjectStatus } from "@/types/project"
 export function AppLayout() {
+  const navigate = useNavigate()
   const [addProjectOpen, setAddProjectOpen] = useState(false)
   const { preference, resolvedTheme, setPreference, toggleTheme } = useTheme()
   const projects = useProjectsStore((state) => state.projects)
@@ -124,6 +125,14 @@ export function AppLayout() {
                 ) : (
                   <MoonStar className="h-4 w-4 text-slate-600" />
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/wizard")}
+                className="flex items-center gap-1 rounded-md border bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+              >
+                <Sparkles className="h-4 w-4" />
+                New
               </button>
               <button
                 type="button"
