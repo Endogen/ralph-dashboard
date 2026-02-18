@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 PHASE_RE = re.compile(r"^##\s+(?P<name>.+?)\s*$")
 TASK_RE = re.compile(r"^(?P<indent>\s*)-\s+\[(?P<done>[xX ])\]\s+(?P<content>.+?)\s*$")
-TASK_ID_RE = re.compile(r"^(?P<task_id>\d+(?:\.\d+)*):\s*(?P<description>.+)$")
+TASK_ID_RE = re.compile(r"^(?P<task_id>\d+(?:\.\d+)*)\s*[:\—\–\-]\s*(?P<description>.+)$")
 STATUS_RE = re.compile(r"^STATUS:\s*(?P<status>.+?)\s*$", re.IGNORECASE)
 
 
