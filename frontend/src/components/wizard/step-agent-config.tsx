@@ -1,8 +1,8 @@
-import { AlertTriangle, Bot, Code2, Cpu, Terminal } from "lucide-react"
+import { AlertTriangle, Code2, Terminal } from "lucide-react"
 
 import { type AgentChoice, type ApprovalMode, useWizardStore } from "@/stores/wizard-store"
 
-const agents: { id: AgentChoice; name: string; description: string; icon: typeof Bot }[] = [
+const agents: { id: AgentChoice; name: string; description: string; icon: typeof Code2 }[] = [
   {
     id: "claude-code",
     name: "Claude Code",
@@ -14,18 +14,6 @@ const agents: { id: AgentChoice; name: string; description: string; icon: typeof
     name: "Codex",
     description: "OpenAI's code generation CLI",
     icon: Terminal,
-  },
-  {
-    id: "opencode",
-    name: "OpenCode",
-    description: "Open-source AI coding assistant",
-    icon: Cpu,
-  },
-  {
-    id: "goose",
-    name: "Goose",
-    description: "Block's autonomous coding agent",
-    icon: Bot,
   },
 ]
 

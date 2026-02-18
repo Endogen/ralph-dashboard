@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-export type AgentChoice = "codex" | "claude-code" | "opencode" | "goose"
+export type AgentChoice = "codex" | "claude-code"
 export type ApprovalMode = "full-auto" | "sandboxed"
 
 export type GeneratedFile = {
