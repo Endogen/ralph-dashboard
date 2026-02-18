@@ -5,6 +5,7 @@ import { NavLink, Outlet } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ToastRegion } from "@/components/ui/toast-region"
 import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
@@ -137,7 +138,9 @@ export function AppLayout() {
           </section>
 
           <section className="min-w-0 flex-1">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </section>
         </main>
       </div>

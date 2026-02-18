@@ -105,16 +105,39 @@ export function SystemPanel({ projectId }: SystemPanelProps) {
     }
   }, [fetchData])
 
-  // Polling
+  // Polling — pauses when the browser tab is hidden to save bandwidth/battery
   useEffect(() => {
     if (!projectId) return
-    intervalRef.current = window.setInterval(() => {
-      void fetchData()
-    }, POLL_INTERVAL_MS)
-    return () => {
+
+    const startPolling = () => {
+      if (intervalRef.current !== null) return
+      intervalRef.current = window.setInterval(() => {
+        void fetchData()
+      }, POLL_INTERVAL_MS)
+    }
+
+    const stopPolling = () => {
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling()
+      } else {
+        void fetchData() // Immediate refresh when tab becomes visible
+        startPolling()
+      }
+    }
+
+    startPolling()
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [fetchData, projectId])
 

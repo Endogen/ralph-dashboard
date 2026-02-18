@@ -28,6 +28,7 @@ import { useToastStore } from "@/stores/toast-store"
 import type {
   IterationListResponse,
   IterationSummary,
+  LoopConfig,
   NotificationEntry,
   ParsedImplementationPlan,
   ProjectStats,
@@ -145,6 +146,7 @@ export function ProjectPage() {
   const [isRawPlanMode, setIsRawPlanMode] = useState(false)
   const isRawPlanModeRef = useRef(false)
   const [stats, setStats] = useState<ProjectStats | null>(null)
+  const [cliLabel, setCliLabel] = useState("codex")
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const isSavingPlanTask = false // read-only; toggling disabled
@@ -305,11 +307,12 @@ export function ProjectPage() {
       setOverviewError(null)
 
       try {
-        const [iterationsResult, statsResult, notificationsResult, planResult] = await Promise.allSettled([
+        const [iterationsResult, statsResult, notificationsResult, planResult, configResult] = await Promise.allSettled([
           apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
           apiFetch<ProjectStats>(`/projects/${id}/stats`),
           apiFetch<NotificationEntry[]>(`/projects/${id}/notifications`),
           apiFetch<ParsedImplementationPlan>(`/projects/${id}/plan`),
+          apiFetch<LoopConfig>(`/projects/${id}/config`),
         ])
         if (cancelled) {
           return
@@ -336,6 +339,10 @@ export function ProjectPage() {
         } else {
           setNotifications([])
           errorMessages.push("notifications")
+        }
+
+        if (configResult.status === "fulfilled") {
+          setCliLabel(configResult.value.cli || "codex")
         }
 
         if (planResult.status === "fulfilled") {
@@ -566,7 +573,7 @@ export function ProjectPage() {
               status={status}
               iterationLabel={iterationLabel}
               runningFor={runtimeLabel}
-              cliLabel="codex"
+              cliLabel={cliLabel}
               modeLabel={modeLabel}
             />
 

@@ -294,7 +294,12 @@ async def _async_wait_for_exit(pid: int, timeout_seconds: float) -> bool:
 
 
 async def stop_project_process(project_id: str, grace_period_seconds: float = 3.0) -> bool:
-    """Stop a running project process via SIGTERM then SIGKILL fallback."""
+    """Stop a running project process via SIGTERM then SIGKILL fallback.
+
+    Sends signals to the entire process group (not just the PID) so that
+    child processes spawned by ralph.sh (coding agents, test runners, etc.)
+    are also terminated instead of being orphaned.
+    """
     project_path = await _resolve_project_path(project_id)
     pid_file = project_path / ".ralph" / "ralph.pid"
 
@@ -306,10 +311,29 @@ async def stop_project_process(project_id: str, grace_period_seconds: float = 3.
         pid_file.unlink(missing_ok=True)
         return False
 
-    os.kill(pid, signal.SIGTERM)
+    # Kill the entire process group — ralph.sh is started with
+    # start_new_session=True, making it a session leader.
+    try:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        # Fallback to single-PID kill if group lookup fails
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pid_file.unlink(missing_ok=True)
+            return True
+
     exited = await _async_wait_for_exit(pid, grace_period_seconds)
     if not exited:
-        os.kill(pid, signal.SIGKILL)
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         await _async_wait_for_exit(pid, 1.0)
 
     pid_file.unlink(missing_ok=True)
