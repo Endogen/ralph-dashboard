@@ -56,16 +56,36 @@ def _merge_jsonl(detail: IterationDetail, jsonl_iteration: ParsedJsonlIteration)
 def _build_iteration_map(
     log_iterations: list[ParsedLogIteration], jsonl_iterations: list[ParsedJsonlIteration]
 ) -> dict[int, IterationDetail]:
+    """Build iteration map from log and JSONL entries.
+
+    JSONL is the canonical source — each line is one iteration in chronological
+    order.  We use 1-based row order as the iteration number to avoid collisions
+    from older loops that restarted the counter at 1.  If the JSONL iteration
+    field is already unique and monotonically increasing (i.e. no duplicates),
+    we honour it as-is so that the dashboard matches the log output.
+    """
     merged: dict[int, IterationDetail] = {}
 
     for log_iteration in log_iterations:
         merged[log_iteration.number] = _from_log_iteration(log_iteration)
 
-    for jsonl_iteration in jsonl_iterations:
-        detail = merged.get(jsonl_iteration.iteration)
-        if detail is None:
-            detail = IterationDetail(number=jsonl_iteration.iteration)
-        merged[jsonl_iteration.iteration] = _merge_jsonl(detail, jsonl_iteration)
+    if jsonl_iterations:
+        # Detect whether the JSONL iteration numbers are unique
+        seen_numbers: set[int] = set()
+        has_duplicates = False
+        for entry in jsonl_iterations:
+            if entry.iteration in seen_numbers:
+                has_duplicates = True
+                break
+            seen_numbers.add(entry.iteration)
+
+        for row_index, jsonl_iteration in enumerate(jsonl_iterations, 1):
+            # Use row order when there are duplicates, otherwise honour the field
+            number = row_index if has_duplicates else jsonl_iteration.iteration
+            detail = merged.get(number)
+            if detail is None:
+                detail = IterationDetail(number=number)
+            merged[number] = _merge_jsonl(detail, jsonl_iteration)
 
     return merged
 
