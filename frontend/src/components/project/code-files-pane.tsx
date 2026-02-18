@@ -11,10 +11,6 @@ type CodeFilesPaneProps = {
   projectId?: string
 }
 
-type InjectResponse = {
-  content: string
-}
-
 function formatCommitDate(value: string): string {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.valueOf())) {
@@ -38,9 +34,6 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
   const [isSavingAgents, setIsSavingAgents] = useState(false)
   const [isSavingPrompt, setIsSavingPrompt] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [injectText, setInjectText] = useState("")
-  const [isInjecting, setIsInjecting] = useState(false)
-  const [injectResult, setInjectResult] = useState<string | null>(null)
   const [gitLog, setGitLog] = useState<GitCommitSummary[]>([])
   const [isGitLogLoading, setIsGitLogLoading] = useState(false)
   const [gitLogError, setGitLogError] = useState<string | null>(null)
@@ -146,48 +139,6 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
     }
   }, [projectId])
 
-  const handleInject = useCallback(async () => {
-    if (!projectId) {
-      return
-    }
-
-    const message = injectText.trim()
-    if (!message) {
-      setInjectResult("Enter an inject message before sending.")
-      pushToast({
-        title: "Inject message required",
-        tone: "error",
-      })
-      return
-    }
-
-    setIsInjecting(true)
-    setInjectResult(null)
-    try {
-      const payload = await apiFetch<InjectResponse>(`/projects/${projectId}/inject`, {
-        method: "POST",
-        body: JSON.stringify({ message }),
-      })
-      setInjectText("")
-      setInjectResult(`Injected (${payload.content.length} chars).`)
-      pushToast({
-        title: "Instructions injected",
-        description: `${payload.content.length} characters queued`,
-        tone: "success",
-      })
-    } catch (injectError) {
-      const messageText = injectError instanceof Error ? injectError.message : "Failed to send inject message"
-      setInjectResult(messageText)
-      pushToast({
-        title: "Inject failed",
-        description: messageText,
-        tone: "error",
-      })
-    } finally {
-      setIsInjecting(false)
-    }
-  }, [injectText, projectId, pushToast])
-
   const handleSaveAgents = useCallback(async () => {
     if (!projectId || agentsContent === agentsSavedContent) {
       return
@@ -291,7 +242,7 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
       <header className="mb-3">
         <h3 className="text-base font-semibold">Code Files</h3>
         <p className="text-sm text-muted-foreground">
-          Side-by-side AGENTS.md and PROMPT.md editors with runtime inject and git history tooling.
+          Side-by-side AGENTS.md and PROMPT.md editors with git history.
         </p>
       </header>
 
@@ -367,29 +318,6 @@ export function CodeFilesPane({ projectId }: CodeFilesPaneProps) {
             </article>
           </div>
           {saveMessage && <p className="text-xs text-muted-foreground">{saveMessage}</p>}
-
-          <section className="rounded-lg border bg-background/30 p-3">
-            <p className="text-sm font-semibold">Inject Message</p>
-            <p className="mb-2 text-xs text-muted-foreground">Send runtime instructions for the next loop iteration.</p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <textarea
-                value={injectText}
-                onChange={(event) => setInjectText(event.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-                placeholder="Inject instructions for next iteration..."
-              />
-              <button
-                type="button"
-                onClick={handleInject}
-                disabled={isInjecting}
-                className="rounded-md border bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isInjecting ? "Sending..." : "Send Inject"}
-              </button>
-            </div>
-            {injectResult && <p className="mt-2 text-xs text-muted-foreground">{injectResult}</p>}
-          </section>
 
           <section className="rounded-lg border bg-background/30 p-3">
             <p className="text-sm font-semibold">Git History</p>
