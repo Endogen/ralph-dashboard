@@ -619,8 +619,8 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
                   return (
                     <div
                       key={lineIndex}
-                      className="whitespace-pre"
-                      style={{ height: `${LOG_LINE_HEIGHT_PX}px`, lineHeight: `${LOG_LINE_HEIGHT_PX}px` }}
+                      className="whitespace-pre-wrap break-all"
+                      style={{ minHeight: `${LOG_LINE_HEIGHT_PX}px`, lineHeight: `${LOG_LINE_HEIGHT_PX}px` }}
                     >
                       {line.raw.length === 0 ? (
                         <span className="text-zinc-100">&nbsp;</span>
