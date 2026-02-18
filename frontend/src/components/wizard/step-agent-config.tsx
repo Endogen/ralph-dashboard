@@ -11,6 +11,22 @@ const testPresets = [
   { label: "Custom", value: "__custom__" },
 ]
 
+const modelPresets: Record<AgentChoice, { label: string; value: string; description: string }[]> = {
+  codex: [
+    { label: "Default", value: "", description: "Agent default model" },
+    { label: "o3", value: "o3", description: "Strongest reasoning" },
+    { label: "o4-mini", value: "o4-mini", description: "Fast and affordable" },
+    { label: "gpt-4.1", value: "gpt-4.1", description: "Balanced performance" },
+    { label: "Custom", value: "__custom__", description: "Enter model name" },
+  ],
+  "claude-code": [
+    { label: "Default", value: "", description: "Agent default model" },
+    { label: "Opus", value: "opus", description: "Strongest reasoning" },
+    { label: "Sonnet", value: "sonnet", description: "Fast and capable" },
+    { label: "Custom", value: "__custom__", description: "Enter model name" },
+  ],
+}
+
 const agents: { id: AgentChoice; name: string; description: string; icon: typeof Code2 }[] = [
   {
     id: "claude-code",
@@ -142,16 +158,80 @@ export function StepAgentConfig() {
       <TestCommandField value={testCommand} onChange={setTestCommand} />
 
       {/* Model Override */}
+      <ModelOverrideField cli={cli} value={modelOverride} onChange={setModelOverride} />
+    </div>
+  )
+}
+
+function ModelOverrideField({
+  cli,
+  value,
+  onChange,
+}: {
+  cli: AgentChoice
+  value: string
+  onChange: (v: string) => void
+}) {
+  const presets = modelPresets[cli] ?? []
+  const isPreset = presets.some((p) => p.value !== "__custom__" && p.value === value)
+  const [isCustom, setIsCustom] = useState(!isPreset && value !== "")
+
+  const activeValue = isCustom ? "__custom__" : presets.find((p) => p.value === value)?.value ?? "__custom__"
+
+  // Reset custom state when agent changes and value was cleared
+  const [prevCli, setPrevCli] = useState(cli)
+  if (cli !== prevCli) {
+    setPrevCli(cli)
+    if (isCustom) setIsCustom(false)
+  }
+
+  const handleClick = (preset: (typeof presets)[number]) => {
+    if (preset.value === "__custom__") {
+      setIsCustom(true)
+      if (isPreset) onChange("")
+    } else {
+      setIsCustom(false)
+      onChange(preset.value)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
       <label className="block text-sm font-medium">
-        Model Override
+        Model
         <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
-        <input
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          value={modelOverride}
-          onChange={(e) => setModelOverride(e.target.value)}
-          placeholder="Leave empty for agent default"
-        />
       </label>
+      <div className="flex flex-wrap gap-2">
+        {presets.map((preset) => {
+          const isActive = activeValue === preset.value
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => handleClick(preset)}
+              className={`rounded-lg border px-3 py-1.5 text-left transition-all ${
+                isActive
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-input text-muted-foreground hover:border-muted-foreground/40 hover:bg-accent/30"
+              }`}
+            >
+              <span className="text-xs font-medium">{preset.label}</span>
+              {preset.label !== "Default" && preset.label !== "Custom" && (
+                <span className="ml-1.5 text-xs opacity-60">— {preset.description}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      {isCustom && (
+        <input
+          className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={cli === "codex" ? "e.g. o3-pro" : "e.g. claude-sonnet-4-5-20250929"}
+          autoFocus
+        />
+      )}
     </div>
   )
 }

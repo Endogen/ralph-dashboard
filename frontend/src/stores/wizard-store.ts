@@ -90,7 +90,7 @@ export const useWizardStore = create<WizardState>((set) => ({
       techStack: state.techStack.filter((t) => t !== tag),
     })),
 
-  setCli: (cli) => set({ cli }),
+  setCli: (cli) => set({ cli, modelOverride: "" }),
   setAutoApproval: (autoApproval) => set({ autoApproval }),
   setMaxIterations: (maxIterations) => set({ maxIterations }),
   setTestCommand: (testCommand) => set({ testCommand }),
