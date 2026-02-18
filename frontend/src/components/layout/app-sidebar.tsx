@@ -52,6 +52,10 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
       </header>
 
       <nav className="mt-4 space-y-1">
+        <NavLink to="/wizard" className={navClass}>
+          <Sparkles className="h-4 w-4" />
+          New Project
+        </NavLink>
         <NavLink to="/" className={navClass} end>
           <Gauge className="h-4 w-4" />
           Dashboard
@@ -59,10 +63,6 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
         <NavLink to="/archive" className={navClass}>
           <Archive className="h-4 w-4" />
           Archive
-        </NavLink>
-        <NavLink to="/wizard" className={navClass}>
-          <Sparkles className="h-4 w-4" />
-          New Project
         </NavLink>
       </nav>
 
