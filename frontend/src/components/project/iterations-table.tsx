@@ -331,9 +331,6 @@ export function IterationsTable({
     return () => {
       cancelled = true
     }
-    // Only re-run when search term changes or iterations list changes —
-    // NOT when individual details load (which would cascade).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iterations, loadIterationDetail, normalizedSearch, projectId])
 
   const sortedIterations = useMemo(() => {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { AlertTriangle, Code2, Terminal } from "lucide-react"
 
@@ -172,18 +172,20 @@ function ModelOverrideField({
   value: string
   onChange: (v: string) => void
 }) {
-  const presets = modelPresets[cli] ?? []
+  const presets = useMemo(() => modelPresets[cli] ?? [], [cli])
   const isPreset = presets.some((p) => p.value !== "__custom__" && p.value === value)
   const [isCustom, setIsCustom] = useState(!isPreset && value !== "")
 
-  const activeValue = isCustom ? "__custom__" : presets.find((p) => p.value === value)?.value ?? "__custom__"
+  useEffect(() => {
+    if (!value) {
+      setIsCustom(false)
+      return
+    }
+    const matchesPreset = presets.some((preset) => preset.value !== "__custom__" && preset.value === value)
+    setIsCustom(!matchesPreset)
+  }, [presets, value])
 
-  // Reset custom state when agent changes and value was cleared
-  const [prevCli, setPrevCli] = useState(cli)
-  if (cli !== prevCli) {
-    setPrevCli(cli)
-    if (isCustom) setIsCustom(false)
-  }
+  const activeValue = isCustom ? "__custom__" : presets.find((p) => p.value === value)?.value ?? "__custom__"
 
   const handleClick = (preset: (typeof presets)[number]) => {
     if (preset.value === "__custom__") {

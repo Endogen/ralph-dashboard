@@ -32,10 +32,11 @@ function normalizeProjects(projects: string[] | undefined): string[] {
   return Array.from(new Set(projects.map((item) => item.trim()).filter(Boolean))).sort()
 }
 
-function buildWebSocketUrl(): string {
+function buildWebSocketUrl(accessToken: string): string {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws"
   const host = window.location.host
-  return `${protocol}://${host}/api/ws`
+  const token = encodeURIComponent(accessToken)
+  return `${protocol}://${host}/api/ws?token=${token}`
 }
 
 export function useWebSocket({
@@ -95,44 +96,36 @@ export function useWebSocket({
         return
       }
 
-      const socket = new WebSocket(buildWebSocketUrl())
+      // Avoid overlapping reconnect timers creating parallel sockets.
+      clearReconnectTimer()
+      const socket = new WebSocket(buildWebSocketUrl(accessToken))
       socketRef.current = socket
 
       socket.onopen = () => {
-        if (cancelled) {
+        if (cancelled || socketRef.current !== socket) {
           return
         }
 
-        // Authenticate via first message instead of URL query param
-        // (avoids token leaking to server logs, proxy logs, browser history)
-        socket.send(JSON.stringify({ action: "auth", token: accessToken }))
+        clearReconnectTimer()
+        reconnectAttemptRef.current = 0
+        setConnected(true)
+        setReconnecting(false)
+
+        if (projectsRef.current.length > 0) {
+          socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
+          subscribedProjectsRef.current = projectsRef.current
+        } else {
+          subscribedProjectsRef.current = []
+        }
       }
 
       socket.onmessage = (event: MessageEvent<string>) => {
+        if (socketRef.current !== socket) {
+          return
+        }
+
         try {
           const parsed = JSON.parse(event.data) as WebSocketEnvelope
-
-          // Handle auth response — complete connection setup
-          if (parsed.type === "auth_ok") {
-            clearReconnectTimer()
-            reconnectAttemptRef.current = 0
-            setConnected(true)
-            setReconnecting(false)
-
-            if (projectsRef.current.length > 0) {
-              socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
-              subscribedProjectsRef.current = projectsRef.current
-            } else {
-              subscribedProjectsRef.current = []
-            }
-            return
-          }
-
-          // Auth failure — close and reconnect
-          if (parsed.type === "error" && parsed.message === "Invalid access token") {
-            socket.close()
-            return
-          }
 
           onEventRef.current?.(parsed)
         } catch {
@@ -141,12 +134,27 @@ export function useWebSocket({
       }
 
       socket.onerror = () => {
+        if (socketRef.current !== socket) {
+          return
+        }
         socket.close()
       }
 
-      socket.onclose = () => {
+      socket.onclose = (event: CloseEvent) => {
+        if (socketRef.current !== socket) {
+          return
+        }
+        socketRef.current = null
         setConnected(false)
         if (cancelled) {
+          return
+        }
+
+        if (event.code === 1008) {
+          // Auth/policy violation from backend — force a re-login instead of
+          // reconnecting forever with the same invalid token.
+          useAuthStore.getState().clearTokens()
+          setReconnecting(false)
           return
         }
 
@@ -154,7 +162,11 @@ export function useWebSocket({
         const delay =
           RECONNECT_DELAYS_MS[Math.min(reconnectAttemptRef.current, RECONNECT_DELAYS_MS.length - 1)]
         reconnectAttemptRef.current += 1
-        reconnectTimerRef.current = window.setTimeout(connect, delay)
+        clearReconnectTimer()
+        reconnectTimerRef.current = window.setTimeout(() => {
+          reconnectTimerRef.current = null
+          connect()
+        }, delay)
       }
     }
 

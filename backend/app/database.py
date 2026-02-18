@@ -6,14 +6,13 @@ opening/closing and running schema checks on every operation.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
+import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
-
-import aiosqlite
 
 from app.config import get_settings
 
@@ -38,8 +37,64 @@ CREATE TABLE IF NOT EXISTS app_settings (
 """
 
 # Persistent connection — initialized once at startup via init_database()
-_persistent_connection: aiosqlite.Connection | None = None
+_persistent_connection: "AsyncSQLiteConnection" | None = None
 _persistent_db_path: Path | None = None
+
+
+class AsyncSQLiteCursor:
+    """Async cursor wrapper around sqlite3 cursor methods."""
+
+    def __init__(self, cursor: sqlite3.Cursor, lock: threading.Lock) -> None:
+        self._cursor = cursor
+        self._lock = lock
+
+    def _call_locked(self, operation, *args):
+        with self._lock:
+            return operation(*args)
+
+    async def fetchone(self) -> sqlite3.Row | None:
+        return self._call_locked(self._cursor.fetchone)
+
+    async def fetchall(self) -> list[sqlite3.Row]:
+        return self._call_locked(self._cursor.fetchall)
+
+    async def close(self) -> None:
+        self._call_locked(self._cursor.close)
+
+
+class AsyncSQLiteConnection:
+    """Async connection wrapper over sqlite3 using thread offloading."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+        self._lock = threading.Lock()
+
+    def _call_locked(self, operation, *args):
+        with self._lock:
+            return operation(*args)
+
+    async def execute(
+        self, sql: str, parameters: tuple[Any, ...] = ()
+    ) -> AsyncSQLiteCursor:
+        cursor = self._call_locked(self._connection.execute, sql, parameters)
+        return AsyncSQLiteCursor(cursor, self._lock)
+
+    async def executescript(self, script: str) -> None:
+        self._call_locked(self._connection.executescript, script)
+
+    async def commit(self) -> None:
+        self._call_locked(self._connection.commit)
+
+    async def close(self) -> None:
+        self._call_locked(self._connection.close)
+
+
+def _open_sqlite_connection(path: Path) -> AsyncSQLiteConnection:
+    """Create a sqlite3 connection configured like the prior aiosqlite setup."""
+    raw = sqlite3.connect(path, check_same_thread=False)
+    raw.row_factory = sqlite3.Row
+    raw.execute("PRAGMA foreign_keys = ON")
+    return AsyncSQLiteConnection(raw)
 
 
 def resolve_database_path(database_path: Path | None = None) -> Path:
@@ -56,19 +111,14 @@ def resolve_database_path(database_path: Path | None = None) -> Path:
 
 
 @asynccontextmanager
-async def open_database(database_path: Path | None = None) -> AsyncIterator[aiosqlite.Connection]:
+async def open_database(database_path: Path | None = None) -> AsyncIterator[AsyncSQLiteConnection]:
     """Open an async SQLite connection with row mappings enabled.
 
     Prefers the persistent connection when available and no explicit path is
     given.  Falls back to a fresh connection for callers that provide a custom
     ``database_path`` (e.g. tests or one-off migrations).
     """
-    global _persistent_connection
-
-    # Use the persistent connection if possible
-    if database_path is None and _persistent_connection is not None:
-        yield _persistent_connection
-        return
+    global _persistent_connection, _persistent_db_path
 
     resolved_path = resolve_database_path(database_path)
 
@@ -81,21 +131,31 @@ async def open_database(database_path: Path | None = None) -> AsyncIterator[aios
         yield _persistent_connection
         return
 
+    # Config/env can change between calls (especially in tests). If the
+    # persistent connection points at a different DB file, close it so callers
+    # don't accidentally read/write stale state.
+    if _persistent_connection is not None and _persistent_db_path != resolved_path:
+        try:
+            await _persistent_connection.close()
+        except Exception:
+            pass
+        _persistent_connection = None
+        _persistent_db_path = None
+
     # Fallback: open a one-off connection
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    connection: aiosqlite.Connection | None = None
+    connection: AsyncSQLiteConnection | None = None
     try:
-        connection = await aiosqlite.connect(resolved_path)
-        connection.row_factory = aiosqlite.Row
-        pragma_cursor = await connection.execute("PRAGMA foreign_keys = ON")
-        await pragma_cursor.close()
+        connection = _open_sqlite_connection(resolved_path)
+        await _ensure_schema(connection)
+        await connection.commit()
         yield connection
     finally:
         if connection is not None:
             await connection.close()
 
 
-async def _ensure_schema(connection: aiosqlite.Connection) -> None:
+async def _ensure_schema(connection: AsyncSQLiteConnection) -> None:
     await connection.executescript(SCHEMA_SQL)
 
 
@@ -118,10 +178,7 @@ async def init_database(database_path: Path | None = None) -> Path:
             pass
         _persistent_connection = None
 
-    connection = await aiosqlite.connect(resolved_path)
-    connection.row_factory = aiosqlite.Row
-    pragma_cursor = await connection.execute("PRAGMA foreign_keys = ON")
-    await pragma_cursor.close()
+    connection = _open_sqlite_connection(resolved_path)
     await _ensure_schema(connection)
     await connection.commit()
 

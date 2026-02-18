@@ -15,11 +15,6 @@ from app.ws.hub import hub
 
 LOGGER = logging.getLogger(__name__)
 
-# Maximum number of pending events in the queue.  If the dispatcher falls
-# behind, the oldest events are dropped to prevent unbounded memory growth.
-_MAX_QUEUE_SIZE = 256
-
-
 class WatcherEventDispatcher:
     """Consumes watcher file changes and emits websocket events."""
 
@@ -34,32 +29,13 @@ class WatcherEventDispatcher:
         self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
         self._last_notification_keys: dict[str, tuple[str, str, str | None, int | None]] = {}
         self._statuses: dict[str, str] = {}
-        self._queue: asyncio.Queue[FileChangeEvent] = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
-        self._consumer_task: asyncio.Task | None = None
+        # FileWatcherService already consumes file events sequentially, but keep
+        # a lock here so direct callers/tests also get deterministic ordering.
+        self._dispatch_lock = asyncio.Lock()
 
     async def handle_change(self, change: FileChangeEvent) -> None:
-        """Enqueue a change event for sequential processing.
-
-        Events are processed one at a time via a background consumer task,
-        so concurrent file changes are queued instead of being dropped.
-        """
-        # Lazily start the consumer on the running loop
-        if self._consumer_task is None or self._consumer_task.done():
-            self._consumer_task = asyncio.create_task(self._consume_loop())
-
-        try:
-            self._queue.put_nowait(change)
-        except asyncio.QueueFull:
-            LOGGER.warning(
-                "Event dispatcher queue full (%d) — dropping event for %s",
-                _MAX_QUEUE_SIZE,
-                change.project_id,
-            )
-
-    async def _consume_loop(self) -> None:
-        """Process queued events sequentially."""
-        while True:
-            change = await self._queue.get()
+        """Dispatch a change event sequentially."""
+        async with self._dispatch_lock:
             try:
                 await self._dispatch(change)
             except Exception:
@@ -68,8 +44,6 @@ class WatcherEventDispatcher:
                     change.project_id,
                     change.path.name,
                 )
-            finally:
-                self._queue.task_done()
 
     async def _dispatch(self, change: FileChangeEvent) -> None:
         if change.path.name == "IMPLEMENTATION_PLAN.md":

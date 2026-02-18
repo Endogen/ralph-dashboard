@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.config import get_settings
+from app.projects.models import project_id_from_path
 from app.wizard.schemas import CreateRequest, GeneratedFile
 from app.wizard.service import (
     ProjectDirectoryExistsError,
@@ -44,7 +45,7 @@ async def test_create_project_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     response = await create_project(request)
 
-    assert response.project_id == "test-wizard-project"
+    assert response.project_id == project_id_from_path(projects_root / "test-wizard-project")
     assert response.started is False
 
     project_dir = projects_root / "test-wizard-project"

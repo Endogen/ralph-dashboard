@@ -15,7 +15,7 @@ type PricingRow = {
   price: string
 }
 
-const CLI_OPTIONS = ["codex", "claude", "opencode", "goose"] as const
+const CLI_OPTIONS = ["codex", "claude-code", "claude", "opencode", "goose"] as const
 let pricingRowCounter = 0
 
 function nextPricingRowId(): string {

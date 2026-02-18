@@ -36,13 +36,13 @@ usage() {
 Usage: $(basename "$0") [max_iterations]
 
 Environment variables:
-  RALPH_CLI    - CLI to use (codex, claude, opencode, goose) [default: codex]
+  RALPH_CLI    - CLI to use (codex, claude-code, opencode, goose) [default: codex]
   RALPH_FLAGS  - CLI flags [default: auto-detected per CLI]
   RALPH_TEST   - Test command to run after each iteration [optional]
 
 Examples:
   ./ralph.sh 20                          # Run 20 iterations with Codex
-  RALPH_CLI=claude ./ralph.sh 10         # Use Claude Code
+  RALPH_CLI=claude-code ./ralph.sh 10    # Use Claude Code
   RALPH_TEST="pytest" ./ralph.sh         # Run pytest after each iteration
 EOF_USAGE
   exit 1
@@ -367,7 +367,7 @@ if [[ -z "$CLI_FLAGS" ]]; then
     codex)
       CLI_FLAGS="-s workspace-write"
       ;;
-    claude)
+    claude|claude-code)
       CLI_FLAGS="--dangerously-skip-permissions"
       ;;
     *)
@@ -503,7 +503,7 @@ for i in $(seq 1 "$MAX_ITERS"); do
     codex)
       CMD="codex exec $CLI_FLAGS $MODEL_FLAG"
       ;;
-    claude)
+    claude|claude-code)
       CMD="claude --print --output-format json $CLI_FLAGS $MODEL_FLAG"
       CLAUDE_JSON_MODE=true
       ;;

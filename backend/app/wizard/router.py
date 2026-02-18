@@ -10,14 +10,23 @@ from app.wizard.schemas import (
     CreateResponse,
     GenerateRequest,
     GenerateResponse,
+    TemplatesResponse,
 )
 from app.wizard.service import (
     ProjectCreationError,
     ProjectDirectoryExistsError,
     create_project,
+    get_default_templates,
 )
 
 router = APIRouter(prefix="/api/wizard", tags=["wizard"])
+
+
+@router.get("/templates", response_model=TemplatesResponse)
+async def get_templates() -> TemplatesResponse:
+    """Return default AGENTS.md and PROMPT.md template content."""
+    templates = get_default_templates()
+    return TemplatesResponse.model_validate(templates)
 
 
 @router.post("/generate", response_model=GenerateResponse)

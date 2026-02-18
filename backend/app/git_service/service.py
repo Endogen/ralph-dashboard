@@ -8,10 +8,10 @@ from pathlib import Path
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 
-_COMMIT_HASH_RE = re.compile(r"^[0-9a-fA-F]{4,40}$")
-
 from app.git_service.models import GitCommitDiff, GitCommitSummary
 from app.projects.service import get_project_detail
+
+_COMMIT_HASH_RE = re.compile(r"^[0-9a-fA-F]{4,40}$")
 
 
 class GitServiceError(Exception):

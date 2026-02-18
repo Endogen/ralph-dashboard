@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -12,6 +13,20 @@ from app.iterations.service import ProjectNotFoundError
 from app.projects.service import get_project_detail
 from app.system.models import ProcessMetrics, ProjectSystemInfo, SystemMetrics
 from app.utils.process import read_pid
+
+_CPU_SNAPSHOT_LOCK = threading.Lock()
+_CPU_TIME_SNAPSHOTS: dict[int, tuple[float, float]] = {}
+
+
+def _sum_cpu_times(processes: list[psutil.Process]) -> float:
+    total = 0.0
+    for process in processes:
+        try:
+            cpu_times = process.cpu_times()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        total += cpu_times.user + cpu_times.system
+    return total
 
 
 def get_process_metrics(pid_file: Path) -> ProcessMetrics:
@@ -23,6 +38,8 @@ def get_process_metrics(pid_file: Path) -> ProcessMetrics:
     try:
         proc = psutil.Process(pid)
     except (psutil.NoSuchProcess, psutil.AccessDenied):
+        with _CPU_SNAPSHOT_LOCK:
+            _CPU_TIME_SNAPSHOTS.pop(pid, None)
         return ProcessMetrics(pid=pid)
 
     try:
@@ -32,28 +49,34 @@ def get_process_metrics(pid_file: Path) -> ProcessMetrics:
         rss_mb = 0.0
 
     children_rss_mb = 0.0
-    child_count = 0
+    children: list[psutil.Process] = []
     try:
         children = proc.children(recursive=True)
-        child_count = len(children)
         for child in children:
             try:
                 children_rss_mb += child.memory_info().rss / (1024 * 1024)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
+        children = []
 
     cpu_percent = 0.0
-    try:
-        cpu_percent = proc.cpu_percent(interval=0)
-        for child in proc.children(recursive=True):
-            try:
-                cpu_percent += child.cpu_percent(interval=0)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
+    now = time.monotonic()
+    total_cpu_seconds = _sum_cpu_times([proc, *children])
+    with _CPU_SNAPSHOT_LOCK:
+        previous = _CPU_TIME_SNAPSHOTS.get(pid)
+        _CPU_TIME_SNAPSHOTS[pid] = (total_cpu_seconds, now)
+
+        # Prevent unbounded growth if many transient PIDs are observed.
+        if len(_CPU_TIME_SNAPSHOTS) > 2048:
+            _CPU_TIME_SNAPSHOTS.clear()
+
+    if previous is not None:
+        previous_cpu_seconds, previous_timestamp = previous
+        delta_cpu = total_cpu_seconds - previous_cpu_seconds
+        delta_time = now - previous_timestamp
+        if delta_cpu >= 0 and delta_time > 0:
+            cpu_percent = (delta_cpu / delta_time) * 100.0
 
     return ProcessMetrics(
         pid=pid,
@@ -61,7 +84,7 @@ def get_process_metrics(pid_file: Path) -> ProcessMetrics:
         children_rss_mb=round(children_rss_mb, 1),
         total_rss_mb=round(rss_mb + children_rss_mb, 1),
         cpu_percent=round(cpu_percent, 1),
-        child_count=child_count,
+        child_count=len(children),
     )
 
 

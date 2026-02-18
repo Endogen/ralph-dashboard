@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from app.projects.models import project_id_from_path
 from app.ws import file_watcher
 from app.ws.file_watcher import FileChangeEvent, FileWatcherService
 
@@ -85,6 +86,8 @@ async def test_refresh_projects_emits_watcher_projects_refreshed_on_set_changes(
     project_beta = tmp_path / "beta"
     project_alpha.mkdir(parents=True, exist_ok=True)
     project_beta.mkdir(parents=True, exist_ok=True)
+    alpha_id = project_id_from_path(project_alpha)
+    beta_id = project_id_from_path(project_beta)
 
     snapshots = iter(
         [
@@ -120,9 +123,9 @@ async def test_refresh_projects_emits_watcher_projects_refreshed_on_set_changes(
         assert len(hub.payloads) == 1
         first = hub.payloads[0]
         assert first["type"] == "watcher_projects_refreshed"
-        assert first["data"]["added"] == ["alpha"]
+        assert first["data"]["added"] == [alpha_id]
         assert first["data"]["removed"] == []
-        assert first["data"]["observed"] == ["alpha"]
+        assert first["data"]["observed"] == [alpha_id]
         assert first["data"]["count"] == 1
 
         await service.refresh_projects()
@@ -130,16 +133,16 @@ async def test_refresh_projects_emits_watcher_projects_refreshed_on_set_changes(
 
         await service.refresh_projects()
         second = hub.payloads[1]
-        assert second["data"]["added"] == ["beta"]
+        assert second["data"]["added"] == [beta_id]
         assert second["data"]["removed"] == []
-        assert second["data"]["observed"] == ["alpha", "beta"]
+        assert second["data"]["observed"] == sorted([alpha_id, beta_id])
         assert second["data"]["count"] == 2
 
         await service.refresh_projects()
         third = hub.payloads[2]
         assert third["data"]["added"] == []
-        assert third["data"]["removed"] == ["alpha"]
-        assert third["data"]["observed"] == ["beta"]
+        assert third["data"]["removed"] == [alpha_id]
+        assert third["data"]["observed"] == [beta_id]
         assert third["data"]["count"] == 1
     finally:
         await service.stop()

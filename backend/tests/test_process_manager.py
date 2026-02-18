@@ -19,7 +19,6 @@ from app.control.process_manager import (
     is_project_running,
     pause_project_process,
     read_project_config,
-    read_project_pid,
     resume_project_process,
     start_project_process,
     stop_project_process,

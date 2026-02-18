@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from app.projects.models import ProjectStatus
+from app.projects.models import ProjectStatus, project_id_from_path
 from app.projects.status import build_project_summary, detect_project_status
 
 
@@ -67,4 +67,4 @@ def test_build_project_summary(tmp_path: Path) -> None:
 
     assert summary.name == "My Demo_Project"
     assert summary.path == project.resolve()
-    assert summary.id == "my-demo-project"
+    assert summary.id == project_id_from_path(project)

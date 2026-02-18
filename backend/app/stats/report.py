@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.control.process_manager import read_project_config
 from app.iterations.service import list_project_iterations
 from app.plan.service import get_project_plan
 from app.projects.service import get_project_detail
@@ -27,6 +28,7 @@ async def generate_project_report(project_id: str) -> str:
     stats = await aggregate_project_stats(project_id)
     plan = await get_project_plan(project_id)
     iterations = await list_project_iterations(project_id)
+    config = await read_project_config(project_id)
 
     now = datetime.now(tz=UTC).isoformat()
     duration_display = f"{int(stats.total_duration_seconds)}s"
@@ -86,9 +88,9 @@ async def generate_project_report(project_id: str) -> str:
         [
             "",
             "## Configuration",
-            "- CLI: codex",
-            "- Flags: N/A",
-            "- Test Command: N/A",
+            f"- CLI: {config.cli}",
+            f"- Flags: {config.flags or 'N/A'}",
+            f"- Test Command: {config.test_command or 'N/A'}",
         ]
     )
 

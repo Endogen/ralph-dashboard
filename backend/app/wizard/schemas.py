@@ -96,3 +96,10 @@ class CreateResponse(BaseModel):
     project_id: str
     project_path: str
     started: bool = False
+
+
+class TemplatesResponse(BaseModel):
+    """Response for default AGENTS/PROMPT template retrieval."""
+
+    agents_md: str
+    prompt_md: str

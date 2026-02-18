@@ -10,7 +10,8 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.projects.models import project_id_from_path
-from app.wizard.schemas import CreateRequest, CreateResponse, GeneratedFile
+from app.wizard.generator import BUILDING_PROMPT_TEMPLATE
+from app.wizard.schemas import CreateRequest, CreateResponse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +32,30 @@ def _get_projects_root() -> Path:
     """Return the first configured project directory as the root for new projects."""
     settings = get_settings()
     return settings.project_dirs[0]
+
+
+def get_default_templates() -> dict[str, str]:
+    """Return built-in AGENTS/PROMPT templates for the wizard preview endpoint."""
+    agents_template = """# AGENTS.md
+
+## Project
+Describe your project goals, scope, and constraints.
+
+## Commands
+- Build: ...
+- Test: ...
+- Lint: ...
+
+## Conventions
+- Code style, architecture, and repository rules.
+
+## Backpressure
+Run lint/tests after each implementation step.
+"""
+    prompt_template = (
+        "# Prompt.md\n\n" + BUILDING_PROMPT_TEMPLATE.format(goal="[Describe what you want to build]")
+    )
+    return {"agents_md": agents_template, "prompt_md": prompt_template}
 
 
 async def create_project(request: CreateRequest) -> CreateResponse:
@@ -64,7 +89,7 @@ async def create_project(request: CreateRequest) -> CreateResponse:
             "flags": cli_flags,
             "max_iterations": request.max_iterations,
             "test_command": request.test_command,
-            "model_pricing": {"codex": 0.006, "claude": 0.015},
+            "model_pricing": {"codex": 0.006, "claude": 0.015, "claude-code": 0.015},
         }
         if request.model_override:
             config["model"] = request.model_override

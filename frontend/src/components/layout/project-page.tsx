@@ -159,6 +159,7 @@ export function ProjectPage() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabKey>("overview")
+  const activeTabRef = useRef<TabKey>("overview")
   const [hasUnreadLog, setHasUnreadLog] = useState(false)
 
   // Track whether we've already fired a browser notification for completion
@@ -205,6 +206,7 @@ export function ProjectPage() {
 
   // Clear unread indicator when switching to Log tab
   useEffect(() => {
+    activeTabRef.current = activeTab
     if (activeTab === "log") {
       setHasUnreadLog(false)
     }
@@ -231,9 +233,9 @@ export function ProjectPage() {
         }
         logChunkIdRef.current += 1
         setLiveLogChunk({ id: logChunkIdRef.current, lines })
-        // Mark log as unread (the effect reading activeTab via ref would be stale,
-        // so we use functional update and let the "log" tab effect clear it)
-        setHasUnreadLog(true)
+        if (activeTabRef.current !== "log") {
+          setHasUnreadLog(true)
+        }
         return
       }
 
@@ -387,9 +389,6 @@ export function ProjectPage() {
     return () => {
       cancelled = true
     }
-    // NOTE: isRawPlanMode is intentionally excluded from deps to avoid
-    // triggering a full data refetch when toggling the plan editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, overviewRefreshToken])
 
   useEffect(() => {
