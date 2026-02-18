@@ -65,7 +65,12 @@ class WebSocketHub:
         )
 
     async def broadcast(self, payload: dict[str, Any], project: str | None = None) -> None:
-        """Send payload to all connections or only subscribers of a project."""
+        """Send payload to all connections or only subscribers of a project.
+
+        The lock is only held while building the target list — sends happen
+        outside the lock so a slow/hung WebSocket doesn't block subscribe,
+        connect, or disconnect operations.
+        """
         async with self._lock:
             if project is None:
                 targets = list(self._connections)
@@ -76,6 +81,7 @@ class WebSocketHub:
                     if project in self._subscriptions.get(websocket, set())
                 ]
 
+        # Send outside the lock to avoid blocking other hub operations
         failed: list[WebSocket] = []
         for websocket in targets:
             try:
@@ -83,8 +89,11 @@ class WebSocketHub:
             except Exception:  # pragma: no cover - network/runtime dependent
                 failed.append(websocket)
 
-        for websocket in failed:
-            await self.disconnect(websocket)
+        if failed:
+            async with self._lock:
+                for websocket in failed:
+                    self._connections.discard(websocket)
+                    self._subscriptions.pop(websocket, None)
 
 
 hub = WebSocketHub()

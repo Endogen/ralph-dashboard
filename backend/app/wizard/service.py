@@ -33,59 +33,6 @@ def _get_projects_root() -> Path:
     return settings.project_dirs[0]
 
 
-def get_default_templates() -> dict[str, str]:
-    """Return default content templates for AGENTS.md and PROMPT.md."""
-    agents_md = """\
-# AGENTS.md
-
-## Project Overview
-[Project description goes here]
-
-## Tech Stack
-[Technologies used]
-
-## Commands
-- **Build:** [build command]
-- **Test:** [test command]
-- **Lint:** [lint command]
-- **Run:** [run command]
-
-## Coding Conventions
-- Follow existing code style and patterns
-- Write tests for new functionality
-- Keep functions small and focused
-- Use meaningful variable and function names
-
-## Important Notes
-- Read IMPLEMENTATION_PLAN.md before starting work
-- Check off completed tasks in the plan
-- Run tests after each change
-- Commit after completing each task
-"""
-
-    prompt_md = """\
-# Loop Iteration Prompt
-
-You are an AI coding agent working on this project. Follow these steps each iteration:
-
-1. **Read** `IMPLEMENTATION_PLAN.md` to understand the project plan
-2. **Find** the next unchecked task (`- [ ]`) in the plan
-3. **Implement** that task thoroughly:
-   - Write clean, well-structured code
-   - Follow patterns established in existing code
-   - Add appropriate error handling
-4. **Test** your changes:
-   - Run the test suite
-   - Fix any failures before proceeding
-5. **Mark** the task as done in IMPLEMENTATION_PLAN.md (`- [x]`)
-6. **Commit** your changes with a descriptive message
-
-If all tasks are checked, report completion. If you encounter a blocker, \
-document it clearly and move to the next task if possible.
-"""
-    return {"agents_md": agents_md, "prompt_md": prompt_md}
-
-
 async def create_project(request: CreateRequest) -> CreateResponse:
     """Create a new project on disk from wizard output."""
     projects_root = _get_projects_root()

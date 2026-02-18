@@ -11,20 +11,12 @@ import psutil
 from app.iterations.service import ProjectNotFoundError
 from app.projects.service import get_project_detail
 from app.system.models import ProcessMetrics, ProjectSystemInfo, SystemMetrics
-
-
-def _read_pid(pid_file: Path) -> int | None:
-    if not pid_file.exists() or not pid_file.is_file():
-        return None
-    try:
-        return int(pid_file.read_text(encoding="utf-8").strip())
-    except (TypeError, ValueError):
-        return None
+from app.utils.process import read_pid
 
 
 def get_process_metrics(pid_file: Path) -> ProcessMetrics:
     """Read PID from .ralph/ralph.pid and gather process tree metrics."""
-    pid = _read_pid(pid_file)
+    pid = read_pid(pid_file)
     if pid is None:
         return ProcessMetrics()
 

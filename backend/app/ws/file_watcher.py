@@ -9,7 +9,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable  # Callable also used in _ProjectEventHandler
 
 from watchdog.events import (
     EVENT_TYPE_CREATED,
@@ -90,14 +90,27 @@ class _ProjectEventHandler(FileSystemEventHandler):
         project_path: Path,
         queue: asyncio.Queue[FileChangeEvent],
         loop: asyncio.AbstractEventLoop,
+        on_subdir_created: Callable[[str, Path, str], None] | None = None,
     ) -> None:
         self._project_id = project_id
         self._project_path = project_path
         self._queue = queue
         self._loop = loop
         self._last_event_times: dict[str, float] = {}
+        self._on_subdir_created = on_subdir_created
 
     def on_any_event(self, event: FileSystemEvent) -> None:
+        # Detect new subdirectories that should be watched (.ralph/, specs/)
+        if (
+            event.is_directory
+            and event.event_type == EVENT_TYPE_CREATED
+            and self._on_subdir_created is not None
+        ):
+            dir_name = Path(event.src_path).name
+            if dir_name in (".ralph", "specs"):
+                self._on_subdir_created(self._project_id, self._project_path, event.src_path)
+            return
+
         if event.is_directory:
             return
 
@@ -220,6 +233,36 @@ class FileWatcherService:
             finally:
                 self._queue.task_done()
 
+    def _handle_subdir_created(
+        self, project_id: str, project_path: Path, subdir_path: str
+    ) -> None:
+        """Schedule a watch on a newly created subdirectory (.ralph/ or specs/)."""
+        observer = self._observers.get(project_id)
+        if observer is None:
+            return
+        subdir = Path(subdir_path)
+        if not subdir.exists() or not subdir.is_dir():
+            return
+        try:
+            handler = _ProjectEventHandler(
+                project_id=project_id,
+                project_path=project_path,
+                queue=self._queue,
+                loop=self._loop,
+            )
+            observer.schedule(handler, str(subdir), recursive=False)
+            LOGGER.info(
+                "Dynamically watching new subdirectory %s for project %s",
+                subdir.name,
+                project_id,
+            )
+        except OSError:
+            LOGGER.warning(
+                "Failed to watch new subdirectory %s for project %s",
+                subdir_path,
+                project_id,
+            )
+
     def _start_observer(self, project_id: str, project_path: Path) -> None:
         if self._loop is None:
             return
@@ -232,6 +275,7 @@ class FileWatcherService:
             project_path=project_path,
             queue=self._queue,
             loop=self._loop,
+            on_subdir_created=self._handle_subdir_created,
         )
         try:
             # Watch only specific directories instead of recursive=True

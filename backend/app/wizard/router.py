@@ -10,13 +10,11 @@ from app.wizard.schemas import (
     CreateResponse,
     GenerateRequest,
     GenerateResponse,
-    TemplatesResponse,
 )
 from app.wizard.service import (
     ProjectCreationError,
     ProjectDirectoryExistsError,
     create_project,
-    get_default_templates,
 )
 
 router = APIRouter(prefix="/api/wizard", tags=["wizard"])
@@ -55,10 +53,3 @@ async def post_create(payload: CreateRequest) -> CreateResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
-
-
-@router.get("/templates", response_model=TemplatesResponse)
-async def get_templates() -> TemplatesResponse:
-    """Return default templates for AGENTS.md and PROMPT.md."""
-    templates = get_default_templates()
-    return TemplatesResponse(**templates)

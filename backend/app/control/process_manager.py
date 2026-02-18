@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from app.control.models import LoopConfig, ProcessStartResult
 from app.projects.service import get_project_detail
+from app.utils.process import is_process_alive, read_pid
 
 
 class ProcessManagerError(Exception):
@@ -43,36 +44,9 @@ class ProcessConfigValidationError(ProcessManagerError):
     """Raised when loop config payload fails validation."""
 
 
-def _is_zombie_pid(pid: int) -> bool:
-    stat_file = Path("/proc") / str(pid) / "stat"
-    if not stat_file.exists() or not stat_file.is_file():
-        return False
-    try:
-        state = stat_file.read_text(encoding="utf-8").split()[2]
-    except (OSError, IndexError):
-        return False
-    return state == "Z"
-
-
-def _read_pid(pid_file: Path) -> int | None:
-    if not pid_file.exists() or not pid_file.is_file():
-        return None
-    try:
-        return int(pid_file.read_text(encoding="utf-8").strip())
-    except ValueError:
-        return None
-
-
-def _is_pid_running(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    if _is_zombie_pid(pid):
-        return False
-    return True
+# Aliases for backward compatibility within this module
+_read_pid = read_pid
+_is_pid_running = is_process_alive
 
 
 def _repo_script_path() -> Path:

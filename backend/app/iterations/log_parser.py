@@ -7,8 +7,19 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+# Match both old and new ralph.sh iteration header formats:
+#   Old: [HH:MM:SS] === Iteration 5/50 ===
+#   New: === Iteration 8 (loop 1/50) ===
 ITERATION_HEADER_RE = re.compile(
-    r"^\[(?P<timestamp>\d{2}:\d{2}:\d{2})\]\s+=== Iteration (?P<number>\d+)/(?P<max>\d+) ===$"
+    r"^"
+    r"(?:\[(?P<timestamp>\d{2}:\d{2}:\d{2})\]\s+)?"  # optional [HH:MM:SS] prefix
+    r"=== Iteration (?P<number>\d+)"
+    r"(?:"
+    r"/(?P<max_old>\d+)"                              # old format: /50
+    r"|"
+    r" \(loop \d+/(?P<max_new>\d+)\)"                 # new format: (loop 1/50)
+    r")"
+    r" ===$"
 )
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 TOKEN_NUMBER_RE = re.compile(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?")
@@ -74,11 +85,14 @@ def parse_ralph_log(content: str) -> list[ParsedLogIteration]:
         if marker_index + 1 < len(markers):
             end_timestamp = markers[marker_index + 1][1].group("timestamp")
 
+        # max_iterations from either old format (/50) or new format (loop 1/50)
+        max_iter_str = header.group("max_old") or header.group("max_new") or "0"
+
         iterations.append(
             ParsedLogIteration(
                 number=int(header.group("number")),
-                max_iterations=int(header.group("max")),
-                start_timestamp=header.group("timestamp"),
+                max_iterations=int(max_iter_str),
+                start_timestamp=header.group("timestamp") or "",
                 end_timestamp=end_timestamp,
                 tokens_used=_parse_token_count(chunk_lines),
                 has_errors=bool(error_lines),
