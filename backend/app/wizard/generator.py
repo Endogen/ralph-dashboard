@@ -17,17 +17,18 @@ well-structured project specifications and implementation plans for AI coding ag
 You will receive a project description and tech stack preferences. Generate the \
 following files as a JSON array of objects with "path" and "content" keys:
 
-1. `specs/overview.md` — High-level project overview, goals, architecture, and key decisions.
+1. `specs/overview.md` — High-level project overview, goals, tech stack, architecture, \
+   success criteria, and non-goals.
 2. `specs/features.md` — Detailed feature specifications with acceptance criteria.
 3. `IMPLEMENTATION_PLAN.md` — A phased implementation plan with numbered tasks. \
    Use markdown checkboxes (- [ ] Task description) for each task. Group tasks into \
    phases (## Phase 1: ..., ## Phase 2: ..., etc). Start with foundational work and \
-   build up to features.
+   build up to features. Add `STATUS: PLANNING_COMPLETE` at the top (after the title).
 4. `AGENTS.md` — Context file for the AI coding agent. Include: project description, \
-   tech stack, build/test/lint commands, coding conventions, and important notes.
-5. `PROMPT.md` — The prompt that will be fed to the AI coding agent each iteration \
-   of the building loop. It should instruct the agent to read IMPLEMENTATION_PLAN.md, \
-   pick the next unchecked task, implement it, run tests, and mark it done.
+   tech stack, build/test/lint commands, project structure, coding conventions. \
+   Include a Backpressure section with lint and test commands to run after each task.
+
+Do NOT generate PROMPT.md — it is a fixed template provided separately.
 
 Important:
 - Be thorough and specific in the implementation plan
@@ -35,7 +36,6 @@ Important:
 - Each task should be completable in one iteration by an AI agent
 - Include setup tasks (project init, dependencies, config)
 - Include testing tasks throughout, not just at the end
-- The PROMPT.md should be a complete, self-contained instruction for one loop iteration
 - Output ONLY valid JSON — no markdown fences, no commentary
 
 Output format:
@@ -43,9 +43,73 @@ Output format:
   {"path": "specs/overview.md", "content": "..."},
   {"path": "specs/features.md", "content": "..."},
   {"path": "IMPLEMENTATION_PLAN.md", "content": "..."},
-  {"path": "AGENTS.md", "content": "..."},
-  {"path": "PROMPT.md", "content": "..."}
+  {"path": "AGENTS.md", "content": "..."}
 ]"""
+
+# Fixed PROMPT.md template — never AI-generated, always the same.
+# Enforces single-task-per-iteration so ralph.sh can track each task.
+BUILDING_PROMPT_TEMPLATE = """\
+# Ralph BUILDING Loop
+
+## Goal
+{goal}
+
+## Context
+- Read: specs/*.md (requirements and design)
+- Read: IMPLEMENTATION_PLAN.md (your task list)
+- Read: AGENTS.md (test commands, project conventions, learnings, human decisions)
+
+## Rules
+1. Pick the **single** highest priority incomplete task from IMPLEMENTATION_PLAN.md
+2. Investigate the relevant code BEFORE making changes
+3. Implement **only that one task** — do NOT continue to the next task
+4. Run the backpressure commands from AGENTS.md (lint, test)
+5. If tests pass:
+   - Commit with a clear, conventional message (feat:, fix:, refactor:, etc.)
+   - Mark the task as done in IMPLEMENTATION_PLAN.md: `- [x] Task`
+6. If tests fail:
+   - Attempt to fix (max 3 tries per task)
+   - If still failing after 3 attempts, notify for help
+7. Update AGENTS.md with any operational learnings
+8. **Stop.** The outer loop will invoke you again for the next task.
+
+## Error Handling
+If you encounter issues:
+- Missing dependency: Try to add it, if unsure notify
+- Unclear requirement: Check specs/ and AGENTS.md (Human Decisions section), \
+if still unclear notify
+- Repeated test failures: Notify after 3 attempts
+- Blocked by external factor: Notify immediately
+
+## Notifications
+When you need input or hit milestones, write to the notification file:
+
+```bash
+mkdir -p .ralph
+cat > .ralph/pending-notification.txt << 'NOTIF'
+{{"timestamp":"$(date -Iseconds)","message":"<PREFIX>: <message>","status":"pending"}}
+NOTIF
+```
+
+Prefixes:
+- `DECISION:` — Need human input
+- `ERROR:` — Tests failing after 3 attempts on same task
+- `BLOCKED:` — Missing credentials, unclear spec, external dependency
+- `PROGRESS:` — Major milestone complete
+- `DONE:` — All tasks complete
+
+## Completion
+When ALL tasks in IMPLEMENTATION_PLAN.md are marked done:
+1. Run final test suite to verify everything works
+2. Add this line to IMPLEMENTATION_PLAN.md: `STATUS: COMPLETE`
+3. Write completion notification:
+   ```bash
+   mkdir -p .ralph
+   cat > .ralph/pending-notification.txt << 'NOTIF'
+   {{"timestamp":"$(date -Iseconds)","message":"DONE: All tasks complete.","status":"pending"}}
+   NOTIF
+   ```
+"""
 
 
 def _build_user_prompt(request: GenerateRequest) -> str:
@@ -132,6 +196,11 @@ async def generate_project_files(request: GenerateRequest) -> list[GeneratedFile
 
     if not files:
         raise GenerationError("LLM returned no valid files — please try regenerating.")
+
+    # Append the fixed PROMPT.md template (never AI-generated)
+    goal = request.project_description.strip().split("\n")[0]  # First line as goal
+    prompt_content = BUILDING_PROMPT_TEMPLATE.format(goal=goal)
+    files.append(GeneratedFile(path="PROMPT.md", content=prompt_content))
 
     LOGGER.info("Generated %d files for project: %s", len(files), request.project_name)
     return files
