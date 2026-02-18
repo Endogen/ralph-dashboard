@@ -21,29 +21,91 @@ const stepLabelsShort = ["Setup", "Agent", "Review", "Launch"]
 
 function StepIndicator({ currentStep }: { currentStep: number }) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      {/* Circles + lines row */}
-      <div className="flex items-center">
+    <>
+      {/* Mobile: two-row layout with short labels */}
+      <div className="flex flex-col items-center gap-2 sm:hidden">
+        <div className="flex items-center">
+          {steps.map((step, idx) => {
+            const isComplete = idx < currentStep
+            const isCurrent = idx === currentStep
+
+            return (
+              <div key={step.label} className="flex items-center">
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                    isComplete
+                      ? "bg-primary text-primary-foreground"
+                      : isCurrent
+                        ? "border-2 border-primary bg-primary/10 text-primary"
+                        : "border-2 border-muted bg-muted/30 text-muted-foreground"
+                  }`}
+                >
+                  {isComplete ? <Check className="h-4 w-4" /> : idx + 1}
+                </div>
+                {idx < steps.length - 1 && (
+                  <div
+                    className={`mx-1.5 h-0.5 w-8 ${
+                      idx < currentStep ? "bg-primary" : "bg-muted"
+                    }`}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex items-start">
+          {steps.map((step, idx) => {
+            const isCurrent = idx === currentStep
+            const isFuture = idx > currentStep
+
+            return (
+              <div key={step.label} className="flex items-center">
+                <span
+                  className={`w-8 text-center text-[10px] font-medium leading-tight ${
+                    isCurrent ? "text-primary" : isFuture ? "text-muted-foreground" : "text-foreground"
+                  }`}
+                >
+                  {stepLabelsShort[idx]}
+                </span>
+                {idx < steps.length - 1 && <div className="mx-1.5 w-8" />}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: original inline layout */}
+      <div className="hidden items-center justify-center gap-0 sm:flex">
         {steps.map((step, idx) => {
           const isComplete = idx < currentStep
           const isCurrent = idx === currentStep
+          const isFuture = idx > currentStep
 
           return (
             <div key={step.label} className="flex items-center">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                  isComplete
-                    ? "bg-primary text-primary-foreground"
-                    : isCurrent
-                      ? "border-2 border-primary bg-primary/10 text-primary"
-                      : "border-2 border-muted bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                {isComplete ? <Check className="h-4 w-4" /> : idx + 1}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                    isComplete
+                      ? "bg-primary text-primary-foreground"
+                      : isCurrent
+                        ? "border-2 border-primary bg-primary/10 text-primary"
+                        : "border-2 border-muted bg-muted/30 text-muted-foreground"
+                  }`}
+                >
+                  {isComplete ? <Check className="h-4 w-4" /> : idx + 1}
+                </div>
+                <span
+                  className={`mt-1.5 text-[10px] font-medium ${
+                    isCurrent ? "text-primary" : isFuture ? "text-muted-foreground" : "text-foreground"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
               {idx < steps.length - 1 && (
                 <div
-                  className={`mx-1.5 h-0.5 w-8 sm:mx-2 sm:w-12 ${
+                  className={`mx-2 mb-5 h-0.5 w-12 ${
                     idx < currentStep ? "bg-primary" : "bg-muted"
                   }`}
                 />
@@ -52,31 +114,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
           )
         })}
       </div>
-
-      {/* Labels row */}
-      <div className="flex items-start">
-        {steps.map((step, idx) => {
-          const isCurrent = idx === currentStep
-          const isFuture = idx > currentStep
-
-          return (
-            <div key={step.label} className="flex items-center">
-              <span
-                className={`w-8 text-center text-[10px] font-medium leading-tight sm:text-[11px] ${
-                  isCurrent ? "text-primary" : isFuture ? "text-muted-foreground" : "text-foreground"
-                }`}
-              >
-                <span className="hidden sm:inline">{step.label}</span>
-                <span className="sm:hidden">{stepLabelsShort[idx]}</span>
-              </span>
-              {idx < steps.length - 1 && (
-                <div className="mx-1.5 w-8 sm:mx-2 sm:w-12" />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
+    </>
   )
 }
 
