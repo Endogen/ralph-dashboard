@@ -27,6 +27,12 @@ class WebSocketHub:
             self._connections.add(websocket)
             self._subscriptions[websocket] = set()
 
+    def register(self, websocket: WebSocket) -> None:
+        """Register an already-accepted websocket (no accept call)."""
+        # Uses synchronous dict/set ops — safe without lock for single adds
+        self._connections.add(websocket)
+        self._subscriptions[websocket] = set()
+
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:
             self._connections.discard(websocket)

@@ -59,11 +59,11 @@ def _is_plan_complete(project_path: Path) -> bool:
     if not plan_file.exists() or not plan_file.is_file():
         return False
 
+    # Scan the entire file for the STATUS marker — it may appear after
+    # headings, comments, or other content.
     for line in plan_file.read_text(encoding="utf-8").splitlines():
         if line.strip().upper() == "STATUS: COMPLETE":
             return True
-        if line.strip():
-            break
     return False
 
 

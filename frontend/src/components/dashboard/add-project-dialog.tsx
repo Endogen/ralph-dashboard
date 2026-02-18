@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react"
+import { type FormEvent, useEffect, useRef, useState } from "react"
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
@@ -16,18 +16,60 @@ export function AddProjectDialog({ open, onClose, onCreated }: AddProjectDialogP
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const pushToast = useToastStore((state) => state.pushToast)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!open) {
       return
     }
-    const handleEscape = (event: KeyboardEvent) => {
+
+    // Save the previously focused element to restore on close
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+
+    // Lock body scroll
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    // Focus the dialog
+    requestAnimationFrame(() => {
+      const firstInput = dialogRef.current?.querySelector("input")
+      if (firstInput) {
+        ;(firstInput as HTMLElement).focus()
+      }
+    })
+
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose()
+        return
+      }
+
+      // Focus trap — keep Tab cycling within the dialog
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )
+        const first = focusableElements[0]
+        const last = focusableElements[focusableElements.length - 1]
+
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last?.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first?.focus()
+        }
       }
     }
-    window.addEventListener("keydown", handleEscape)
-    return () => window.removeEventListener("keydown", handleEscape)
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      document.body.style.overflow = originalOverflow
+      // Restore focus to the previously focused element
+      previousFocusRef.current?.focus()
+    }
   }, [onClose, open])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -72,10 +114,16 @@ export function AddProjectDialog({ open, onClose, onCreated }: AddProjectDialogP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="w-full max-w-lg rounded-xl border bg-card p-5 shadow-lg">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-project-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div ref={dialogRef} className="w-full max-w-lg rounded-xl border bg-card p-5 shadow-lg">
         <header>
-          <h2 className="text-lg font-semibold">Add Project</h2>
+          <h2 id="add-project-title" className="text-lg font-semibold">Add Project</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter an absolute path to a project containing a <code>.ralph</code> directory.
           </p>

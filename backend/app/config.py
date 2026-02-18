@@ -55,6 +55,12 @@ class Settings(BaseModel):
     def _validate_secret_key(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("secret_key must not be empty")
+        if value == "replace-this-secret-key":
+            raise ValueError(
+                "RALPH_SECRET_KEY must be set to a secure random value — "
+                "do not use the default. Generate one with: "
+                "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
         return value
 
 

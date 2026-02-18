@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { apiFetch } from "@/api/client"
 import { GitDiffViewer } from "@/components/project/git-diff-viewer"
@@ -178,6 +178,13 @@ export function IterationsTable({
   const [diffLoading, setDiffLoading] = useState<Record<string, boolean>>({})
   const [diffErrors, setDiffErrors] = useState<Record<string, string>>({})
 
+  // Refs to avoid stale closures in search hydration and callbacks
+  const iterationDetailsRef = useRef(iterationDetails)
+  const detailLoadingRef = useRef(detailLoading)
+  const requestedRef = useRef(new Set<number>())
+  iterationDetailsRef.current = iterationDetails
+  detailLoadingRef.current = detailLoading
+
   useEffect(() => {
     setExpandedRows({})
     setIterationDetails({})
@@ -189,14 +196,22 @@ export function IterationsTable({
     setStatusFilter("all")
     setHealthFilter("all")
     setSearchFilter("")
+    requestedRef.current = new Set()
   }, [projectId])
 
   const loadIterationDetail = useCallback(
     async (iterationNumber: number) => {
-      if (!projectId || iterationDetails[iterationNumber] || detailLoading[iterationNumber]) {
+      // Use refs to check current state without creating dependency chains
+      if (
+        !projectId ||
+        iterationDetailsRef.current[iterationNumber] ||
+        detailLoadingRef.current[iterationNumber] ||
+        requestedRef.current.has(iterationNumber)
+      ) {
         return
       }
 
+      requestedRef.current.add(iterationNumber)
       setDetailLoading((current) => ({ ...current, [iterationNumber]: true }))
       setDetailErrors((current) => ({ ...current, [iterationNumber]: "" }))
 
@@ -206,11 +221,12 @@ export function IterationsTable({
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to load iteration detail"
         setDetailErrors((current) => ({ ...current, [iterationNumber]: message }))
+        requestedRef.current.delete(iterationNumber)
       } finally {
         setDetailLoading((current) => ({ ...current, [iterationNumber]: false }))
       }
     },
-    [detailLoading, iterationDetails, projectId],
+    [projectId],
   )
 
   const loadCommitDiff = useCallback(
@@ -284,9 +300,16 @@ export function IterationsTable({
       return
     }
 
+    // Use refs to determine which iterations still need loading — avoids
+    // re-triggering this effect when details/loading state changes.
     const missingIterationNumbers = iterations
       .map((iteration) => iteration.number)
-      .filter((iterationNumber) => !iterationDetails[iterationNumber] && !detailLoading[iterationNumber])
+      .filter(
+        (iterationNumber) =>
+          !iterationDetailsRef.current[iterationNumber] &&
+          !detailLoadingRef.current[iterationNumber] &&
+          !requestedRef.current.has(iterationNumber),
+      )
 
     if (missingIterationNumbers.length === 0) {
       return
@@ -308,7 +331,10 @@ export function IterationsTable({
     return () => {
       cancelled = true
     }
-  }, [detailLoading, iterationDetails, iterations, loadIterationDetail, normalizedSearch, projectId])
+    // Only re-run when search term changes or iterations list changes —
+    // NOT when individual details load (which would cascade).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iterations, loadIterationDetail, normalizedSearch, projectId])
 
   const sortedIterations = useMemo(() => {
     const next = [...filteredIterations]

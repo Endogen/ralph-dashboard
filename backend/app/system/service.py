@@ -100,6 +100,8 @@ def get_system_metrics(project_path: Path) -> SystemMetrics:
 
 async def get_project_system_info(project_id: str) -> ProjectSystemInfo:
     """Resolve project path and gather process + system metrics."""
+    import asyncio
+
     project = await get_project_detail(project_id)
     if project is None:
         raise ProjectNotFoundError(f"Project not found: {project_id}")
@@ -107,7 +109,10 @@ async def get_project_system_info(project_id: str) -> ProjectSystemInfo:
     project_path = project.path
     pid_file = project_path / ".ralph" / "ralph.pid"
 
-    process = get_process_metrics(pid_file)
-    system = get_system_metrics(project_path)
+    # psutil calls block on /proc reads — run in thread pool
+    process, system = await asyncio.gather(
+        asyncio.to_thread(get_process_metrics, pid_file),
+        asyncio.to_thread(get_system_metrics, project_path),
+    )
 
     return ProjectSystemInfo(process=process, system=system)

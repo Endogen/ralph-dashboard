@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Literal
 
@@ -40,7 +41,8 @@ async def read_project_file(project_id: str, file_key: AllowedProjectFile) -> tu
     target = project_path / filename
     if not target.exists() or not target.is_file():
         raise FilesTargetNotFoundError(f"File not found: {filename}")
-    return filename, target.read_text(encoding="utf-8")
+    content = await asyncio.to_thread(target.read_text, "utf-8")
+    return filename, content
 
 
 async def write_project_file(
@@ -50,5 +52,5 @@ async def write_project_file(
     project_path = await _resolve_project_path(project_id)
     filename = FILE_NAME_MAP[file_key]
     target = project_path / filename
-    target.write_text(content, encoding="utf-8")
+    await asyncio.to_thread(target.write_text, content, "utf-8")
     return filename, content

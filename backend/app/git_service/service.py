@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
+
+_COMMIT_HASH_RE = re.compile(r"^[0-9a-fA-F]{4,40}$")
 
 from app.git_service.models import GitCommitDiff, GitCommitSummary
 from app.projects.service import get_project_detail
@@ -106,16 +109,21 @@ async def get_git_log(project_id: str, limit: int = 50, offset: int = 0) -> list
 
 async def get_git_diff(project_id: str, commit_hash: str) -> GitCommitDiff:
     """Return unified diff text for a commit hash."""
+    if not _COMMIT_HASH_RE.fullmatch(commit_hash):
+        raise GitCommitNotFoundError(f"Invalid commit hash: {commit_hash}")
     project_path = await _resolve_project_path(project_id)
-    repo = _open_repo(project_path)
-    try:
-        commit = repo.commit(commit_hash)
-    except Exception as exc:  # GitPython raises different exceptions per resolution path
-        raise GitCommitNotFoundError(f"Commit not found: {commit_hash}") from exc
 
-    try:
-        diff_text = repo.git.show(commit.hexsha, format="", no_color=True)
-    except GitCommandError as exc:
-        raise GitCommitNotFoundError(f"Commit not found: {commit_hash}") from exc
+    def _get_diff() -> GitCommitDiff:
+        repo = _open_repo(project_path)
+        try:
+            commit = repo.commit(commit_hash)
+        except Exception as exc:
+            raise GitCommitNotFoundError(f"Commit not found: {commit_hash}") from exc
+        try:
+            diff_text = repo.git.show(commit.hexsha, format="", no_color=True)
+        except GitCommandError as exc:
+            raise GitCommitNotFoundError(f"Commit not found: {commit_hash}") from exc
+        return GitCommitDiff(hash=commit.hexsha[:7], diff=diff_text)
 
-    return GitCommitDiff(hash=commit.hexsha[:7], diff=diff_text)
+    # GitPython spawns subprocesses — run in thread pool
+    return await asyncio.to_thread(_get_diff)

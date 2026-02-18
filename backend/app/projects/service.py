@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from pathlib import Path
 
 from app.database import get_setting, set_setting
@@ -11,6 +13,11 @@ from app.projects.models import ProjectDetail, ProjectSummary, project_id_from_p
 from app.projects.status import build_project_detail, build_project_summary
 
 REGISTERED_PROJECTS_KEY = "registered_project_paths"
+
+# TTL cache for discovered paths to avoid repeated os.walk on every request
+_discovered_paths_cache: list[Path] | None = None
+_discovered_paths_timestamp: float = 0.0
+_DISCOVERY_CACHE_TTL_SECONDS = 10.0
 
 
 class ProjectRegistrationError(Exception):
@@ -81,23 +88,55 @@ async def unregister_project_by_id(project_id: str) -> bool:
 
 
 async def discover_all_project_paths() -> list[Path]:
-    """Discover projects from configured roots and manual registrations."""
-    discovered = discover_project_paths()
+    """Discover projects from configured roots and manual registrations.
+
+    Results are cached for up to ``_DISCOVERY_CACHE_TTL_SECONDS`` to avoid
+    repeated expensive ``os.walk`` calls on every request.
+    """
+    global _discovered_paths_cache, _discovered_paths_timestamp
+
+    now = time.monotonic()
+    if (
+        _discovered_paths_cache is not None
+        and (now - _discovered_paths_timestamp) < _DISCOVERY_CACHE_TTL_SECONDS
+    ):
+        return _discovered_paths_cache
+
+    # os.walk is blocking — run in thread pool
+    discovered = await asyncio.to_thread(discover_project_paths)
     registered = await get_registered_project_paths()
-    return _normalize_paths([*discovered, *registered])
+    result = _normalize_paths([*discovered, *registered])
+
+    _discovered_paths_cache = result
+    _discovered_paths_timestamp = now
+    return result
+
+
+def invalidate_discovery_cache() -> None:
+    """Force the next ``discover_all_project_paths`` call to re-scan."""
+    global _discovered_paths_cache, _discovered_paths_timestamp
+    _discovered_paths_cache = None
+    _discovered_paths_timestamp = 0.0
 
 
 async def list_projects() -> list[ProjectSummary]:
     """Return project summaries across discovered and registered projects."""
     paths = await discover_all_project_paths()
-    return [build_project_summary(path) for path in paths]
+    # build_project_summary reads PID files and plan files (blocking I/O)
+    return await asyncio.to_thread(
+        lambda: [build_project_summary(path) for path in paths]
+    )
 
 
 async def get_project_detail(project_id: str) -> ProjectDetail | None:
     """Return a single project detail model by project id."""
     paths = await discover_all_project_paths()
-    for path in paths:
-        detail = build_project_detail(path)
-        if detail.id == project_id:
-            return detail
-    return None
+
+    def _find_detail() -> ProjectDetail | None:
+        for path in paths:
+            detail = build_project_detail(path)
+            if detail.id == project_id:
+                return detail
+        return None
+
+    return await asyncio.to_thread(_find_detail)

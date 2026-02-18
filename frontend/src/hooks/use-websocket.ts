@@ -32,10 +32,10 @@ function normalizeProjects(projects: string[] | undefined): string[] {
   return Array.from(new Set(projects.map((item) => item.trim()).filter(Boolean))).sort()
 }
 
-function buildWebSocketUrl(accessToken: string): string {
+function buildWebSocketUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws"
   const host = window.location.host
-  return `${protocol}://${host}/api/ws?token=${encodeURIComponent(accessToken)}`
+  return `${protocol}://${host}/api/ws`
 }
 
 export function useWebSocket({
@@ -95,33 +95,46 @@ export function useWebSocket({
         return
       }
 
-      const socket = new WebSocket(buildWebSocketUrl(accessToken))
+      const socket = new WebSocket(buildWebSocketUrl())
       socketRef.current = socket
 
       socket.onopen = () => {
         if (cancelled) {
           return
         }
-        clearReconnectTimer()
-        reconnectAttemptRef.current = 0
-        setConnected(true)
-        setReconnecting(false)
 
-        if (projectsRef.current.length > 0) {
-          socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
-          subscribedProjectsRef.current = projectsRef.current
-        } else {
-          subscribedProjectsRef.current = []
-        }
+        // Authenticate via first message instead of URL query param
+        // (avoids token leaking to server logs, proxy logs, browser history)
+        socket.send(JSON.stringify({ action: "auth", token: accessToken }))
       }
 
       socket.onmessage = (event: MessageEvent<string>) => {
-        if (!onEventRef.current) {
-          return
-        }
         try {
           const parsed = JSON.parse(event.data) as WebSocketEnvelope
-          onEventRef.current(parsed)
+
+          // Handle auth response — complete connection setup
+          if (parsed.type === "auth_ok") {
+            clearReconnectTimer()
+            reconnectAttemptRef.current = 0
+            setConnected(true)
+            setReconnecting(false)
+
+            if (projectsRef.current.length > 0) {
+              socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
+              subscribedProjectsRef.current = projectsRef.current
+            } else {
+              subscribedProjectsRef.current = []
+            }
+            return
+          }
+
+          // Auth failure — close and reconnect
+          if (parsed.type === "error" && parsed.message === "Invalid access token") {
+            socket.close()
+            return
+          }
+
+          onEventRef.current?.(parsed)
         } catch {
           // Ignore malformed websocket messages and keep the stream alive.
         }

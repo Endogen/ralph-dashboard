@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import subprocess
@@ -125,14 +126,19 @@ async def create_project(request: CreateRequest) -> CreateResponse:
             json.dumps(config, indent=2) + "\n", encoding="utf-8"
         )
 
-        # Write all generated files
+        # Write all generated files (with path containment check)
+        resolved_project_dir = project_dir.resolve()
         for file_entry in request.files:
-            file_path = project_dir / file_entry.path
+            file_path = (project_dir / file_entry.path).resolve()
+            if not file_path.is_relative_to(resolved_project_dir):
+                raise ProjectCreationError(
+                    f"File path escapes project directory: {file_entry.path}"
+                )
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(file_entry.content, encoding="utf-8")
 
-        # Initialize git repo
-        _git_init(project_dir)
+        # Initialize git repo (subprocess calls — run in thread pool)
+        await asyncio.to_thread(_git_init, project_dir)
 
         project_id = project_id_from_path(project_dir)
 

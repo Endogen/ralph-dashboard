@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { persist, createJSONStorage } from "zustand/middleware"
 
 type AuthState = {
   accessToken: string | null
@@ -20,6 +20,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "ralph-dashboard-auth",
+      // Use sessionStorage instead of localStorage — tokens are not
+      // accessible after the tab is closed and are scoped per tab,
+      // reducing the XSS attack surface.
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,

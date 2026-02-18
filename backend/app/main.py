@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth.router import router as auth_router
 from app.auth.service import InvalidTokenError, validate_access_token
 from app.control.router import router as control_router
-from app.database import init_database
+from app.database import close_database, init_database
 from app.files.router import router as files_router
 from app.files.specs_router import router as specs_router
 from app.git_service.router import router as git_router
@@ -114,6 +114,7 @@ async def app_lifespan(_: FastAPI):
         except asyncio.CancelledError:
             pass
         await file_watcher_service.stop()
+        await close_database()
 
 
 def is_public_api_path(path: str) -> bool:

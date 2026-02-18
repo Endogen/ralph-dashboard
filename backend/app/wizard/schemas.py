@@ -2,7 +2,27 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field, field_validator
+
+
+_SAFE_PROJECT_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+
+
+def _validate_safe_project_name(value: str) -> str:
+    """Validate project name is safe (no path traversal, no special chars)."""
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("project_name cannot be empty")
+    if ".." in normalized or "/" in normalized or "\\" in normalized:
+        raise ValueError("project_name must not contain path separators or '..'")
+    if not _SAFE_PROJECT_NAME_RE.match(normalized):
+        raise ValueError(
+            "project_name must start with alphanumeric and contain only "
+            "alphanumeric, hyphens, underscores, or dots"
+        )
+    return normalized
 
 
 class GenerateRequest(BaseModel):
@@ -20,10 +40,7 @@ class GenerateRequest(BaseModel):
     @field_validator("project_name")
     @classmethod
     def _validate_project_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("project_name cannot be empty")
-        return normalized
+        return _validate_safe_project_name(value)
 
     @field_validator("project_description")
     @classmethod
@@ -70,10 +87,7 @@ class CreateRequest(BaseModel):
     @field_validator("project_name")
     @classmethod
     def _validate_project_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("project_name cannot be empty")
-        return normalized
+        return _validate_safe_project_name(value)
 
 
 class CreateResponse(BaseModel):

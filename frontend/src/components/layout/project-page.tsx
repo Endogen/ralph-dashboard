@@ -143,6 +143,7 @@ export function ProjectPage() {
   const [plan, setPlan] = useState<ParsedImplementationPlan | null>(null)
   const [planDraft, setPlanDraft] = useState("")
   const [isRawPlanMode, setIsRawPlanMode] = useState(false)
+  const isRawPlanModeRef = useRef(false)
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
@@ -160,6 +161,12 @@ export function ProjectPage() {
 
   // Track whether we've already fired a browser notification for completion
   const completionNotifiedRef = useRef(false)
+
+  // Ref for activeProject name to avoid stale closures in socket handler
+  const projectNameRef = useRef(activeProject?.name)
+  useEffect(() => {
+    projectNameRef.current = activeProject?.name
+  }, [activeProject?.name])
 
   const queueOverviewRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) {
@@ -248,7 +255,7 @@ export function ProjectPage() {
 
         if (isComplete) {
           completionNotifiedRef.current = true
-          const name = activeProject?.name ?? id ?? "Project"
+          const name = projectNameRef.current ?? id ?? "Project"
           void showBrowserNotification({
             title: `✅ ${name} — Complete`,
             body: "All tasks finished successfully.",
@@ -263,7 +270,7 @@ export function ProjectPage() {
         }
       }
     },
-    [id, queueOverviewRefresh, activeProject, pushToast],
+    [id, queueOverviewRefresh, pushToast],
   )
 
   useWebSocket({
@@ -333,12 +340,12 @@ export function ProjectPage() {
 
         if (planResult.status === "fulfilled") {
           setPlan(planResult.value)
-          if (!isRawPlanMode) {
+          if (!isRawPlanModeRef.current) {
             setPlanDraft(planResult.value.raw)
           }
         } else {
           setPlan(null)
-          if (!isRawPlanMode) {
+          if (!isRawPlanModeRef.current) {
             setPlanDraft("")
           }
           errorMessages.push("plan")
@@ -373,7 +380,10 @@ export function ProjectPage() {
     return () => {
       cancelled = true
     }
-  }, [id, isRawPlanMode, overviewRefreshToken])
+    // NOTE: isRawPlanMode is intentionally excluded from deps to avoid
+    // triggering a full data refetch when toggling the plan editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, overviewRefreshToken])
 
   useEffect(() => {
     if (plan && !isRawPlanMode) {
@@ -422,7 +432,11 @@ export function ProjectPage() {
     if (!isRawPlanMode && plan) {
       setPlanDraft(plan.raw)
     }
-    setIsRawPlanMode((current) => !current)
+    setIsRawPlanMode((current) => {
+      const next = !current
+      isRawPlanModeRef.current = next
+      return next
+    })
   }, [isRawPlanMode, plan])
 
   const sortedIterations = [...iterations].sort((left, right) => left.number - right.number)

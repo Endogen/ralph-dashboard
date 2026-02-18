@@ -245,8 +245,11 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       try {
         const listResponse = await apiFetch<IterationListResponse>(`/projects/${projectId}/iterations?status=all&limit=500`)
         const ordered = [...listResponse.iterations].sort((left, right) => left.number - right.number)
+        // Only load the last 20 iterations to avoid overwhelming the
+        // backend with simultaneous requests for large projects.
+        const recentIterations = ordered.slice(-20)
         const details = await Promise.all(
-          ordered.map((iteration) =>
+          recentIterations.map((iteration) =>
             apiFetch<IterationDetail>(`/projects/${projectId}/iterations/${iteration.number}`),
           ),
         )
