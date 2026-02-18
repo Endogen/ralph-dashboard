@@ -23,6 +23,8 @@ export function StepProjectSetup() {
         addTechTag(tag)
         setTagInput("")
       }
+    } else if (e.key === "Backspace" && tagInput === "" && techStack.length > 0) {
+      removeTechTag(techStack[techStack.length - 1])
     }
   }
 
@@ -69,13 +71,13 @@ export function StepProjectSetup() {
             {techStack.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
               >
                 {tag}
                 <button
                   type="button"
                   onClick={() => removeTechTag(tag)}
-                  className="rounded-full p-0.5 hover:bg-primary/20"
+                  className="rounded-sm p-0.5 hover:bg-primary/20"
                 >
                   <X className="h-3 w-3" />
                 </button>
