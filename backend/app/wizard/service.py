@@ -104,15 +104,22 @@ async def create_project(request: CreateRequest) -> CreateResponse:
         ralph_dir.mkdir()
 
         # Write config.json
+        # Map approval mode to correct CLI flags
+        cli_flags = ""
+        if request.auto_approval == "full-auto":
+            if request.cli == "codex":
+                cli_flags = "--full-auto"
+            elif request.cli in ("claude", "claude-code"):
+                cli_flags = "--dangerously-skip-permissions"
         config = {
             "cli": request.cli,
-            "flags": "",
+            "flags": cli_flags,
             "max_iterations": request.max_iterations,
             "test_command": request.test_command,
             "model_pricing": {"codex": 0.006, "claude": 0.015},
         }
-        if request.auto_approval == "full-auto":
-            config["flags"] = "--full-auto"
+        if request.model_override:
+            config["model"] = request.model_override
         config_file = ralph_dir / "config.json"
         config_file.write_text(
             json.dumps(config, indent=2) + "\n", encoding="utf-8"

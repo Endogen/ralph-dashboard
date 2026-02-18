@@ -96,8 +96,10 @@ async def test_create_project_full_auto_sets_flags(
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
+    # Test with codex CLI
     request = CreateRequest(
         project_name="auto-project",
+        cli="codex",
         auto_approval="full-auto",
         files=[GeneratedFile(path="README.md", content="# Test")],
     )
@@ -108,3 +110,18 @@ async def test_create_project_full_auto_sets_flags(
         (projects_root / "auto-project" / ".ralph" / "config.json").read_text()
     )
     assert config["flags"] == "--full-auto"
+
+    # Test with claude CLI
+    request_claude = CreateRequest(
+        project_name="auto-project-claude",
+        cli="claude",
+        auto_approval="full-auto",
+        files=[GeneratedFile(path="README.md", content="# Test")],
+    )
+
+    await create_project(request_claude)
+
+    config_claude = json.loads(
+        (projects_root / "auto-project-claude" / ".ralph" / "config.json").read_text()
+    )
+    assert config_claude["flags"] == "--dangerously-skip-permissions"

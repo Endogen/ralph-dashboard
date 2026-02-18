@@ -21,9 +21,11 @@ following files as a JSON array of objects with "path" and "content" keys:
    success criteria, and non-goals.
 2. `specs/features.md` — Detailed feature specifications with acceptance criteria.
 3. `IMPLEMENTATION_PLAN.md` — A phased implementation plan with numbered tasks. \
-   Use markdown checkboxes (- [ ] Task description) for each task. Group tasks into \
-   phases (## Phase 1: ..., ## Phase 2: ..., etc). Start with foundational work and \
-   build up to features. Do NOT include any STATUS markers — the loop manages those.
+   Use markdown checkboxes with numbered task IDs in this exact format: \
+   `- [ ] 1.1 — Task description` (phase.task number, space, em-dash, space, description). \
+   Group tasks into phases (## Phase 1: ..., ## Phase 2: ..., etc). \
+   Start with foundational work and build up to features. \
+   Do NOT include any STATUS markers — the loop manages those.
 4. `AGENTS.md` — Context file for the AI coding agent. Include: project description, \
    tech stack, build/test/lint commands, project structure, coding conventions. \
    Include a Backpressure section with lint and test commands to run after each task.
@@ -82,33 +84,22 @@ if still unclear notify
 - Blocked by external factor: Notify immediately
 
 ## Notifications
-When you need input or hit milestones, write to the notification file:
+The outer loop (ralph.sh) handles most notifications automatically (errors, progress, completion).
+You only need to write a notification when YOU are blocked and need human input:
 
 ```bash
 mkdir -p .ralph
 cat > .ralph/pending-notification.txt << 'NOTIF'
-{{"timestamp":"$(date -Iseconds)","message":"<PREFIX>: <message>","status":"pending"}}
+{{"timestamp":"$(date -Iseconds)","prefix":"DECISION","message":"Brief description of what you need","details":"Full context","status":"pending"}}
 NOTIF
 ```
 
-Prefixes:
-- `DECISION:` — Need human input
-- `ERROR:` — Tests failing after 3 attempts on same task
-- `BLOCKED:` — Missing credentials, unclear spec, external dependency
-- `PROGRESS:` — Major milestone complete
-- `DONE:` — All tasks complete
+Use prefix `DECISION` for design choices, `BLOCKED` for missing deps/credentials.
 
 ## Completion
 When ALL tasks in IMPLEMENTATION_PLAN.md are marked done:
 1. Run final test suite to verify everything works
 2. Add this line to IMPLEMENTATION_PLAN.md: `STATUS: COMPLETE`
-3. Write completion notification:
-   ```bash
-   mkdir -p .ralph
-   cat > .ralph/pending-notification.txt << 'NOTIF'
-   {{"timestamp":"$(date -Iseconds)","message":"DONE: All tasks complete.","status":"pending"}}
-   NOTIF
-   ```
 """
 
 

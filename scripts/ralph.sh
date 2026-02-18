@@ -108,6 +108,7 @@ load_config_file() {
   CONFIG_FLAGS=""
   CONFIG_MAX_ITERS=""
   CONFIG_TEST_CMD=""
+  CONFIG_MODEL=""
 
   if [[ ! -f "$CONFIG_FILE" ]]; then
     return
@@ -136,6 +137,7 @@ emit(payload.get("cli", ""))
 emit(payload.get("flags", ""))
 emit(payload.get("max_iterations", ""))
 emit(payload.get("test_command", ""))
+emit(payload.get("model", ""))
 PY
   ); then
     log "⚠️ Could not parse $CONFIG_FILE; continuing with defaults/environment"
@@ -146,6 +148,7 @@ PY
   CONFIG_FLAGS="${config_values[1]:-}"
   CONFIG_MAX_ITERS="${config_values[2]:-}"
   CONFIG_TEST_CMD="${config_values[3]:-}"
+  CONFIG_MODEL="${config_values[4]:-}"
 }
 
 snapshot_completed_tasks() {
@@ -160,7 +163,7 @@ import re
 import sys
 
 path = sys.argv[1]
-pattern = re.compile(r"^\s*-\s*\[[xX]\]\s*([0-9]+(?:\.[0-9]+)*)\s*:")
+pattern = re.compile(r"^\s*-\s*\[[xX]\]\s*([0-9]+(?:\.[0-9]+)*)\s*[\:\—\–\-]")
 
 with open(path, encoding="utf-8") as handle:
     for line in handle:
@@ -335,6 +338,10 @@ fi
 if [[ -n "$CONFIG_TEST_CMD" ]]; then
   TEST_CMD="$CONFIG_TEST_CMD"
 fi
+MODEL=""
+if [[ -n "$CONFIG_MODEL" ]]; then
+  MODEL="$CONFIG_MODEL"
+fi
 
 # Environment variables override config/defaults
 if [[ -n "${RALPH_CLI:-}" ]]; then
@@ -345,6 +352,9 @@ if [[ "${RALPH_FLAGS+x}" == "x" ]]; then
 fi
 if [[ "${RALPH_TEST+x}" == "x" ]]; then
   TEST_CMD="$RALPH_TEST"
+fi
+if [[ -n "${RALPH_MODEL:-}" ]]; then
+  MODEL="$RALPH_MODEL"
 fi
 
 # Positional max_iterations has highest priority
@@ -467,12 +477,17 @@ for i in $(seq 1 "$MAX_ITERS"); do
   log "${BLUE}=== Iteration $i/$MAX_ITERS ===${NC}"
 
   CLAUDE_JSON_MODE=false
+  MODEL_FLAG=""
+  if [[ -n "$MODEL" ]]; then
+    MODEL_FLAG="--model $MODEL"
+  fi
+
   case "$CLI" in
     codex)
-      CMD="codex exec $CLI_FLAGS"
+      CMD="codex exec $CLI_FLAGS $MODEL_FLAG"
       ;;
     claude)
-      CMD="claude --print --output-format json $CLI_FLAGS"
+      CMD="claude --print --output-format json $CLI_FLAGS $MODEL_FLAG"
       CLAUDE_JSON_MODE=true
       ;;
     opencode)
