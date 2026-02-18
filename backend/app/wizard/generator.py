@@ -23,7 +23,7 @@ following files as a JSON array of objects with "path" and "content" keys:
 3. `IMPLEMENTATION_PLAN.md` — A phased implementation plan with numbered tasks. \
    Use markdown checkboxes (- [ ] Task description) for each task. Group tasks into \
    phases (## Phase 1: ..., ## Phase 2: ..., etc). Start with foundational work and \
-   build up to features. Add `STATUS: PLANNING_COMPLETE` at the top (after the title).
+   build up to features. Do NOT include any STATUS markers — the loop manages those.
 4. `AGENTS.md` — Context file for the AI coding agent. Include: project description, \
    tech stack, build/test/lint commands, project structure, coding conventions. \
    Include a Backpressure section with lint and test commands to run after each task.
