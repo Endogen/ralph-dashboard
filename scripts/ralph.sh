@@ -450,16 +450,33 @@ trap 'handle_signal SIGINT' INT
 # Clear any stale pending notification from previous run
 [[ -f "$NOTIFY_FILE" ]] && rm -f "$NOTIFY_FILE"
 
+# Resume iteration numbering from last JSONL entry
+ITER_OFFSET=0
+if [[ -f "$ITERATIONS_FILE" ]]; then
+  ITER_OFFSET=$(python3 -c "
+import json, sys
+last = 0
+for line in open('$ITERATIONS_FILE'):
+    line = line.strip()
+    if not line: continue
+    try:
+        last = max(last, json.loads(line).get('iteration', 0))
+    except: pass
+print(last)
+" 2>/dev/null || echo 0)
+fi
+
 echo -e "${BLUE}🐺 Ralph Loop starting${NC}"
 echo -e "   CLI: $CLI $CLI_FLAGS"
 echo -e "   Max iterations: $MAX_ITERS"
 echo -e "   Project: $(pwd)"
 [[ -n "$TEST_CMD" ]] && echo -e "   Test command: $TEST_CMD"
+[[ "$ITER_OFFSET" -gt 0 ]] && echo -e "   Resuming from iteration: $((ITER_OFFSET + 1))"
 echo ""
 
 # Main loop
 for i in $(seq 1 "$MAX_ITERS"); do
-  CURRENT_ITER=$i
+  CURRENT_ITER=$((ITER_OFFSET + i))
   export CURRENT_ITER
 
   process_injection_file
@@ -474,7 +491,7 @@ for i in $(seq 1 "$MAX_ITERS"); do
 
   HEAD_BEFORE="$(git rev-parse --short=7 HEAD 2>/dev/null || true)"
 
-  log "${BLUE}=== Iteration $i/$MAX_ITERS ===${NC}"
+  log "${BLUE}=== Iteration $CURRENT_ITER (loop $i/$MAX_ITERS) ===${NC}"
 
   CLAUDE_JSON_MODE=false
   MODEL_FLAG=""
@@ -559,7 +576,7 @@ except: pass
   if ((AGENT_EXIT_CODE != 0)); then
     ITER_ERRORS+=("Agent exited with code $AGENT_EXIT_CODE")
     log "${YELLOW}⚠️ Agent exited with code $AGENT_EXIT_CODE${NC}"
-    notify "ERROR" "Agent crashed on iteration $i/$MAX_ITERS" "Exit code: $AGENT_EXIT_CODE. Check log for details."
+    notify "ERROR" "Agent crashed on iteration $CURRENT_ITER" "Exit code: $AGENT_EXIT_CODE. Check log for details."
   fi
 
   if [[ -n "$TEST_CMD" ]]; then
@@ -607,7 +624,7 @@ except: pass
   ERRORS_JSON="$(json_array_from_values "${ITER_ERRORS[@]:-}")"
 
   append_iteration_record \
-    "$i" \
+    "$CURRENT_ITER" \
     "$MAX_ITERS" \
     "$ITER_START" \
     "$ITER_END" \
