@@ -1,6 +1,15 @@
+import { useState } from "react"
+
 import { AlertTriangle, Code2, Terminal } from "lucide-react"
 
 import { type AgentChoice, type ApprovalMode, useWizardStore } from "@/stores/wizard-store"
+
+const testPresets = [
+  { label: "None", value: "" },
+  { label: "pytest", value: "pytest -x -q --timeout=30" },
+  { label: "npm test", value: "npm test" },
+  { label: "Custom", value: "__custom__" },
+]
 
 const agents: { id: AgentChoice; name: string; description: string; icon: typeof Code2 }[] = [
   {
@@ -130,16 +139,7 @@ export function StepAgentConfig() {
       </div>
 
       {/* Test Command */}
-      <label className="block text-sm font-medium">
-        Test Command
-        <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
-        <input
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          value={testCommand}
-          onChange={(e) => setTestCommand(e.target.value)}
-          placeholder="npm test"
-        />
-      </label>
+      <TestCommandField value={testCommand} onChange={setTestCommand} />
 
       {/* Model Override */}
       <label className="block text-sm font-medium">
@@ -152,6 +152,67 @@ export function StepAgentConfig() {
           placeholder="Leave empty for agent default"
         />
       </label>
+    </div>
+  )
+}
+
+function TestCommandField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isPreset = testPresets.some((p) => p.value !== "__custom__" && p.value === value)
+  const [isCustom, setIsCustom] = useState(!isPreset && value !== "")
+
+  const activePreset = isCustom
+    ? "__custom__"
+    : testPresets.find((p) => p.value === value)?.value ?? "__custom__"
+
+  const handlePresetClick = (preset: (typeof testPresets)[number]) => {
+    if (preset.value === "__custom__") {
+      setIsCustom(true)
+      if (isPreset) onChange("")
+    } else {
+      setIsCustom(false)
+      onChange(preset.value)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium">
+        Test Command
+        <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {testPresets.map((preset) => {
+          const isActive = activePreset === preset.value
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => handlePresetClick(preset)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                isActive
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-input text-muted-foreground hover:border-muted-foreground/40 hover:bg-accent/30"
+              }`}
+            >
+              {preset.label}
+            </button>
+          )
+        })}
+      </div>
+      {isCustom && (
+        <input
+          className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. cargo test, go test ./..."
+          autoFocus
+        />
+      )}
+      {!isCustom && value && (
+        <div className="rounded-md border border-dashed border-input bg-muted/30 px-3 py-2">
+          <code className="text-xs text-muted-foreground">{value}</code>
+        </div>
+      )}
     </div>
   )
 }
