@@ -14,7 +14,8 @@ class ProcessStartResult(BaseModel):
 class LoopConfig(BaseModel):
     cli: str = "codex"
     flags: str = ""
-    max_iterations: int = Field(default=20, ge=1, le=999)
+    # 0 means unlimited iterations.
+    max_iterations: int = Field(default=20, ge=0)
     test_command: str = ""
     model_pricing: dict[str, float] = Field(
         default_factory=lambda: {"codex": 0.006, "claude": 0.015}

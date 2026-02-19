@@ -126,3 +126,28 @@ async def test_create_project_full_auto_sets_flags(
         (projects_root / "auto-project-claude" / ".ralph" / "config.json").read_text()
     )
     assert config_claude["flags"] == "--dangerously-skip-permissions"
+
+
+@pytest.mark.anyio
+async def test_create_project_allows_unlimited_iterations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    projects_root = tmp_path / "projects"
+    projects_root.mkdir()
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(projects_root))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    request = CreateRequest(
+        project_name="unlimited-iterations-project",
+        max_iterations=0,
+        files=[GeneratedFile(path="README.md", content="# Test")],
+    )
+
+    await create_project(request)
+
+    config = json.loads(
+        (projects_root / "unlimited-iterations-project" / ".ralph" / "config.json").read_text()
+    )
+    assert config["max_iterations"] == 0

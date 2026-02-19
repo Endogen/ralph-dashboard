@@ -42,6 +42,7 @@ Environment variables:
 
 Examples:
   ./ralph.sh 20                          # Run 20 iterations with Codex
+  ./ralph.sh 0                           # Run with unlimited iterations
   RALPH_CLI=claude-code ./ralph.sh 10    # Use Claude Code
   RALPH_TEST="pytest" ./ralph.sh         # Run pytest after each iteration
 EOF_USAGE
@@ -294,7 +295,7 @@ wait_if_paused() {
   fi
 
   log "⏸️  Paused - waiting for resume..."
-  notify "PROGRESS" "Loop paused at iteration ${CURRENT_ITER:-0}/$MAX_ITERS" "Waiting for .ralph/pause to be removed"
+  notify "PROGRESS" "Loop paused at iteration ${CURRENT_ITER:-0}/$MAX_ITERS_LABEL" "Waiting for .ralph/pause to be removed"
 
   while [[ -f "$PAUSE_FILE" ]]; do
     sleep 2
@@ -310,7 +311,7 @@ cleanup_pid() {
 handle_signal() {
   local signal_name="$1"
   log "🛑 Ralph loop stopped (signal: $signal_name)"
-  notify "PROGRESS" "Loop stopped at iteration ${CURRENT_ITER:-0}/$MAX_ITERS" "Stopped by $signal_name"
+  notify "PROGRESS" "Loop stopped at iteration ${CURRENT_ITER:-0}/$MAX_ITERS_LABEL" "Stopped by $signal_name"
   exit 0
 }
 
@@ -376,9 +377,14 @@ if [[ -z "$CLI_FLAGS" ]]; then
   esac
 fi
 
-if ! [[ "$MAX_ITERS" =~ ^[0-9]+$ ]] || ((MAX_ITERS < 1)) || ((MAX_ITERS > 999)); then
-  echo -e "${RED}❌ Invalid max iterations: $MAX_ITERS (expected 1-999)${NC}"
+if ! [[ "$MAX_ITERS" =~ ^[0-9]+$ ]] || ((MAX_ITERS < 0)); then
+  echo -e "${RED}❌ Invalid max iterations: $MAX_ITERS (expected 0 or greater; 0 = unlimited)${NC}"
   exit 1
+fi
+
+MAX_ITERS_LABEL="$MAX_ITERS"
+if ((MAX_ITERS == 0)); then
+  MAX_ITERS_LABEL="unlimited"
 fi
 
 # Preflight checks
@@ -468,14 +474,20 @@ fi
 
 echo -e "${BLUE}🐺 Ralph Loop starting${NC}"
 echo -e "   CLI: $CLI $CLI_FLAGS"
-echo -e "   Max iterations: $MAX_ITERS"
+echo -e "   Max iterations: $MAX_ITERS_LABEL"
 echo -e "   Project: $(pwd)"
 [[ -n "$TEST_CMD" ]] && echo -e "   Test command: $TEST_CMD"
 [[ "$ITER_OFFSET" -gt 0 ]] && echo -e "   Resuming from iteration: $((ITER_OFFSET + 1))"
 echo ""
 
 # Main loop
-for i in $(seq 1 "$MAX_ITERS"); do
+i=0
+while true; do
+  if ((MAX_ITERS > 0 && i >= MAX_ITERS)); then
+    break
+  fi
+
+  i=$((i + 1))
   CURRENT_ITER=$((ITER_OFFSET + i))
   export CURRENT_ITER
 
@@ -660,6 +672,8 @@ except: pass
   process_injection_file
 done
 
-log "${RED}❌ Max iterations ($MAX_ITERS) reached${NC}"
-notify "BLOCKED" "Max iterations reached" "Completed $MAX_ITERS iterations without finishing. Manual review needed."
-exit 1
+if ((MAX_ITERS > 0)); then
+  log "${RED}❌ Max iterations ($MAX_ITERS) reached${NC}"
+  notify "BLOCKED" "Max iterations reached" "Completed $MAX_ITERS iterations without finishing. Manual review needed."
+  exit 1
+fi

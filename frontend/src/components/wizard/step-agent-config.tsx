@@ -14,14 +14,12 @@ const testPresets = [
 const modelPresets: Record<AgentChoice, { label: string; value: string; description: string }[]> = {
   codex: [
     { label: "Default", value: "", description: "Agent default model" },
-    { label: "Opus 4.6", value: "opus", description: "Latest Opus model" },
-    { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
+    { label: "gpt-5.3-codex", value: "gpt-5.3-codex", description: "Pinned Codex model name" },
     { label: "Custom", value: "__custom__", description: "Enter model name" },
   ],
   claude: [
     { label: "Default", value: "", description: "Agent default model" },
-    { label: "Opus 4.6", value: "opus", description: "Latest Opus model" },
-    { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
+    { label: "claude-opus-4-6", value: "claude-opus-4-6", description: "Pinned Opus 4.6 model name" },
     { label: "Custom", value: "__custom__", description: "Enter model name" },
   ],
 }
@@ -52,6 +50,23 @@ export function StepAgentConfig() {
   const setTestCommand = useWizardStore((s) => s.setTestCommand)
   const modelOverride = useWizardStore((s) => s.modelOverride)
   const setModelOverride = useWizardStore((s) => s.setModelOverride)
+  const isUnlimitedIterations = maxIterations === 0
+
+  const handleMaxIterationsChange = (rawValue: string) => {
+    const parsed = Number.parseInt(rawValue, 10)
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return
+    }
+    setMaxIterations(parsed)
+  }
+
+  const handleUnlimitedToggle = (enabled: boolean) => {
+    if (enabled) {
+      setMaxIterations(0)
+      return
+    }
+    setMaxIterations(maxIterations > 0 ? maxIterations : 20)
+  }
 
   return (
     <div className="space-y-6">
@@ -137,20 +152,35 @@ export function StepAgentConfig() {
       {/* Max Iterations */}
       <div className="space-y-2">
         <label className="block text-sm font-medium">
-          Max Iterations: <span className="font-mono text-primary">{maxIterations}</span>
+          Max Iterations:{" "}
+          <span className="font-mono text-primary">{isUnlimitedIterations ? "Unlimited" : maxIterations}</span>
         </label>
-        <input
-          type="range"
-          min={1}
-          max={100}
-          value={maxIterations}
-          onChange={(e) => setMaxIterations(Number(e.target.value))}
-          className="w-full accent-primary"
-        />
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>1</span>
-          <span>100</span>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={isUnlimitedIterations ? "" : maxIterations}
+            onChange={(event) => handleMaxIterationsChange(event.target.value)}
+            disabled={isUnlimitedIterations}
+            placeholder="20"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:w-40"
+          />
+          <label className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={isUnlimitedIterations}
+              onChange={(event) => handleUnlimitedToggle(event.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            Unlimited
+          </label>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {isUnlimitedIterations
+            ? "The loop runs until the plan is complete or you stop it manually."
+            : "Enter a positive integer. Enable Unlimited to remove the cap."}
+        </p>
       </div>
 
       {/* Test Command */}
@@ -213,16 +243,14 @@ function ModelOverrideField({
               key={preset.label}
               type="button"
               onClick={() => handleClick(preset)}
-              className={`rounded-lg border px-3 py-1.5 text-left transition-all ${
+              title={preset.description}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                 isActive
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-input text-muted-foreground hover:border-muted-foreground/40 hover:bg-accent/30"
               }`}
             >
-              <span className="text-xs font-medium">{preset.label}</span>
-              {preset.label !== "Default" && preset.label !== "Custom" && (
-                <span className="ml-1.5 text-xs opacity-60">— {preset.description}</span>
-              )}
+              {preset.label}
             </button>
           )
         })}
@@ -232,9 +260,14 @@ function ModelOverrideField({
           className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={cli === "codex" ? "e.g. codex-5.3" : "e.g. claude-opus-4-6-20260216"}
+          placeholder={cli === "codex" ? "e.g. gpt-5.3-codex" : "e.g. claude-opus-4-6"}
           autoFocus
         />
+      )}
+      {!isCustom && value && (
+        <div className="rounded-md border border-dashed border-input bg-muted/30 px-3 py-2">
+          <code className="text-xs text-muted-foreground">{value}</code>
+        </div>
       )}
     </div>
   )

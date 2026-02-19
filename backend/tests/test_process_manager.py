@@ -283,4 +283,21 @@ async def test_write_project_config_rejects_invalid_values(
     get_settings.cache_clear()
 
     with pytest.raises(ProcessConfigValidationError):
-        await write_project_config("control-project", {"max_iterations": 0})
+        await write_project_config("control-project", {"max_iterations": -1})
+
+
+@pytest.mark.anyio
+async def test_write_project_config_allows_unlimited_iterations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    written = await write_project_config("control-project", {"max_iterations": 0})
+    loaded = await read_project_config("control-project")
+
+    assert written.max_iterations == 0
+    assert loaded.max_iterations == 0
+    assert json.loads((project / ".ralph" / "config.json").read_text(encoding="utf-8"))["max_iterations"] == 0

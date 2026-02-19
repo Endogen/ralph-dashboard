@@ -116,7 +116,7 @@ export function StepConfirmLaunch() {
           </div>
           <div className="rounded-lg border bg-muted/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Max Iterations</p>
-            <p className="text-sm font-medium">{maxIterations}</p>
+            <p className="text-sm font-medium">{maxIterations === 0 ? "Unlimited" : maxIterations}</p>
           </div>
           <div className="rounded-lg border bg-muted/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Test Command</p>

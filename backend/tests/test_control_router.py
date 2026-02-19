@@ -131,6 +131,13 @@ async def test_start_handler_uses_persisted_config_and_supports_override(
         await post_stop("control-project")
         await _cleanup_process("control-project")
 
+    started_unlimited = await post_start("control-project", StartLoopRequest(max_iterations=0))
+    try:
+        assert started_unlimited.command[-1] == "0"
+    finally:
+        await post_stop("control-project")
+        await _cleanup_process("control-project")
+
 
 @pytest.mark.anyio
 async def test_get_config_missing_project_raises_not_found(

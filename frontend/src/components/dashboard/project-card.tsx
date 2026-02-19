@@ -75,20 +75,28 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const safeCurrentIteration = Math.max(0, currentIteration)
   const safeMaxIterations = Math.max(0, maxIterations)
+  const isUnlimited = safeMaxIterations === 0
   const baseProgress = safeMaxIterations > 0 ? Math.min((safeCurrentIteration / safeMaxIterations) * 100, 100) : 0
 
   let progress = baseProgress
-  let progressLabel = safeMaxIterations > 0 ? `Iteration ${safeCurrentIteration}/${safeMaxIterations}` : `Iteration ${safeCurrentIteration}`
+  let progressLabel = isUnlimited
+    ? `Iteration ${safeCurrentIteration}/∞`
+    : `Iteration ${safeCurrentIteration}/${safeMaxIterations}`
 
   if (status === "complete") {
     progress = 100
     progressLabel = `Completed in ${formatIterationCount(safeCurrentIteration)}`
   } else if (status === "stopped") {
-    progressLabel = safeMaxIterations > 0 ? `Stopped at ${safeCurrentIteration}/${safeMaxIterations}` : `Stopped at ${safeCurrentIteration}`
+    progressLabel = isUnlimited
+      ? `Stopped at ${safeCurrentIteration}/∞`
+      : `Stopped at ${safeCurrentIteration}/${safeMaxIterations}`
   } else if (status === "error") {
-    progressLabel = safeMaxIterations > 0 ? `Failed at ${safeCurrentIteration}/${safeMaxIterations}` : `Failed at ${safeCurrentIteration}`
+    progressLabel = isUnlimited
+      ? `Failed at ${safeCurrentIteration}/∞`
+      : `Failed at ${safeCurrentIteration}/${safeMaxIterations}`
   }
   const progressBarClassName = progress >= 100 ? "bg-emerald-500" : "bg-primary"
+  const progressValueLabel = status === "complete" ? "100%" : isUnlimited ? "∞" : `${progress.toFixed(0)}%`
 
   return (
     <article className="rounded-xl border bg-card p-4 shadow-sm transition hover:shadow-md">
@@ -105,7 +113,7 @@ export function ProjectCard({
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{progressLabel}</span>
-          <span>{progress.toFixed(0)}%</span>
+          <span>{progressValueLabel}</span>
         </div>
         <div className="h-2 rounded-full bg-muted">
           <div className={`h-full rounded-full ${progressBarClassName}`} style={{ width: `${progress}%` }} />

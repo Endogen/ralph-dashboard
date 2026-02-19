@@ -464,11 +464,13 @@ export function ProjectPage() {
   const sortedIterations = [...iterations].sort((left, right) => left.number - right.number)
   const latestIteration = sortedIterations[sortedIterations.length - 1]
   const iterationLabel =
-    latestIteration && latestIteration.max_iterations
-      ? `Iteration ${latestIteration.number}/${latestIteration.max_iterations}`
-      : latestIteration
-        ? `Iteration ${latestIteration.number}`
-        : "Iteration n/a"
+    latestIteration
+      ? latestIteration.max_iterations === 0
+        ? `Iteration ${latestIteration.number}/∞`
+        : latestIteration.max_iterations
+          ? `Iteration ${latestIteration.number}/${latestIteration.max_iterations}`
+          : `Iteration ${latestIteration.number}`
+      : "Iteration n/a"
   const runtimeLabel = `Running for ${formatDuration(stats?.total_duration_seconds ?? 0)}`
 
   const tokensUsed = stats?.total_tokens ?? 0

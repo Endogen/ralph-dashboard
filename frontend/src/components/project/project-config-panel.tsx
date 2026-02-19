@@ -148,8 +148,8 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
     }
 
     const parsedMaxIterations = Number.parseInt(maxIterations.trim(), 10)
-    if (!Number.isFinite(parsedMaxIterations) || parsedMaxIterations < 1 || parsedMaxIterations > 999) {
-      throw new Error("Max iterations must be between 1 and 999.")
+    if (!Number.isFinite(parsedMaxIterations) || parsedMaxIterations < 0) {
+      throw new Error("Max iterations must be 0 or greater (0 means unlimited).")
     }
 
     const modelPricing: Record<string, number> = {}
@@ -337,12 +337,12 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
               </span>
               <input
                 type="number"
-                min={1}
-                max={999}
+                min={0}
                 value={maxIterations}
                 onChange={(event) => setMaxIterations(event.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
+              <p className="text-xs text-muted-foreground">Set to 0 for unlimited iterations.</p>
             </label>
 
             <label className="space-y-1 lg:col-span-2">

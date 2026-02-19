@@ -45,6 +45,15 @@ def test_generate_request_full() -> None:
     assert req.request_id == "req-123"
 
 
+def test_generate_request_allows_unlimited_iterations() -> None:
+    req = GenerateRequest(
+        project_name="unlimited-project",
+        project_description="A project without iteration cap",
+        max_iterations=0,
+    )
+    assert req.max_iterations == 0
+
+
 def test_generate_request_empty_name_rejected() -> None:
     with pytest.raises(ValidationError):
         GenerateRequest(project_name="", project_description="desc")
@@ -77,6 +86,15 @@ def test_create_request_minimal() -> None:
     assert req.project_name == "new-project"
     assert req.start_loop is False
     assert len(req.files) == 1
+
+
+def test_create_request_allows_unlimited_iterations() -> None:
+    req = CreateRequest(
+        project_name="unlimited-create",
+        max_iterations=0,
+        files=[GeneratedFile(path="README.md", content="# Hello")],
+    )
+    assert req.max_iterations == 0
 
 
 def test_create_request_empty_name_rejected() -> None:

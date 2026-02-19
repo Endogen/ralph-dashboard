@@ -26,7 +26,8 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["control"])
 
 
 class StartLoopRequest(BaseModel):
-    max_iterations: int | None = Field(default=None, ge=1, le=999)
+    # 0 means unlimited iterations.
+    max_iterations: int | None = Field(default=None, ge=0)
     cli: str | None = None
     flags: str | None = None
     test_command: str | None = None

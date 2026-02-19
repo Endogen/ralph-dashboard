@@ -33,7 +33,8 @@ class GenerateRequest(BaseModel):
     tech_stack: list[str] = Field(default_factory=list)
     cli: str = "claude"
     auto_approval: str = "sandboxed"
-    max_iterations: int = Field(default=20, ge=1, le=999)
+    # 0 means unlimited iterations.
+    max_iterations: int = Field(default=20, ge=0)
     test_command: str = ""
     model_override: str = ""
     request_id: str = ""
@@ -104,7 +105,8 @@ class CreateRequest(BaseModel):
     project_name: str = Field(min_length=1, max_length=100)
     cli: str = "claude"
     auto_approval: str = "sandboxed"
-    max_iterations: int = Field(default=20, ge=1, le=999)
+    # 0 means unlimited iterations.
+    max_iterations: int = Field(default=20, ge=0)
     test_command: str = ""
     model_override: str = ""
     files: list[GeneratedFile]
