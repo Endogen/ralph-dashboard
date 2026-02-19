@@ -78,7 +78,7 @@ export function StepConfirmLaunch() {
   ])
 
   const agentLabels: Record<string, string> = {
-    "claude-code": "Claude Code",
+    claude: "Claude Code",
     codex: "Codex",
     opencode: "OpenCode",
     goose: "Goose",

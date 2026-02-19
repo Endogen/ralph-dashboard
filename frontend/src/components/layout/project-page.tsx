@@ -31,6 +31,7 @@ import type {
   LoopConfig,
   NotificationEntry,
   ParsedImplementationPlan,
+  ProjectStatus,
   ProjectStats,
 } from "@/types/project"
 
@@ -51,6 +52,13 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "config", label: "Config" },
   { key: "system", label: "System" },
 ]
+const VALID_PROJECT_STATUSES = new Set<ProjectStatus>([
+  "running",
+  "paused",
+  "stopped",
+  "complete",
+  "error",
+])
 
 function formatDuration(valueInSeconds: number): string {
   if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
@@ -135,6 +143,7 @@ export function ProjectPage() {
   const { id } = useParams<{ id: string }>()
   const activeProject = useActiveProjectStore((state) => state.activeProject)
   const fetchActiveProject = useActiveProjectStore((state) => state.fetchActiveProject)
+  const patchActiveProject = useActiveProjectStore((state) => state.patchActiveProject)
   const clearActiveProject = useActiveProjectStore((state) => state.clearActiveProject)
   const projectLoading = useActiveProjectStore((state) => state.isLoading)
   const pushToast = useToastStore((state) => state.pushToast)
@@ -250,6 +259,13 @@ export function ProjectPage() {
         queueOverviewRefresh()
       }
 
+      if (event.type === "status_changed" && event.data && typeof event.data === "object") {
+        const status = (event.data as { status?: string }).status
+        if (status && VALID_PROJECT_STATUSES.has(status as ProjectStatus)) {
+          patchActiveProject(id, { status: status as ProjectStatus })
+        }
+      }
+
       // Browser notification on project completion
       if (!completionNotifiedRef.current && event.data && typeof event.data === "object") {
         const data = event.data as Record<string, unknown>
@@ -274,7 +290,7 @@ export function ProjectPage() {
         }
       }
     },
-    [id, queueOverviewRefresh, pushToast],
+    [id, queueOverviewRefresh, pushToast, patchActiveProject],
   )
 
   useWebSocket({

@@ -173,7 +173,7 @@ export function WizardPage() {
       projectName.trim().length > 0 ||
       projectDescription.trim().length > 0 ||
       techStack.length > 0 ||
-      cli !== "claude-code" ||
+      cli !== "claude" ||
       autoApproval !== "sandboxed" ||
       maxIterations !== 20 ||
       testCommand.trim().length > 0 ||

@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ToastRegion } from "@/components/ui/toast-region"
 import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
+import { useActiveProjectStore } from "@/stores/active-project-store"
 import { useProjectsStore } from "@/stores/projects-store"
 import type { ProjectStatus } from "@/types/project"
 export function AppLayout() {
@@ -18,6 +19,7 @@ export function AppLayout() {
   const fetchProjects = useProjectsStore((state) => state.fetchProjects)
   const patchProject = useProjectsStore((state) => state.patchProject)
   const upsertProject = useProjectsStore((state) => state.upsertProject)
+  const patchActiveProject = useActiveProjectStore((state) => state.patchActiveProject)
   const handleSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
       if (
@@ -46,8 +48,9 @@ export function AppLayout() {
         return
       }
       patchProject(event.project, { status: status as ProjectStatus })
+      patchActiveProject(event.project, { status: status as ProjectStatus })
     },
-    [fetchProjects, patchProject],
+    [fetchProjects, patchProject, patchActiveProject],
   )
   const { connected, reconnecting } = useWebSocket({
     projects: projects.map((project) => project.id),
@@ -109,7 +112,7 @@ export function AppLayout() {
                       : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
                 }`}
               >
-                {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+                {reconnecting ? "Reconnecting" : connected ? "Connected" : "Offline"}
               </span>
             </div>
             <div className="flex items-center gap-2">

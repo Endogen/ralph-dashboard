@@ -19,8 +19,10 @@ from app.git_service.router import router as git_router
 from app.iterations.router import router as iterations_router
 from app.notifications.router import router as notifications_router
 from app.plan.router import router as plan_router
+from app.projects.models import project_id_from_path
 from app.projects.archive import auto_archive_check
 from app.projects.router import router as projects_router
+from app.projects.service import discover_all_project_paths
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
 from app.system.router import router as system_router
@@ -76,6 +78,7 @@ async def _run_auto_archive() -> None:
 
 
 AUTO_ARCHIVE_INTERVAL_SECONDS = 3600  # Check every hour
+STATUS_RECONCILE_INTERVAL_SECONDS = 5  # Recheck process-backed status every 5s
 
 
 async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
@@ -96,6 +99,37 @@ async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
             pass
 
 
+async def _reconcile_project_statuses() -> None:
+    """Reconcile project statuses and emit websocket updates for drift."""
+    project_paths = await discover_all_project_paths()
+    for project_path in project_paths:
+        await watcher_event_dispatcher.reconcile_project_status(
+            project_id_from_path(project_path),
+            project_path,
+        )
+
+
+async def _status_reconcile_loop(stop_event: asyncio.Event) -> None:
+    """Periodically reconcile project statuses for unexpected process exits."""
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=STATUS_RECONCILE_INTERVAL_SECONDS)
+        return
+    except asyncio.TimeoutError:
+        pass
+
+    while not stop_event.is_set():
+        try:
+            await _reconcile_project_statuses()
+        except Exception:
+            LOGGER.warning("Project status reconciliation failed", exc_info=True)
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=STATUS_RECONCILE_INTERVAL_SECONDS)
+            return
+        except asyncio.TimeoutError:
+            pass
+
+
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
     await init_database()
@@ -104,9 +138,20 @@ async def app_lifespan(_: FastAPI):
 
     auto_archive_stop = asyncio.Event()
     auto_archive_task = asyncio.create_task(_auto_archive_loop(auto_archive_stop))
+    status_reconcile_stop = asyncio.Event()
+    status_reconcile_task = asyncio.create_task(
+        _status_reconcile_loop(status_reconcile_stop)
+    )
     try:
         yield
     finally:
+        status_reconcile_stop.set()
+        status_reconcile_task.cancel()
+        try:
+            await status_reconcile_task
+        except asyncio.CancelledError:
+            pass
+
         auto_archive_stop.set()
         auto_archive_task.cancel()
         try:

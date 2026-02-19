@@ -89,7 +89,7 @@ async def create_project(request: CreateRequest) -> CreateResponse:
             "flags": cli_flags,
             "max_iterations": request.max_iterations,
             "test_command": request.test_command,
-            "model_pricing": {"codex": 0.006, "claude": 0.015, "claude-code": 0.015},
+            "model_pricing": {"codex": 0.006, "claude": 0.015},
         }
         if request.model_override:
             config["model"] = request.model_override

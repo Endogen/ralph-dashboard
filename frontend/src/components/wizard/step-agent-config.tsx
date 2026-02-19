@@ -18,7 +18,7 @@ const modelPresets: Record<AgentChoice, { label: string; value: string; descript
     { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
     { label: "Custom", value: "__custom__", description: "Enter model name" },
   ],
-  "claude-code": [
+  claude: [
     { label: "Default", value: "", description: "Agent default model" },
     { label: "Opus 4.6", value: "opus", description: "Latest Opus model" },
     { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
@@ -28,7 +28,7 @@ const modelPresets: Record<AgentChoice, { label: string; value: string; descript
 
 const agents: { id: AgentChoice; name: string; description: string; icon: typeof Code2 }[] = [
   {
-    id: "claude-code",
+    id: "claude",
     name: "Claude Code",
     description: "Anthropic's coding agent with deep reasoning",
     icon: Code2,

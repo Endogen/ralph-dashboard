@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 from app.notifications.service import parse_notification_file
 from app.plan.parser import parse_implementation_plan_file
@@ -45,10 +46,15 @@ class WatcherEventDispatcher:
                     change.path.name,
                 )
 
+    async def reconcile_project_status(self, project_id: str, project_path: Path) -> None:
+        """Reconcile and emit status_changed for a project if status drifted."""
+        async with self._dispatch_lock:
+            await self._emit_status_if_changed(project_id, project_path)
+
     async def _dispatch(self, change: FileChangeEvent) -> None:
         if change.path.name == "IMPLEMENTATION_PLAN.md":
             await self._handle_plan_change(change)
-            await self._emit_status_if_changed(change)
+            await self._emit_status_if_changed(change.project_id, change.project_path)
             return
 
         if change.path.name == "pending-notification.txt" and change.path.parent.name == ".ralph":
@@ -56,7 +62,7 @@ class WatcherEventDispatcher:
             return
 
         if change.path.parent.name == ".ralph" and change.path.name in {"ralph.pid", "pause"}:
-            await self._emit_status_if_changed(change)
+            await self._emit_status_if_changed(change.project_id, change.project_path)
             return
 
         if change.path.name == "iterations.jsonl" and change.path.parent.name == ".ralph":
@@ -268,17 +274,17 @@ class WatcherEventDispatcher:
             },
         )
 
-    async def _emit_status_if_changed(self, change: FileChangeEvent) -> None:
-        current = detect_project_status(change.project_path).value
-        previous = self._statuses.get(change.project_id)
+    async def _emit_status_if_changed(self, project_id: str, project_path: Path) -> None:
+        current = detect_project_status(project_path).value
+        previous = self._statuses.get(project_id)
         if previous == current:
             return
-        self._statuses[change.project_id] = current
+        self._statuses[project_id] = current
 
         data: dict[str, str] = {"status": current}
         if previous is not None:
             data["previous"] = previous
-        await hub.emit("status_changed", change.project_id, data)
+        await hub.emit("status_changed", project_id, data)
 
     async def _emit_file_changed(self, change: FileChangeEvent) -> None:
         try:

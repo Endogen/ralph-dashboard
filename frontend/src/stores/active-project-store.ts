@@ -10,6 +10,7 @@ type ActiveProjectState = {
   error: string | null
   setActiveProjectId: (projectId: string | null) => void
   fetchActiveProject: (projectId?: string | null) => Promise<void>
+  patchActiveProject: (projectId: string, patch: Partial<ProjectDetail>) => void
   clearActiveProject: () => void
 }
 
@@ -42,6 +43,14 @@ export const useActiveProjectStore = create<ActiveProjectState>((set, get) => ({
       set({ activeProject: null, isLoading: false, error: message })
     }
   },
+
+  patchActiveProject: (projectId: string, patch: Partial<ProjectDetail>) =>
+    set((state) => {
+      if (!state.activeProject || state.activeProject.id !== projectId) {
+        return state
+      }
+      return { activeProject: { ...state.activeProject, ...patch } }
+    }),
 
   clearActiveProject: () =>
     set({

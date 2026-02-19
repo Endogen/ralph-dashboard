@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import { displayTokens } from "@/lib/utils"
 import type { PhaseTokenUsage } from "@/types/project"
@@ -90,7 +90,6 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
                 ))}
               </Pie>
               <Tooltip content={<TokenTooltip />} />
-              <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

@@ -56,6 +56,10 @@ function formatUsd(amount: number): string {
   }).format(amount)
 }
 
+function formatIterationCount(value: number): string {
+  return `${value} iteration${value === 1 ? "" : "s"}`
+}
+
 export function ProjectCard({
   id,
   name,
@@ -69,7 +73,22 @@ export function ProjectCard({
   onOpen,
   onArchive,
 }: ProjectCardProps) {
-  const progress = maxIterations > 0 ? Math.min((currentIteration / maxIterations) * 100, 100) : 0
+  const safeCurrentIteration = Math.max(0, currentIteration)
+  const safeMaxIterations = Math.max(0, maxIterations)
+  const baseProgress = safeMaxIterations > 0 ? Math.min((safeCurrentIteration / safeMaxIterations) * 100, 100) : 0
+
+  let progress = baseProgress
+  let progressLabel = safeMaxIterations > 0 ? `Iteration ${safeCurrentIteration}/${safeMaxIterations}` : `Iteration ${safeCurrentIteration}`
+
+  if (status === "complete") {
+    progress = 100
+    progressLabel = `Completed in ${formatIterationCount(safeCurrentIteration)}`
+  } else if (status === "stopped") {
+    progressLabel = safeMaxIterations > 0 ? `Stopped at ${safeCurrentIteration}/${safeMaxIterations}` : `Stopped at ${safeCurrentIteration}`
+  } else if (status === "error") {
+    progressLabel = safeMaxIterations > 0 ? `Failed at ${safeCurrentIteration}/${safeMaxIterations}` : `Failed at ${safeCurrentIteration}`
+  }
+  const progressBarClassName = progress >= 100 ? "bg-emerald-500" : "bg-primary"
 
   return (
     <article className="rounded-xl border bg-card p-4 shadow-sm transition hover:shadow-md">
@@ -85,13 +104,11 @@ export function ProjectCard({
 
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            Iteration {currentIteration}/{maxIterations}
-          </span>
+          <span>{progressLabel}</span>
           <span>{progress.toFixed(0)}%</span>
         </div>
         <div className="h-2 rounded-full bg-muted">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+          <div className={`h-full rounded-full ${progressBarClassName}`} style={{ width: `${progress}%` }} />
         </div>
       </div>
 

@@ -31,7 +31,7 @@ class GenerateRequest(BaseModel):
     project_name: str = Field(min_length=1, max_length=100)
     project_description: str = Field(min_length=1, max_length=10000)
     tech_stack: list[str] = Field(default_factory=list)
-    cli: str = "claude-code"
+    cli: str = "claude"
     auto_approval: str = "sandboxed"
     max_iterations: int = Field(default=20, ge=1, le=999)
     test_command: str = ""
@@ -102,7 +102,7 @@ class CreateRequest(BaseModel):
     """Request body for creating the project on disk."""
 
     project_name: str = Field(min_length=1, max_length=100)
-    cli: str = "claude-code"
+    cli: str = "claude"
     auto_approval: str = "sandboxed"
     max_iterations: int = Field(default=20, ge=1, le=999)
     test_command: str = ""

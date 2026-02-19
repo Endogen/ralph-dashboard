@@ -86,3 +86,47 @@ async def test_log_append_resets_offset_after_log_truncate(
         event["data"]["lines"] for event in fake_hub.events if event["type"] == "log_append"
     ]
     assert log_lines == ["one\n", "two\n"]
+
+
+@pytest.mark.anyio
+async def test_reconcile_project_status_emits_only_when_status_changes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project_path = tmp_path / "status-project"
+    project_path.mkdir()
+
+    fake_hub = CapturingHub()
+    monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
+
+    current_status = "running"
+
+    class _StatusValue:
+        def __init__(self, value: str) -> None:
+            self.value = value
+
+    def _mock_detect_project_status(_: Path) -> _StatusValue:
+        return _StatusValue(current_status)
+
+    monkeypatch.setattr(event_dispatcher, "detect_project_status", _mock_detect_project_status)
+    dispatcher = event_dispatcher.WatcherEventDispatcher()
+
+    await dispatcher.reconcile_project_status("status-project", project_path)
+    await dispatcher.reconcile_project_status("status-project", project_path)
+
+    current_status = "stopped"
+    await dispatcher.reconcile_project_status("status-project", project_path)
+
+    status_events = [event for event in fake_hub.events if event["type"] == "status_changed"]
+    assert status_events == [
+        {
+            "type": "status_changed",
+            "project": "status-project",
+            "data": {"status": "running"},
+        },
+        {
+            "type": "status_changed",
+            "project": "status-project",
+            "data": {"status": "stopped", "previous": "running"},
+        },
+    ]

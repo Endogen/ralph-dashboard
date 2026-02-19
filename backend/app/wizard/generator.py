@@ -205,7 +205,7 @@ def _resolve_cli_command(request: GenerateRequest) -> tuple[list[str], str]:
 
     raise GenerationError(
         f"Unsupported CLI '{request.cli}' for wizard generation. "
-        "Use 'claude-code' or 'codex'."
+        "Use 'claude' or 'codex'."
     )
 
 

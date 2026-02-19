@@ -34,7 +34,7 @@ async def test_create_project_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     request = CreateRequest(
         project_name="test-wizard-project",
-        cli="claude-code",
+        cli="claude",
         max_iterations=10,
         files=[
             GeneratedFile(path="README.md", content="# Test Project\n"),
@@ -58,7 +58,7 @@ async def test_create_project_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     # Check config.json content
     config = json.loads((project_dir / ".ralph" / "config.json").read_text())
-    assert config["cli"] == "claude-code"
+    assert config["cli"] == "claude"
     assert config["max_iterations"] == 10
 
     # Check git was initialized

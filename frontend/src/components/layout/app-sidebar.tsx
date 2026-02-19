@@ -81,7 +81,7 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
               <Icon className="h-4 w-4" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{project.name}</p>
-                <p className="text-[11px] text-muted-foreground">{meta.label}</p>
+                <p className="text-[11px]">{meta.label}</p>
               </div>
             </NavLink>
           )
@@ -127,7 +127,7 @@ export function AppSidebar({ projects, onAddProject, resolvedTheme, toggleTheme,
                   : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
             }`}
           >
-            {reconnecting ? "Reconnecting" : connected ? "Live" : "Offline"}
+            {reconnecting ? "Reconnecting" : connected ? "Connected" : "Offline"}
           </span>
         </div>
         <Button className="w-full justify-start gap-2" onClick={onAddProject} variant="outline">

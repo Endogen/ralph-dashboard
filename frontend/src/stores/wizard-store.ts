@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-export type AgentChoice = "codex" | "claude-code"
+export type AgentChoice = "codex" | "claude"
 export type ApprovalMode = "full-auto" | "sandboxed"
 
 export type GeneratedFile = {
@@ -67,7 +67,7 @@ const initialState = {
   projectName: "",
   projectDescription: "",
   techStack: [] as string[],
-  cli: "claude-code" as AgentChoice,
+  cli: "claude" as AgentChoice,
   autoApproval: "sandboxed" as ApprovalMode,
   maxIterations: 20,
   testCommand: "",

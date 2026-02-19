@@ -22,7 +22,7 @@ def test_generate_request_minimal() -> None:
         project_description="A test project",
     )
     assert req.project_name == "test-project"
-    assert req.cli == "claude-code"
+    assert req.cli == "claude"
     assert req.max_iterations == 20
     assert req.tech_stack == []
 

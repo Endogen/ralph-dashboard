@@ -18,10 +18,9 @@ def _resolve_cost_per_1k(config: LoopConfig) -> float:
     """Look up the cost/k-token for the active CLI from model_pricing config."""
     cli = config.cli.strip().lower()
     aliases = {cli}
+    # Accept legacy "claude-code" as alias for "claude"
     if cli == "claude-code":
         aliases.add("claude")
-    elif cli == "claude":
-        aliases.add("claude-code")
 
     for model, price in config.model_pricing.items():
         if model.strip().lower() in aliases:

@@ -95,7 +95,7 @@ async def test_generate_claude_json_wrapper_success(
     request = GenerateRequest(
         project_name="test-project",
         project_description="A simple test project",
-        cli="claude-code",
+        cli="claude",
     )
 
     files = await generate_project_files(request)
