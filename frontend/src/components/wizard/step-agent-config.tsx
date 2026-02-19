@@ -14,15 +14,14 @@ const testPresets = [
 const modelPresets: Record<AgentChoice, { label: string; value: string; description: string }[]> = {
   codex: [
     { label: "Default", value: "", description: "Agent default model" },
-    { label: "o3", value: "o3", description: "Strongest reasoning" },
-    { label: "o4-mini", value: "o4-mini", description: "Fast and affordable" },
-    { label: "gpt-4.1", value: "gpt-4.1", description: "Balanced performance" },
+    { label: "Opus 4.6", value: "opus", description: "Latest Opus model" },
+    { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
     { label: "Custom", value: "__custom__", description: "Enter model name" },
   ],
   "claude-code": [
     { label: "Default", value: "", description: "Agent default model" },
-    { label: "Opus", value: "opus", description: "Strongest reasoning" },
-    { label: "Sonnet", value: "sonnet", description: "Fast and capable" },
+    { label: "Opus 4.6", value: "opus", description: "Latest Opus model" },
+    { label: "Codex 5.3", value: "codex-5.3", description: "Latest Codex model" },
     { label: "Custom", value: "__custom__", description: "Enter model name" },
   ],
 }
@@ -177,13 +176,16 @@ function ModelOverrideField({
   const [isCustom, setIsCustom] = useState(!isPreset && value !== "")
 
   useEffect(() => {
-    if (!value) {
-      setIsCustom(false)
-      return
-    }
+    if (!value) return
     const matchesPreset = presets.some((preset) => preset.value !== "__custom__" && preset.value === value)
     setIsCustom(!matchesPreset)
   }, [presets, value])
+
+  useEffect(() => {
+    if (!value) {
+      setIsCustom(false)
+    }
+  }, [cli])
 
   const activeValue = isCustom ? "__custom__" : presets.find((p) => p.value === value)?.value ?? "__custom__"
 
@@ -230,7 +232,7 @@ function ModelOverrideField({
           className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={cli === "codex" ? "e.g. o3-pro" : "e.g. claude-sonnet-4-5-20250929"}
+          placeholder={cli === "codex" ? "e.g. codex-5.3" : "e.g. claude-opus-4-6-20260216"}
           autoFocus
         />
       )}

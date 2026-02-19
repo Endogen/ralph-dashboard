@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+from asyncio.subprocess import PIPE
 
 from app.wizard.schemas import GeneratedFile, GenerateRequest
 
 LOGGER = logging.getLogger(__name__)
+_ACTIVE_GENERATIONS: dict[str, asyncio.subprocess.Process] = {}
+_ACTIVE_GENERATIONS_LOCK = asyncio.Lock()
 
 SYSTEM_PROMPT = """\
 You are an expert software architect and project planner. You create detailed, \
@@ -123,53 +127,198 @@ class GenerationError(Exception):
 
 
 class ApiKeyNotConfiguredError(GenerationError):
-    """Raised when ANTHROPIC_API_KEY is not set."""
+    """Raised when generation tooling is unavailable."""
+
+
+async def _register_generation_process(
+    request_id: str,
+    process: asyncio.subprocess.Process,
+) -> None:
+    """Register an in-flight generation process for cancellation by request id."""
+    async with _ACTIVE_GENERATIONS_LOCK:
+        _ACTIVE_GENERATIONS[request_id] = process
+
+
+async def _unregister_generation_process(
+    request_id: str,
+    process: asyncio.subprocess.Process,
+) -> None:
+    """Remove a generation process from the active process map."""
+    async with _ACTIVE_GENERATIONS_LOCK:
+        current = _ACTIVE_GENERATIONS.get(request_id)
+        if current is process:
+            _ACTIVE_GENERATIONS.pop(request_id, None)
+
+
+async def cancel_generation_request(request_id: str) -> bool:
+    """Cancel an in-flight generation process by request id."""
+    normalized = request_id.strip()
+    if not normalized:
+        return False
+
+    async with _ACTIVE_GENERATIONS_LOCK:
+        process = _ACTIVE_GENERATIONS.pop(normalized, None)
+
+    if process is None:
+        return False
+
+    if process.returncode is not None:
+        return True
+
+    try:
+        process.kill()
+    except ProcessLookupError:
+        return True
+
+    try:
+        await asyncio.wait_for(process.wait(), timeout=5)
+    except asyncio.TimeoutError:
+        LOGGER.warning("Timed out while waiting for cancelled generation process to stop: %s", normalized)
+
+    return True
+
+
+def _build_generation_prompt(request: GenerateRequest) -> str:
+    """Build the full prompt passed to the selected coding CLI."""
+    return (
+        f"{SYSTEM_PROMPT}\n\n"
+        "Generate files for this project request:\n\n"
+        f"{_build_user_prompt(request)}"
+    )
+
+
+def _resolve_cli_command(request: GenerateRequest) -> tuple[list[str], str]:
+    """Return subprocess command argv and normalized CLI id."""
+    cli = request.cli.strip().lower()
+    model_override = request.model_override.strip()
+
+    if cli in ("claude", "claude-code"):
+        command = ["claude", "--print", "--output-format", "json"]
+        if model_override:
+            command.extend(["--model", model_override])
+        return command, "claude"
+    if cli == "codex":
+        command = ["codex", "exec"]
+        if model_override:
+            command.extend(["--model", model_override])
+        return command, "codex"
+
+    raise GenerationError(
+        f"Unsupported CLI '{request.cli}' for wizard generation. "
+        "Use 'claude-code' or 'codex'."
+    )
+
+
+def _extract_claude_result(raw_output: str) -> str:
+    """Extract textual result from Claude JSON output when available."""
+    text = raw_output.strip()
+    if not text:
+        return ""
+
+    candidates = [text]
+    lines = text.splitlines()
+    if lines:
+        candidates.append(lines[-1].strip())
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            result = payload.get("result")
+            if isinstance(result, str):
+                return result.strip()
+
+    # Fall back to raw output if we cannot parse the structured wrapper.
+    return text
+
+
+def _extract_model_text(cli_id: str, raw_output: str) -> str:
+    """Extract model-generated text from CLI stdout."""
+    if cli_id == "claude":
+        return _extract_claude_result(raw_output)
+    return raw_output.strip()
+
+
+def _strip_json_fence(raw_text: str) -> str:
+    """Strip a leading/trailing markdown JSON fence if present."""
+    stripped = raw_text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+
+    lines = stripped.split("\n")
+    # Remove first line (```json or ```)
+    lines = lines[1:]
+    # Remove last line if it's closing fence
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
 
 
 async def generate_project_files(request: GenerateRequest) -> list[GeneratedFile]:
-    """Call the Anthropic API to generate project specification files."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ApiKeyNotConfiguredError(
-            "ANTHROPIC_API_KEY environment variable is not set. "
-            "Please configure it to use the project generation feature."
-        )
+    """Generate project files by invoking the selected coding CLI."""
+    command, cli_id = _resolve_cli_command(request)
+    prompt = _build_generation_prompt(request)
 
-    import anthropic
-
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    user_prompt = _build_user_prompt(request)
-
-    LOGGER.info("Generating project files for: %s", request.project_name)
+    LOGGER.info(
+        "Generating project files for: %s (cli=%s, model_override=%s)",
+        request.project_name,
+        request.cli,
+        bool(request.model_override.strip()),
+    )
 
     try:
-        message = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=8192,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            prompt,
+            stdout=PIPE,
+            stderr=PIPE,
         )
-    except anthropic.AuthenticationError as exc:
-        raise GenerationError("Invalid ANTHROPIC_API_KEY — authentication failed.") from exc
-    except anthropic.APIError as exc:
-        raise GenerationError(f"Anthropic API error: {exc}") from exc
+    except FileNotFoundError as exc:
+        raise ApiKeyNotConfiguredError(
+            f"'{command[0]}' CLI was not found on PATH. Install/configure it to use project generation."
+        ) from exc
+    except Exception as exc:
+        raise GenerationError(f"Failed to start {command[0]} CLI: {exc}") from exc
 
-    raw_text = ""
-    for block in message.content:
-        if block.type == "text":
-            raw_text += block.text
+    request_id = request.request_id.strip()
+    if request_id:
+        await _register_generation_process(request_id, process)
 
-    raw_text = raw_text.strip()
+    timeout_seconds = int(os.getenv("RALPH_WIZARD_GENERATION_TIMEOUT_SECONDS", "600"))
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+    except asyncio.TimeoutError as exc:
+        process.kill()
+        await process.wait()
+        raise GenerationError(
+            f"{command[0]} CLI generation timed out after {timeout_seconds} seconds."
+        ) from exc
+    except asyncio.CancelledError:
+        process.kill()
+        await process.wait()
+        LOGGER.info("Wizard generation cancelled by client for project: %s", request.project_name)
+        raise
+    finally:
+        if request_id:
+            await _unregister_generation_process(request_id, process)
 
-    # Strip markdown JSON fences if present
-    if raw_text.startswith("```"):
-        lines = raw_text.split("\n")
-        # Remove first line (```json or ```)
-        lines = lines[1:]
-        # Remove last line if it's closing fence
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        raw_text = "\n".join(lines)
+    output = stdout.decode("utf-8", errors="replace")
+    error_output = stderr.decode("utf-8", errors="replace").strip()
+    if process.returncode != 0:
+        detail = error_output or output.strip() or "no error output"
+        raise GenerationError(
+            f"{command[0]} CLI generation failed (exit {process.returncode}): {detail}"
+        )
+
+    raw_text = _extract_model_text(cli_id, output)
+    if not raw_text:
+        raise GenerationError(f"{command[0]} CLI returned empty output.")
+
+    raw_text = _strip_json_fence(raw_text)
 
     try:
         parsed = json.loads(raw_text)

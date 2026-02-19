@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.wizard.generator import ApiKeyNotConfiguredError, GenerationError
 from app.wizard.router import get_templates, post_create, post_generate
 from app.wizard.schemas import (
+    CancelGenerateRequest,
     CreateRequest,
     CreateResponse,
     GeneratedFile,
@@ -66,6 +67,19 @@ async def test_post_generate_success(monkeypatch: pytest.MonkeyPatch) -> None:
         GenerateRequest(project_name="test", project_description="desc")
     )
     assert len(response.files) == 2
+
+
+@pytest.mark.anyio
+async def test_post_generate_cancel(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _mock_cancel(_: str) -> bool:
+        return True
+
+    monkeypatch.setattr(wizard_router_module, "cancel_generation_request", _mock_cancel)
+
+    response = await wizard_router_module.post_generate_cancel(
+        CancelGenerateRequest(request_id="abc123")
+    )
+    assert response.cancelled is True
 
 
 @pytest.mark.anyio

@@ -81,7 +81,7 @@ async def create_project(request: CreateRequest) -> CreateResponse:
         cli_flags = ""
         if request.auto_approval == "full-auto":
             if request.cli == "codex":
-                cli_flags = "--full-auto"
+                cli_flags = "-s danger-full-access -a never"
             elif request.cli in ("claude", "claude-code"):
                 cli_flags = "--dangerously-skip-permissions"
         config = {

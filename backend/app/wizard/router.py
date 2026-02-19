@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.wizard.generator import ApiKeyNotConfiguredError, GenerationError, generate_project_files
+from app.wizard.generator import (
+    ApiKeyNotConfiguredError,
+    GenerationError,
+    cancel_generation_request,
+    generate_project_files,
+)
 from app.wizard.schemas import (
+    CancelGenerateRequest,
+    CancelGenerateResponse,
     CreateRequest,
     CreateResponse,
     GenerateRequest,
@@ -45,6 +52,13 @@ async def post_generate(payload: GenerateRequest) -> GenerateResponse:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@router.post("/generate/cancel", response_model=CancelGenerateResponse)
+async def post_generate_cancel(payload: CancelGenerateRequest) -> CancelGenerateResponse:
+    """Cancel an in-flight wizard generation request."""
+    cancelled = await cancel_generation_request(payload.request_id)
+    return CancelGenerateResponse(cancelled=cancelled)
 
 
 @router.post("/create", response_model=CreateResponse)

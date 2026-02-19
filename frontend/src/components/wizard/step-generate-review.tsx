@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Editor } from "@monaco-editor/react"
 import { AlertCircle, FileText, Loader2, RefreshCw, Sparkles } from "lucide-react"
@@ -9,6 +9,17 @@ import { type GeneratedFile, useWizardStore } from "@/stores/wizard-store"
 
 type GenerateApiResponse = {
   files: GeneratedFile[]
+}
+
+type CancelGenerateApiResponse = {
+  cancelled: boolean
+}
+
+function formatElapsed(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}m ${secs}s`
 }
 
 function getFileLabel(path: string): string {
@@ -29,6 +40,7 @@ export function StepGenerateReview() {
   const maxIterations = useWizardStore((s) => s.maxIterations)
   const autoApproval = useWizardStore((s) => s.autoApproval)
   const modelOverride = useWizardStore((s) => s.modelOverride)
+  const generatorAgentLabel = cli === "codex" ? "Codex" : "Claude Code"
 
   const generatedFiles = useWizardStore((s) => s.generatedFiles)
   const setGeneratedFiles = useWizardStore((s) => s.setGeneratedFiles)
@@ -37,16 +49,67 @@ export function StepGenerateReview() {
   const setIsGenerating = useWizardStore((s) => s.setIsGenerating)
   const generateError = useWizardStore((s) => s.generateError)
   const setGenerateError = useWizardStore((s) => s.setGenerateError)
+  const setActiveGenerateController = useWizardStore((s) => s.setActiveGenerateController)
+  const setActiveGenerationRequestId = useWizardStore((s) => s.setActiveGenerationRequestId)
+  const generationStartedAt = useWizardStore((s) => s.generationStartedAt)
+  const setGenerationStartedAt = useWizardStore((s) => s.setGenerationStartedAt)
+  const abortActiveGeneration = useWizardStore((s) => s.abortActiveGeneration)
 
   const [activeTab, setActiveTab] = useState(0)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  useEffect(() => {
+    if (!isGenerating || !generationStartedAt) {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const updateElapsed = () => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - generationStartedAt) / 1000))
+      setElapsedSeconds(elapsed)
+    }
+
+    updateElapsed()
+    const intervalId = window.setInterval(updateElapsed, 1000)
+    return () => window.clearInterval(intervalId)
+  }, [generationStartedAt, isGenerating])
+
+  const elapsedLabel = useMemo(() => formatElapsed(elapsedSeconds), [elapsedSeconds])
+
+  const handleAbortGeneration = async () => {
+    if (!isGenerating) return
+
+    const requestId = useWizardStore.getState().activeGenerationRequestId
+    abortActiveGeneration()
+    if (requestId) {
+      try {
+        await apiFetch<CancelGenerateApiResponse>("/wizard/generate/cancel", {
+          method: "POST",
+          body: JSON.stringify({ request_id: requestId }),
+        })
+      } catch {
+        // Ignore cancellation endpoint errors; local abort already completed.
+      }
+    }
+    setGenerateError("Generation cancelled.")
+  }
 
   const handleGenerate = async () => {
+    if (isGenerating) return
+
+    const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const controller = new AbortController()
+
     setIsGenerating(true)
     setGenerateError(null)
+    setGenerationStartedAt(Date.now())
+    setActiveGenerateController(controller)
+    setActiveGenerationRequestId(requestId)
 
     try {
       const response = await apiFetch<GenerateApiResponse>("/wizard/generate", {
         method: "POST",
+        signal: controller.signal,
         body: JSON.stringify({
           project_name: projectName,
           project_description: projectDescription,
@@ -56,15 +119,35 @@ export function StepGenerateReview() {
           max_iterations: maxIterations,
           test_command: testCommand,
           model_override: modelOverride,
+          request_id: requestId,
         }),
       })
+
+      if (useWizardStore.getState().activeGenerateController !== controller) {
+        return
+      }
+
       setGeneratedFiles(response.files)
       setActiveTab(0)
     } catch (err) {
+      if (useWizardStore.getState().activeGenerateController !== controller) {
+        return
+      }
+
+      if (err instanceof Error && err.name === "AbortError") {
+        setGenerateError("Generation cancelled.")
+        return
+      }
+
       const message = err instanceof Error ? err.message : "Generation failed"
       setGenerateError(message)
     } finally {
-      setIsGenerating(false)
+      if (useWizardStore.getState().activeGenerateController === controller) {
+        setIsGenerating(false)
+        setGenerationStartedAt(null)
+        setActiveGenerateController(null)
+        setActiveGenerationRequestId(null)
+      }
     }
   }
 
@@ -84,7 +167,7 @@ export function StepGenerateReview() {
           <div className="text-center">
             <p className="text-sm font-medium">Ready to generate your project plan</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              This will use Claude to create specs, an implementation plan, and agent instructions.
+              This will use {generatorAgentLabel} to create specs, an implementation plan, and agent instructions.
             </p>
           </div>
           <Button onClick={handleGenerate} className="gap-2">
@@ -122,9 +205,13 @@ export function StepGenerateReview() {
           <div className="text-center">
             <p className="text-sm font-medium">Generating project files...</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              This usually takes 15-30 seconds. Claude is creating detailed specs and an implementation plan.
+              This usually takes 15-30 seconds. {generatorAgentLabel} is creating detailed specs and an implementation plan.
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">Elapsed: {elapsedLabel}</p>
           </div>
+          <Button variant="outline" onClick={handleAbortGeneration}>
+            Cancel Generation
+          </Button>
         </div>
       </div>
     )

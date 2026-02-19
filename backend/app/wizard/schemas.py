@@ -36,6 +36,7 @@ class GenerateRequest(BaseModel):
     max_iterations: int = Field(default=20, ge=1, le=999)
     test_command: str = ""
     model_override: str = ""
+    request_id: str = ""
 
     @field_validator("project_name")
     @classmethod
@@ -58,6 +59,11 @@ class GenerateRequest(BaseModel):
             raise ValueError("cli cannot be empty")
         return normalized
 
+    @field_validator("request_id")
+    @classmethod
+    def _validate_request_id(cls, value: str) -> str:
+        return value.strip()
+
 
 class GeneratedFile(BaseModel):
     """A single generated file with path and content."""
@@ -70,6 +76,26 @@ class GenerateResponse(BaseModel):
     """Response from the generate endpoint containing all generated files."""
 
     files: list[GeneratedFile]
+
+
+class CancelGenerateRequest(BaseModel):
+    """Request body for cancelling an in-flight generation task."""
+
+    request_id: str = Field(min_length=1, max_length=128)
+
+    @field_validator("request_id")
+    @classmethod
+    def _validate_request_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("request_id cannot be empty")
+        return normalized
+
+
+class CancelGenerateResponse(BaseModel):
+    """Response for cancellation attempts."""
+
+    cancelled: bool
 
 
 class CreateRequest(BaseModel):

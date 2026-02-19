@@ -1,14 +1,19 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 
+import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { StepAgentConfig } from "@/components/wizard/step-agent-config"
 import { StepConfirmLaunch } from "@/components/wizard/step-confirm-launch"
 import { StepGenerateReview } from "@/components/wizard/step-generate-review"
 import { StepProjectSetup } from "@/components/wizard/step-project-setup"
 import { useWizardStore } from "@/stores/wizard-store"
+
+type CancelGenerateApiResponse = {
+  cancelled: boolean
+}
 
 const steps = [
   { label: "Project Setup", component: StepProjectSetup },
@@ -124,8 +129,16 @@ export function WizardPage() {
   const setCurrentStep = useWizardStore((s) => s.setCurrentStep)
   const projectName = useWizardStore((s) => s.projectName)
   const projectDescription = useWizardStore((s) => s.projectDescription)
+  const techStack = useWizardStore((s) => s.techStack)
+  const cli = useWizardStore((s) => s.cli)
+  const autoApproval = useWizardStore((s) => s.autoApproval)
+  const maxIterations = useWizardStore((s) => s.maxIterations)
+  const testCommand = useWizardStore((s) => s.testCommand)
+  const modelOverride = useWizardStore((s) => s.modelOverride)
   const generatedFiles = useWizardStore((s) => s.generatedFiles)
   const isGenerating = useWizardStore((s) => s.isGenerating)
+  const activeGenerationRequestId = useWizardStore((s) => s.activeGenerationRequestId)
+  const isCreating = useWizardStore((s) => s.isCreating)
   const reset = useWizardStore((s) => s.reset)
 
   const canGoNext = useMemo(() => {
@@ -155,10 +168,73 @@ export function WizardPage() {
     }
   }, [currentStep, setCurrentStep])
 
-  const handleCancel = useCallback(() => {
+  const hasDraft = useMemo(() => {
+    return (
+      projectName.trim().length > 0 ||
+      projectDescription.trim().length > 0 ||
+      techStack.length > 0 ||
+      cli !== "claude-code" ||
+      autoApproval !== "sandboxed" ||
+      maxIterations !== 20 ||
+      testCommand.trim().length > 0 ||
+      modelOverride.trim().length > 0 ||
+      generatedFiles.length > 0 ||
+      isGenerating ||
+      isCreating ||
+      currentStep > 0
+    )
+  }, [
+    autoApproval,
+    cli,
+    currentStep,
+    generatedFiles.length,
+    isCreating,
+    isGenerating,
+    maxIterations,
+    modelOverride,
+    projectDescription,
+    projectName,
+    techStack.length,
+    testCommand,
+  ])
+
+  useEffect(() => {
+    if (!isGenerating) return
+
+    const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", beforeUnloadHandler)
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnloadHandler)
+    }
+  }, [isGenerating])
+
+  const handleCancel = useCallback(async () => {
+    if (hasDraft) {
+      const message = isGenerating
+        ? "Generation is still running. Cancel and discard this project draft?"
+        : "Discard this new project draft?"
+      const confirmed = window.confirm(message)
+      if (!confirmed) return
+    }
+
+    if (isGenerating && activeGenerationRequestId) {
+      try {
+        await apiFetch<CancelGenerateApiResponse>("/wizard/generate/cancel", {
+          method: "POST",
+          body: JSON.stringify({ request_id: activeGenerationRequestId }),
+        })
+      } catch {
+        // Ignore cancellation endpoint errors; local reset will still abort the request.
+      }
+    }
+
     reset()
     navigate("/")
-  }, [reset, navigate])
+  }, [activeGenerationRequestId, hasDraft, isGenerating, navigate, reset])
 
   const StepComponent = steps[currentStep].component
 

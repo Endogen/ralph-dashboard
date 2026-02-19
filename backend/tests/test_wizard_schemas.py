@@ -6,6 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.wizard.schemas import (
+    CancelGenerateRequest,
+    CancelGenerateResponse,
     CreateRequest,
     GeneratedFile,
     GenerateRequest,
@@ -35,10 +37,12 @@ def test_generate_request_full() -> None:
         max_iterations=50,
         test_command="pytest",
         model_override="gpt-4o",
+        request_id=" req-123 ",
     )
     assert req.tech_stack == ["python", "react"]
     assert req.cli == "codex"
     assert req.max_iterations == 50
+    assert req.request_id == "req-123"
 
 
 def test_generate_request_empty_name_rejected() -> None:
@@ -87,3 +91,10 @@ def test_templates_response() -> None:
     resp = TemplatesResponse(agents_md="# agents", prompt_md="# prompt")
     assert "agents" in resp.agents_md
     assert "prompt" in resp.prompt_md
+
+
+def test_cancel_generate_request_and_response() -> None:
+    req = CancelGenerateRequest(request_id=" cancel-1 ")
+    resp = CancelGenerateResponse(cancelled=True)
+    assert req.request_id == "cancel-1"
+    assert resp.cancelled is True
