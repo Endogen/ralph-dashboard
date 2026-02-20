@@ -20,6 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
+ralph-dashboard = "app.cli.dashboard:cli"
 ralph-dashboard-init-user = "app.auth.setup_user:cli"
 
 [project.optional-dependencies]

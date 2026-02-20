@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRoute
 
+from app import main as main_module
 from app.main import create_app
 
 
@@ -59,3 +60,33 @@ async def test_frontend_catch_all_rejects_api_and_path_traversal(tmp_path: Path)
     with pytest.raises(HTTPException) as traversal_exc:
         await handler("../outside.txt")
     assert traversal_exc.value.status_code == 404
+
+
+def test_resolve_default_frontend_dist_prefers_packaged(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    packaged = tmp_path / "packaged-dist"
+    dev = tmp_path / "dev-dist"
+    packaged.mkdir(parents=True)
+    dev.mkdir(parents=True)
+
+    monkeypatch.setattr(main_module, "PACKAGED_FRONTEND_DIST", packaged)
+    monkeypatch.setattr(main_module, "DEV_FRONTEND_DIST", dev)
+    monkeypatch.delenv("RALPH_FRONTEND_DIST", raising=False)
+
+    assert main_module._resolve_default_frontend_dist() == packaged
+
+
+def test_resolve_default_frontend_dist_honors_env_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    override = tmp_path / "override-dist"
+    packaged = tmp_path / "packaged-dist"
+    dev = tmp_path / "dev-dist"
+    override.mkdir(parents=True)
+    packaged.mkdir(parents=True)
+    dev.mkdir(parents=True)
+
+    monkeypatch.setattr(main_module, "PACKAGED_FRONTEND_DIST", packaged)
+    monkeypatch.setattr(main_module, "DEV_FRONTEND_DIST", dev)
+    monkeypatch.setenv("RALPH_FRONTEND_DIST", str(override))
+
+    assert main_module._resolve_default_frontend_dist() == override.resolve()

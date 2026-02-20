@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -34,7 +35,8 @@ from app.ws.router import router as ws_router
 LOGGER = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+PACKAGED_FRONTEND_DIST = Path(__file__).resolve().parent / "static" / "dist"
+DEV_FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 PUBLIC_API_PATHS = {
     "/api/health",
     "/api/auth/login",
@@ -210,7 +212,8 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     async def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
 
-    _configure_frontend_static(app, frontend_dist or DEFAULT_FRONTEND_DIST)
+    resolved_frontend_dist = frontend_dist or _resolve_default_frontend_dist()
+    _configure_frontend_static(app, resolved_frontend_dist)
 
     return app
 
@@ -244,6 +247,16 @@ def _configure_frontend_static(app: FastAPI, frontend_dist: Path) -> None:
             return FileResponse(index_file)
 
         raise HTTPException(status_code=404, detail="Frontend build not found")
+
+
+def _resolve_default_frontend_dist() -> Path:
+    """Resolve default frontend dist path with override and packaged fallback."""
+    override = os.getenv("RALPH_FRONTEND_DIST")
+    if override:
+        return Path(override).expanduser().resolve()
+    if PACKAGED_FRONTEND_DIST.exists():
+        return PACKAGED_FRONTEND_DIST
+    return DEV_FRONTEND_DIST
 
 
 app = create_app()
