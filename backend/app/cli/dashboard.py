@@ -67,6 +67,16 @@ def default_dev_frontend_dist() -> Path:
     return repo_root() / "frontend" / "dist"
 
 
+def frontend_dir() -> Path:
+    """Resolve frontend project directory."""
+    return repo_root() / "frontend"
+
+
+def package_frontend_script() -> Path:
+    """Resolve frontend packaging helper script."""
+    return repo_root() / "scripts" / "package_frontend.sh"
+
+
 def parse_project_dirs(value: str) -> list[Path]:
     """Parse project roots from pathsep/comma-separated string."""
     raw_parts = value.split(os.pathsep)
@@ -310,7 +320,7 @@ def build_doctor_checks(env_file: Path) -> list[CheckResult]:
             name="Frontend assets",
             ok=frontend_dist is not None,
             message=str(frontend_dist) if frontend_dist else "No frontend dist found",
-            fix="Build frontend (`cd frontend && npm run build`) or package dist into backend/app/static/dist.",
+            fix="Run `ralph-dashboard build-frontend` to rebuild and package UI assets.",
         )
     )
 
@@ -435,6 +445,42 @@ def run_doctor(args: argparse.Namespace) -> int:
     else:
         print("")
         print(f"{CHECK_MARK} Doctor passed.")
+    return 0
+
+
+def run_build_frontend(_: argparse.Namespace) -> int:
+    """Build frontend and package dist into backend static assets."""
+    frontend = frontend_dir()
+    package_script = package_frontend_script()
+    package_json = frontend / "package.json"
+
+    if not package_json.exists():
+        print(f"Error: frontend package.json not found: {package_json}")
+        return 1
+
+    npm_path = check_binary("npm")
+    if npm_path is None:
+        print("Error: npm not found on PATH.")
+        print("Install Node.js/npm, then re-run `ralph-dashboard build-frontend`.")
+        return 1
+
+    if not package_script.exists():
+        print(f"Error: package script not found: {package_script}")
+        return 1
+
+    print(f"{CHECK_MARK} Building frontend assets in {frontend}")
+    build_result = subprocess.run([npm_path, "run", "build"], cwd=frontend, check=False)
+    if build_result.returncode != 0:
+        print("Error: `npm run build` failed.")
+        return build_result.returncode or 1
+
+    print(f"{CHECK_MARK} Packaging frontend dist with {package_script}")
+    package_result = subprocess.run(["bash", str(package_script)], cwd=repo_root(), check=False)
+    if package_result.returncode != 0:
+        print("Error: frontend packaging failed.")
+        return package_result.returncode or 1
+
+    print(f"{CHECK_MARK} Frontend build and packaging complete.")
     return 0
 
 
@@ -568,6 +614,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ralph-dashboard", description="Ralph Dashboard operations CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    build_frontend_parser = subparsers.add_parser(
+        "build-frontend",
+        help="Build frontend and package assets into backend static dist",
+    )
+    build_frontend_parser.set_defaults(handler=run_build_frontend)
+
     init_parser = subparsers.add_parser("init", help="Initialize env + credentials interactively")
     init_parser.add_argument("--project-dirs", help=f"Project roots (pathsep/comma separated). Default: {DEFAULT_PROJECT_DIRS[0]}")
     init_parser.add_argument("--port", type=int, help=f"Dashboard port (default: {DEFAULT_PORT})")
@@ -635,4 +687,3 @@ def cli() -> None:
 
 if __name__ == "__main__":
     cli()
-

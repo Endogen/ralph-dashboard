@@ -257,7 +257,10 @@ pip install -e ".[dev]"
 
 cd ../frontend
 npm install --legacy-peer-deps
-npm run build
+
+# Build frontend and package into backend/app/static/dist
+cd ..
+ralph-dashboard build-frontend
 ```
 
 ## Complete Setup Guide
