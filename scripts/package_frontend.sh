@@ -14,6 +14,6 @@ fi
 
 rm -rf "$TARGET_DIST"
 mkdir -p "$TARGET_DIST"
-cp -a "$FRONTEND_DIST"/. "$TARGET_DIST"/
+cp -R "$FRONTEND_DIST"/. "$TARGET_DIST"/
 
 echo "Packaged frontend assets into: $TARGET_DIST"

@@ -66,4 +66,13 @@ echo "Next steps:"
 echo "1. Ensure $WRAPPER_DIR is on your PATH"
 echo "2. Run: ralph-dashboard init"
 echo "3. Run: ralph-dashboard doctor"
-echo "4. Run: ralph-dashboard service install --user --start"
+if [[ "$(uname -s)" == "Linux" ]]; then
+  echo "4. Run: ralph-dashboard service install --user --start"
+else
+  echo "4. Start manually:"
+  echo '   set -a'
+  echo '   source ~/.config/ralph-dashboard/env'
+  echo '   set +a'
+  echo '   cd backend'
+  echo '   .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$RALPH_PORT"'
+fi
