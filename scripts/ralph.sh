@@ -55,6 +55,18 @@ log() {
   echo -e "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG_FILE"
 }
 
+iso_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+base64_nowrap() {
+  if base64 -w0 </dev/null >/dev/null 2>&1; then
+    base64 -w0
+    return
+  fi
+  base64 | tr -d '\n'
+}
+
 # Send notification via OpenClaw cron + write details to file.
 # The orchestrating agent (OpenClaw) will triage and decide whether to
 # forward to human or attempt to help.
@@ -63,13 +75,13 @@ notify() {
   local message="$2"
   local details="${3:-}"
   local timestamp
-  timestamp="$(date -Iseconds)"
+  timestamp="$(iso_now)"
   local project_dir
   project_dir="$(pwd)"
   local project_name
   project_name="$(basename "$project_dir")"
   local log_tail
-  log_tail="$(tail -50 "$LOG_FILE" 2>/dev/null | base64 -w0 || true)"
+  log_tail="$(tail -50 "$LOG_FILE" 2>/dev/null | base64_nowrap || true)"
   local status="pending"
 
   if command -v openclaw &>/dev/null; then
@@ -186,7 +198,10 @@ load_config_file() {
   fi
 
   local config_values=()
-  if ! mapfile -t config_values < <(python3 - "$CONFIG_FILE" <<'PY'
+  local config_values_tmp
+  local config_line
+  config_values_tmp="$(mktemp)"
+  if ! python3 - "$CONFIG_FILE" <<'PY' > "$config_values_tmp"
 import json
 import sys
 
@@ -210,10 +225,16 @@ emit(payload.get("max_iterations", ""))
 emit(payload.get("test_command", ""))
 emit(payload.get("model", ""))
 PY
-  ); then
+  then
+    rm -f "$config_values_tmp"
     log "⚠️ Could not parse $CONFIG_FILE; continuing with defaults/environment"
     return
   fi
+
+  while IFS= read -r config_line; do
+    config_values+=("$config_line")
+  done < "$config_values_tmp"
+  rm -f "$config_values_tmp"
 
   CONFIG_CLI="${config_values[0]:-}"
   CONFIG_FLAGS="${config_values[1]:-}"
@@ -584,7 +605,7 @@ while true; do
   process_injection_file
   wait_if_paused
 
-  ITER_START="$(date -Iseconds)"
+  ITER_START="$(iso_now)"
   ITER_START_EPOCH="$(date +%s)"
 
   PLAN_BEFORE_FILE="$(mktemp)"
@@ -718,12 +739,15 @@ except: pass
     fi
   fi
 
-  ITER_END="$(date -Iseconds)"
+  ITER_END="$(iso_now)"
   ITER_END_EPOCH="$(date +%s)"
   ITER_DURATION=$((ITER_END_EPOCH - ITER_START_EPOCH))
 
   snapshot_completed_tasks "$PLAN_FILE" > "$PLAN_AFTER_FILE"
-  mapfile -t NEW_TASKS < <(comm -13 <(sort -u "$PLAN_BEFORE_FILE") <(sort -u "$PLAN_AFTER_FILE") || true)
+  NEW_TASKS=()
+  while IFS= read -r task_id; do
+    [[ -n "$task_id" ]] && NEW_TASKS+=("$task_id")
+  done < <(comm -13 <(sort -u "$PLAN_BEFORE_FILE") <(sort -u "$PLAN_AFTER_FILE") || true)
   rm -f "$PLAN_BEFORE_FILE" "$PLAN_AFTER_FILE"
 
   HEAD_AFTER="$(git rev-parse --short=7 HEAD 2>/dev/null || true)"

@@ -94,7 +94,7 @@ You only need to write a notification when YOU are blocked and need human input:
 ```bash
 mkdir -p .ralph
 cat > .ralph/pending-notification.txt << 'NOTIF'
-{{"timestamp":"$(date -Iseconds)","prefix":"DECISION","message":"Brief description of what you need","details":"Full context","status":"pending"}}
+{{"timestamp":"$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")","prefix":"DECISION","message":"Brief description of what you need","details":"Full context","status":"pending"}}
 NOTIF
 ```
 
