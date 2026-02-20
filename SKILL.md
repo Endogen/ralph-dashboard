@@ -16,31 +16,28 @@ If the dashboard isn't running yet, follow these steps. If it's already deployed
 git clone https://github.com/Endogen/ralph-dashboard.git
 cd ralph-dashboard
 
-# 2. Backend
+# 2. Install dashboard + CLI
+./scripts/install.sh
+
+# If the CLI is not found, add the wrapper directory to PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# 3. Create runtime config and first user (interactive)
+ralph-dashboard init
+
+# 4. Validate environment
+ralph-dashboard doctor
+
+# 5. Start the dashboard (choose one)
+# 5a. Linux/systemd: install + start user service
+ralph-dashboard service install --user --start
+
+# 5b. macOS/manual: run uvicorn directly
+set -a
+source ~/.config/ralph-dashboard/env
+set +a
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-
-# 3. Frontend
-cd ../frontend
-npm install --legacy-peer-deps
-npm run build
-cd ..
-
-# 4. Create login credentials
-cd backend
-.venv/bin/python -m app.auth.setup_user --username yourname
-# Prompts for password. Saved to ~/.config/ralph-dashboard/credentials.yaml
-
-# 5. Generate a secret key
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-
-# 6. Start the dashboard
-export RALPH_SECRET_KEY="<your-generated-key>"
-export RALPH_PROJECT_DIRS="$HOME/projects"  # directories to scan for .ralph/ projects
-export RALPH_PORT=8420
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port $RALPH_PORT
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$RALPH_PORT"
 ```
 
 For production deployment with systemd and nginx, see the [README](https://github.com/Endogen/ralph-dashboard#production-deployment).
@@ -322,6 +319,7 @@ curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
 ```
 
 All fields are optional — defaults come from `.ralph/config.json`.
+Set `max_iterations` to `0` for unlimited iterations.
 
 Response:
 ```json
@@ -391,6 +389,8 @@ curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" \
   "$BASE_URL/api/projects/{id}/config" \
   -d '{"cli":"claude","flags":"--dangerously-skip-permissions","max_iterations":30,"test_command":"pytest -q","model_pricing":{"claude":0.015}}' | jq
 ```
+
+`max_iterations: 0` in config means unlimited loop iterations.
 
 ---
 
@@ -775,14 +775,14 @@ TOKEN=$(curl -s -X POST "$BASE_URL/api/auth/login" \
 curl -s -X POST "$BASE_URL/api/projects/my-project/start" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"max_iterations": 50, "cli": "codex", "flags": "--full-auto"}' | jq
+  -d '{"max_iterations": 0, "cli": "codex", "flags": "--full-auto"}' | jq
 ```
 
 **Option B: Directly via ralph.sh**:
 
 ```bash
 cd ~/projects/my-project
-/path/to/ralph.sh --max-iterations 50 --cli codex --full-auto
+/path/to/ralph.sh --max-iterations 0 --cli codex --full-auto
 ```
 
 The loop creates `.ralph/` automatically on first run. The dashboard picks up the project within seconds.
