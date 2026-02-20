@@ -12,6 +12,7 @@ type CreateApiResponse = {
   project_id: string
   project_path: string
   started: boolean
+  start_error: string | null
 }
 
 export function StepConfirmLaunch() {
@@ -58,6 +59,16 @@ export function StepConfirmLaunch() {
         description: `${projectName} is ready${response.started ? " and building" : ""}`,
         tone: "success",
       })
+
+      if (startLoop && !response.started) {
+        pushToast({
+          title: "Loop did not auto-start",
+          description:
+            response.start_error?.trim() ||
+            "Project was created, but the loop did not start automatically. Start it from the project page.",
+          tone: "info",
+        })
+      }
 
       reset()
       navigate(`/project/${response.project_id}`)

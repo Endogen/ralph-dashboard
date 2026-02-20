@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { CheckCircle2, ChevronDown, ChevronRight, Hourglass } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import type { ParsedImplementationPlan } from "@/types/project"
 
@@ -173,14 +174,14 @@ export function PlanRenderer({
                             Completed in iteration {taskMetadata[task.id].iteration ?? "n/a"}
                             {" - "}
                             {taskMetadata[task.id].commit && projectId ? (
-                              <a
-                                href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(
+                              <Link
+                                to={`/project/${projectId}?tab=code&commit=${encodeURIComponent(
                                   taskMetadata[task.id].commit ?? "",
                                 )}`}
                                 className="font-mono underline decoration-dotted"
                               >
                                 {taskMetadata[task.id].commit}
-                              </a>
+                              </Link>
                             ) : (
                               <span className="font-mono">{taskMetadata[task.id].commit ?? "n/a"}</span>
                             )}

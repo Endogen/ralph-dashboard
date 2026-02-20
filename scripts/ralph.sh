@@ -10,6 +10,8 @@ PLAN_FILE="IMPLEMENTATION_PLAN.md"
 LOG_DIR=".ralph"
 LOG_FILE="$LOG_DIR/ralph.log"
 NOTIFY_FILE="$LOG_DIR/pending-notification.txt"
+NOTIFY_HISTORY_DIR="$LOG_DIR/notifications"
+NOTIFY_HISTORY_FILE="$NOTIFY_HISTORY_DIR/events.jsonl"
 ITERATIONS_FILE="$LOG_DIR/iterations.jsonl"
 PID_FILE="$LOG_DIR/ralph.pid"
 PAUSE_FILE="$LOG_DIR/pause"
@@ -66,24 +68,9 @@ notify() {
   project_dir="$(pwd)"
   local project_name
   project_name="$(basename "$project_dir")"
-
-  cat > "$NOTIFY_FILE" << EOF_NOTIFY
-{
-  "timestamp": "$timestamp",
-  "project": "$project_dir",
-  "project_name": "$project_name",
-  "prefix": "$prefix",
-  "message": "$message",
-  "details": "$details",
-  "iteration": ${CURRENT_ITER:-0},
-  "max_iterations": $MAX_ITERS,
-  "cli": "$CLI",
-  "log_tail": "$(tail -50 "$LOG_FILE" 2>/dev/null | base64 -w0)",
-  "status": "pending"
-}
-EOF_NOTIFY
-
-  log "📝 Notification written to $NOTIFY_FILE"
+  local log_tail
+  log_tail="$(tail -50 "$LOG_FILE" 2>/dev/null | base64 -w0 || true)"
+  local status="pending"
 
   if command -v openclaw &>/dev/null; then
     local event_text="[Ralph:${project_name}] ${prefix}: ${message}"
@@ -94,7 +81,7 @@ EOF_NOTIFY
       --system-event "$event_text" \
       --wake now \
       --delete-after-run >/dev/null 2>&1; then
-      sed -i 's/"status": "pending"/"status": "delivered"/' "$NOTIFY_FILE" 2>/dev/null || true
+      status="delivered"
       log "✅ OpenClaw notification scheduled"
     else
       log "⚠️ OpenClaw cron failed - notification saved to file for heartbeat pickup"
@@ -102,6 +89,89 @@ EOF_NOTIFY
   else
     log "📋 openclaw not found - notification saved to $NOTIFY_FILE"
   fi
+
+  if command -v python3 &>/dev/null; then
+    if ! NOTIFY_TIMESTAMP="$timestamp" \
+      NOTIFY_PROJECT_DIR="$project_dir" \
+      NOTIFY_PROJECT_NAME="$project_name" \
+      NOTIFY_PREFIX="$prefix" \
+      NOTIFY_MESSAGE="$message" \
+      NOTIFY_DETAILS="$details" \
+      NOTIFY_ITERATION="${CURRENT_ITER:-0}" \
+      NOTIFY_MAX_ITERS="${MAX_ITERS:-0}" \
+      NOTIFY_CLI="${CLI:-}" \
+      NOTIFY_LOG_TAIL="$log_tail" \
+      NOTIFY_STATUS="$status" \
+      NOTIFY_FILE_PATH="$NOTIFY_FILE" \
+      NOTIFY_HISTORY_FILE_PATH="$NOTIFY_HISTORY_FILE" \
+      python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+def parse_int(value: str, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+payload = {
+    "timestamp": os.environ.get("NOTIFY_TIMESTAMP", ""),
+    "project": os.environ.get("NOTIFY_PROJECT_DIR", ""),
+    "project_name": os.environ.get("NOTIFY_PROJECT_NAME", ""),
+    "prefix": os.environ.get("NOTIFY_PREFIX", ""),
+    "message": os.environ.get("NOTIFY_MESSAGE", ""),
+    "details": os.environ.get("NOTIFY_DETAILS", ""),
+    "iteration": parse_int(os.environ.get("NOTIFY_ITERATION", "0"), 0),
+    "max_iterations": parse_int(os.environ.get("NOTIFY_MAX_ITERS", "0"), 0),
+    "cli": os.environ.get("NOTIFY_CLI", ""),
+    "log_tail": os.environ.get("NOTIFY_LOG_TAIL", ""),
+    "status": os.environ.get("NOTIFY_STATUS", "pending"),
+}
+
+notify_file = Path(os.environ["NOTIFY_FILE_PATH"])
+notify_file.parent.mkdir(parents=True, exist_ok=True)
+notify_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+history_file = Path(os.environ["NOTIFY_HISTORY_FILE_PATH"])
+history_file.parent.mkdir(parents=True, exist_ok=True)
+with history_file.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+PY
+    then
+      log "⚠️ Failed to persist notification payload to disk"
+    fi
+  else
+    mkdir -p "$NOTIFY_HISTORY_DIR"
+    printf '{"timestamp":"%s","project":"%s","project_name":"%s","prefix":"%s","message":"%s","details":"%s","iteration":%s,"max_iterations":%s,"cli":"%s","log_tail":"%s","status":"%s"}\n' \
+      "$timestamp" \
+      "$project_dir" \
+      "$project_name" \
+      "$prefix" \
+      "$message" \
+      "$details" \
+      "${CURRENT_ITER:-0}" \
+      "${MAX_ITERS:-0}" \
+      "${CLI:-}" \
+      "$log_tail" \
+      "$status" > "$NOTIFY_FILE" 2>/dev/null || true
+    printf '{"timestamp":"%s","project":"%s","project_name":"%s","prefix":"%s","message":"%s","details":"%s","iteration":%s,"max_iterations":%s,"cli":"%s","log_tail":"%s","status":"%s"}\n' \
+      "$timestamp" \
+      "$project_dir" \
+      "$project_name" \
+      "$prefix" \
+      "$message" \
+      "$details" \
+      "${CURRENT_ITER:-0}" \
+      "${MAX_ITERS:-0}" \
+      "${CLI:-}" \
+      "$log_tail" \
+      "$status" >> "$NOTIFY_HISTORY_FILE" 2>/dev/null || true
+  fi
+
+  log "📝 Notification written to $NOTIFY_FILE (status: $status)"
 }
 
 load_config_file() {
@@ -315,10 +385,19 @@ handle_signal() {
   exit 0
 }
 
+handle_unexpected_error() {
+  local exit_code="$1"
+  local line_no="$2"
+  trap - ERR
+  log "${RED}❌ Unexpected script failure (exit $exit_code at line $line_no)${NC}"
+  notify "ERROR" "Ralph loop failed unexpectedly" "Exit code: $exit_code at line $line_no"
+  exit "$exit_code"
+}
+
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
 
 # Setup
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$NOTIFY_HISTORY_DIR"
 
 CLI="$DEFAULT_CLI"
 CLI_FLAGS=""
@@ -377,7 +456,14 @@ if [[ -z "$CLI_FLAGS" ]]; then
   esac
 fi
 
+CLI_FLAGS_ARR=()
+if [[ -n "$CLI_FLAGS" ]]; then
+  # Intentional simple split on whitespace to avoid shell eval.
+  read -r -a CLI_FLAGS_ARR <<< "$CLI_FLAGS"
+fi
+
 if ! [[ "$MAX_ITERS" =~ ^[0-9]+$ ]] || ((MAX_ITERS < 0)); then
+  notify "ERROR" "Invalid max iterations" "Received '$MAX_ITERS'. Expected 0 or greater (0 = unlimited)."
   echo -e "${RED}❌ Invalid max iterations: $MAX_ITERS (expected 0 or greater; 0 = unlimited)${NC}"
   exit 1
 fi
@@ -389,16 +475,19 @@ fi
 
 # Preflight checks
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  notify "ERROR" "Preflight failed: not a git repository" "Run Ralph inside a git repository."
   echo -e "${RED}❌ Must run inside a git repository${NC}"
   exit 1
 fi
 
 if ! command -v python3 &>/dev/null; then
+  notify "ERROR" "Preflight failed: python3 missing" "python3 is required on PATH."
   echo -e "${RED}❌ python3 is required${NC}"
   exit 1
 fi
 
 if ! command -v "$CLI" &>/dev/null; then
+  notify "ERROR" "Preflight failed: CLI not found" "CLI '$CLI' is not available on PATH."
   echo -e "${RED}❌ CLI not found: $CLI${NC}"
   exit 1
 fi
@@ -452,6 +541,7 @@ echo $$ > "$PID_FILE"
 trap cleanup_pid EXIT
 trap 'handle_signal SIGTERM' TERM
 trap 'handle_signal SIGINT' INT
+trap 'handle_unexpected_error "$?" "$LINENO"' ERR
 
 # Clear any stale pending notification from previous run
 [[ -f "$NOTIFY_FILE" ]] && rm -f "$NOTIFY_FILE"
@@ -506,35 +596,45 @@ while true; do
   log "${BLUE}=== Iteration $CURRENT_ITER (loop $i/$MAX_ITERS) ===${NC}"
 
   CLAUDE_JSON_MODE=false
-  MODEL_FLAG=""
-  if [[ -n "$MODEL" ]]; then
-    MODEL_FLAG="--model $MODEL"
-  fi
+  SUPPORTS_MODEL=false
+  CMD=()
 
   case "$CLI" in
     codex)
-      CMD="codex exec $CLI_FLAGS $MODEL_FLAG"
+      CMD=("codex" "exec")
+      SUPPORTS_MODEL=true
       ;;
     claude|claude-code)
-      CMD="claude --print --output-format json $CLI_FLAGS $MODEL_FLAG"
+      CMD=("claude" "--print" "--output-format" "json")
       CLAUDE_JSON_MODE=true
+      SUPPORTS_MODEL=true
       ;;
     opencode)
-      CMD="opencode run"
+      CMD=("opencode" "run")
       ;;
     goose)
-      CMD="goose run"
+      CMD=("goose" "run")
       ;;
     *)
-      CMD="$CLI $CLI_FLAGS"
+      CMD=("$CLI")
       ;;
   esac
 
-  log "Running: $CMD \"...\""
+  if ((${#CLI_FLAGS_ARR[@]} > 0)); then
+    CMD+=("${CLI_FLAGS_ARR[@]}")
+  fi
+  if [[ "$SUPPORTS_MODEL" == "true" && -n "$MODEL" ]]; then
+    CMD+=("--model" "$MODEL")
+  fi
+
+  CMD_DISPLAY="$(printf '%q ' "${CMD[@]}")"
+  CMD_DISPLAY="${CMD_DISPLAY% }"
+  log "Running: $CMD_DISPLAY \"...\""
 
   AGENT_OUTPUT=""
   AGENT_EXIT_CODE=0
-  if AGENT_OUTPUT=$($CMD "$(cat PROMPT.md)" 2>&1); then
+  PROMPT_INPUT="$(cat PROMPT.md)"
+  if AGENT_OUTPUT=$("${CMD[@]}" "$PROMPT_INPUT" 2>&1); then
     AGENT_EXIT_CODE=0
   else
     AGENT_EXIT_CODE=$?
@@ -609,6 +709,13 @@ except: pass
     fi
 
     TEST_OUTPUT="$(printf '%s\n' "$TEST_RAW_OUTPUT" | awk 'NF { line = $0 } END { print line }')"
+    if [[ "$TEST_PASSED" == "false" && "$AGENT_EXIT_CODE" -eq 0 ]]; then
+      TEST_FAILURE_DETAILS="Command: $TEST_CMD"
+      if [[ -n "$TEST_OUTPUT" ]]; then
+        TEST_FAILURE_DETAILS="$TEST_FAILURE_DETAILS | Last output: $TEST_OUTPUT"
+      fi
+      notify "ERROR" "Tests failed on iteration $CURRENT_ITER" "$TEST_FAILURE_DETAILS"
+    fi
   fi
 
   ITER_END="$(date -Iseconds)"

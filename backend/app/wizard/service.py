@@ -116,14 +116,16 @@ async def create_project(request: CreateRequest) -> CreateResponse:
 
         # Optionally start the loop
         started = False
+        start_error: str | None = None
         if request.start_loop:
-            started = await _start_project_loop(project_id)
+            started, start_error = await _start_project_loop(project_id)
 
         LOGGER.info("Created project '%s' at %s", request.project_name, project_dir)
         return CreateResponse(
             project_id=project_id,
             project_path=str(project_dir),
             started=started,
+            start_error=start_error,
         )
 
     except (ProjectDirectoryExistsError, ProjectCreationError):
@@ -163,13 +165,14 @@ def _git_init(project_dir: Path) -> None:
         LOGGER.warning("git not found on PATH — skipping git init")
 
 
-async def _start_project_loop(project_id: str) -> bool:
+async def _start_project_loop(project_id: str) -> tuple[bool, str | None]:
     """Attempt to start the ralph loop for the newly created project."""
     try:
         from app.control.process_manager import start_project_loop
 
         await start_project_loop(project_id)
-        return True
-    except Exception:
+        return True, None
+    except Exception as exc:
         LOGGER.warning("Failed to auto-start loop for %s", project_id, exc_info=True)
-        return False
+        reason = str(exc).strip() or exc.__class__.__name__
+        return False, reason

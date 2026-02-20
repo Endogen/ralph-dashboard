@@ -15,7 +15,12 @@ type PricingRow = {
   price: string
 }
 
-const CLI_OPTIONS = ["codex", "claude", "opencode", "goose"] as const
+const CLI_OPTIONS = ["codex", "claude"] as const
+type CliOption = (typeof CLI_OPTIONS)[number]
+const FORM_CONTROL_CLASS =
+  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm leading-5 text-foreground"
+const READ_ONLY_FORM_CONTROL_CLASS =
+  "h-10 w-full rounded-md border border-input bg-muted/40 px-3 text-sm leading-5 text-muted-foreground"
 let pricingRowCounter = 0
 
 function nextPricingRowId(): string {
@@ -31,6 +36,13 @@ function cloneConfig(config: LoopConfig): LoopConfig {
     test_command: config.test_command,
     model_pricing: { ...config.model_pricing },
   }
+}
+
+function normalizeCli(value: string): CliOption {
+  if (CLI_OPTIONS.includes(value as CliOption)) {
+    return value as CliOption
+  }
+  return "codex"
 }
 
 function formatPrice(value: number): string {
@@ -84,12 +96,17 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
 
   const applyConfig = useCallback((config: LoopConfig) => {
     const nextConfig = cloneConfig(config)
-    setCli(nextConfig.cli)
+    const normalizedCli = normalizeCli(nextConfig.cli)
+    const normalizedConfig: LoopConfig = {
+      ...nextConfig,
+      cli: normalizedCli,
+    }
+    setCli(normalizedCli)
     setFlags(nextConfig.flags)
     setMaxIterations(String(nextConfig.max_iterations))
     setTestCommand(nextConfig.test_command)
     setPricingRows(pricingRowsFromConfig(nextConfig))
-    setSavedConfig(nextConfig)
+    setSavedConfig(normalizedConfig)
   }, [])
 
   useEffect(() => {
@@ -186,12 +203,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
     }
   }, [cli, flags, maxIterations, pricingRows, testCommand])
 
-  const cliOptions = useMemo(() => {
-    if (cli && !CLI_OPTIONS.includes(cli as (typeof CLI_OPTIONS)[number])) {
-      return [cli, ...CLI_OPTIONS]
-    }
-    return [...CLI_OPTIONS]
-  }, [cli])
+  const cliOptions = useMemo(() => [...CLI_OPTIONS], [])
 
   const isDirty = useMemo(() => {
     if (!savedConfig) {
@@ -321,7 +333,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
               <select
                 value={cli}
                 onChange={(event) => setCli(event.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                className={`${FORM_CONTROL_CLASS} pr-8`}
               >
                 {cliOptions.map((option) => (
                   <option key={option} value={option}>
@@ -340,7 +352,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
                 min={0}
                 value={maxIterations}
                 onChange={(event) => setMaxIterations(event.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                className={FORM_CONTROL_CLASS}
               />
               <p className="text-xs text-muted-foreground">Set to 0 for unlimited iterations.</p>
             </label>
@@ -351,7 +363,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
                 value={flags}
                 onChange={(event) => setFlags(event.target.value)}
                 placeholder="-s workspace-write"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                className={FORM_CONTROL_CLASS}
               />
             </label>
 
@@ -363,7 +375,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
                 value={testCommand}
                 onChange={(event) => setTestCommand(event.target.value)}
                 placeholder="cd backend && .venv/bin/pytest --timeout=30 -x"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                className={FORM_CONTROL_CLASS}
               />
             </label>
 
@@ -375,7 +387,7 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
                 <input
                   readOnly
                   value={projectPath ?? ""}
-                  className="w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                  className={READ_ONLY_FORM_CONTROL_CLASS}
                 />
                 <button
                   type="button"

@@ -15,6 +15,7 @@ from app.wizard.service import (
     create_project,
     get_default_templates,
 )
+from app.wizard import service as wizard_service_module
 
 
 def test_get_default_templates() -> None:
@@ -47,6 +48,7 @@ async def test_create_project_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     assert response.project_id == project_id_from_path(projects_root / "test-wizard-project")
     assert response.started is False
+    assert response.start_error is None
 
     project_dir = projects_root / "test-wizard-project"
     assert project_dir.is_dir()
@@ -151,3 +153,30 @@ async def test_create_project_allows_unlimited_iterations(
         (projects_root / "unlimited-iterations-project" / ".ralph" / "config.json").read_text()
     )
     assert config["max_iterations"] == 0
+
+
+@pytest.mark.anyio
+async def test_create_project_returns_start_error_when_autostart_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    projects_root = tmp_path / "projects"
+    projects_root.mkdir()
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(projects_root))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    async def _mock_start(_: str) -> tuple[bool, str | None]:
+        return False, "mocked start failure"
+
+    monkeypatch.setattr(wizard_service_module, "_start_project_loop", _mock_start)
+
+    request = CreateRequest(
+        project_name="autostart-failure-project",
+        start_loop=True,
+        files=[GeneratedFile(path="README.md", content="# Test")],
+    )
+
+    response = await create_project(request)
+    assert response.started is False
+    assert response.start_error == "mocked start failure"

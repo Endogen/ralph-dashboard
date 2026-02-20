@@ -1,6 +1,6 @@
 ---
 name: ralph-dashboard
-description: Monitor and control Ralph Loop AI agent sessions via the Ralph Dashboard REST API. Use to check project status, view iterations/stats, start/stop/pause loops, inject instructions, manage plans and specs, and browse git history.
+description: Monitor and control Ralph Loop AI agent sessions via the Ralph Dashboard REST API. Use to check project status, view iterations/stats, start/stop/pause loops, inject instructions, manage plans/specs, browse git history, and run notification-driven recovery workflows before escalating to a human/user.
 ---
 
 # Ralph Dashboard API Skill
@@ -501,6 +501,81 @@ Response:
   }
 ]
 ```
+
+---
+
+## Notification-Driven Orchestration (OpenClaw-Compatible)
+
+Use this section when an orchestration agent (for example OpenClaw) sits between Ralph and a human/user.
+
+Goal:
+- react automatically to loop notifications
+- attempt safe recovery steps
+- escalate to a human/user only when automation cannot safely resolve the issue
+
+### Trigger Source
+
+Ralph writes `.ralph/pending-notification.txt` and may also schedule an OpenClaw event when `openclaw` is installed (handled by `ralph.sh`).
+
+Treat the dashboard notification history endpoint as the source of truth:
+
+```bash
+curl -s -H "$AUTH" "$BASE_URL/api/projects/{id}/notifications" | jq
+```
+
+### Triage Workflow
+
+When a new notification arrives:
+1. Identify `project_id` and latest notification (`prefix`, `message`, `iteration`, `details`).
+2. Fetch current state:
+   - `GET /api/projects/{id}`
+   - `GET /api/projects/{id}/stats`
+   - `GET /api/projects/{id}/iterations?status=all&limit=20`
+   - `GET /api/projects/{id}/iterations/{iteration}` (if `iteration` is known)
+3. Apply prefix-based policy:
+   - `PROGRESS` or `DONE`: record status, no intervention required.
+   - `DECISION`: ask the human/user for a decision, then `POST /inject` with approved guidance.
+   - `ERROR` or `BLOCKED`: attempt bounded auto-recovery (below), then re-check health.
+4. If recovery fails or confidence is low, escalate to a human/user with concise context and recommended next action.
+
+### Bounded Auto-Recovery Policy
+
+For `ERROR` / `BLOCKED` notifications, use conservative limits:
+- max 3 automated recovery attempts per incident
+- max 1 restart/resume action per attempt
+- require improved signal before next attempt (e.g. no new error in next iteration)
+
+Suggested attempt sequence:
+1. If project status is `paused`, call `POST /api/projects/{id}/resume`.
+2. If project status is `stopped` and work is incomplete, call `POST /api/projects/{id}/start`.
+3. Inject focused remediation guidance:
+   - `POST /api/projects/{id}/inject`
+   - include explicit constraints (reproduce failure, isolate root cause, patch minimally, rerun tests, report if still blocked).
+4. Wait for next iteration/notification and evaluate:
+   - if healthy progression resumes, clear incident
+   - if repeated failure persists, escalate to a human/user
+
+### Escalation Standard (Human/User)
+
+When escalating, include:
+- project id and current status
+- last failing iteration number
+- short error summary
+- actions already attempted by automation
+- clear request for human/user input or decision
+
+### Example Incident Snapshot Commands
+
+```bash
+PROJECT_ID="my-project"
+
+curl -s -H "$AUTH" "$BASE_URL/api/projects/$PROJECT_ID" | jq
+curl -s -H "$AUTH" "$BASE_URL/api/projects/$PROJECT_ID/stats" | jq
+curl -s -H "$AUTH" "$BASE_URL/api/projects/$PROJECT_ID/notifications" | jq '.[0]'
+curl -s -H "$AUTH" "$BASE_URL/api/projects/$PROJECT_ID/iterations?status=all&limit=5" | jq
+```
+
+Use these outputs to decide whether to resume/restart, inject guidance, or escalate.
 
 ---
 

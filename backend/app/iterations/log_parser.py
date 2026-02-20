@@ -109,4 +109,36 @@ def parse_ralph_log_file(log_file: Path) -> list[ParsedLogIteration]:
     resolved = log_file.expanduser().resolve()
     if not resolved.exists() or not resolved.is_file():
         return []
-    return parse_ralph_log(resolved.read_text(encoding="utf-8"))
+    content = resolved.read_bytes().decode("utf-8", errors="replace")
+    return parse_ralph_log(content)
+
+
+def parse_ralph_log_tail_file(log_file: Path, max_bytes: int) -> list[ParsedLogIteration]:
+    """Parse only the tail of ralph.log into structured iteration records.
+
+    This is used for large logs where parsing the whole file on each request
+    would be too expensive. When the tail starts mid-line, the partial leading
+    line is dropped before parsing.
+    """
+    resolved = log_file.expanduser().resolve()
+    if not resolved.exists() or not resolved.is_file() or max_bytes <= 0:
+        return []
+
+    try:
+        file_size = resolved.stat().st_size
+    except OSError:
+        return []
+
+    start_offset = max(0, file_size - max_bytes)
+    with resolved.open("rb") as handle:
+        handle.seek(start_offset)
+        chunk = handle.read()
+
+    if start_offset > 0:
+        first_newline = chunk.find(b"\n")
+        if first_newline == -1:
+            return []
+        chunk = chunk[first_newline + 1 :]
+
+    content = chunk.decode("utf-8", errors="replace")
+    return parse_ralph_log(content)

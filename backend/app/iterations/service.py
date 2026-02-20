@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.iterations.jsonl_parser import ParsedJsonlIteration, parse_iterations_jsonl_file
-from app.iterations.log_parser import ParsedLogIteration, parse_ralph_log_file
+from app.iterations.log_parser import ParsedLogIteration, parse_ralph_log_file, parse_ralph_log_tail_file
 from app.iterations.models import IterationDetail, IterationSummary
 from app.projects.service import get_project_detail
 
@@ -90,19 +90,25 @@ def _build_iteration_map(
     return merged
 
 
-MAX_LOG_PARSE_BYTES = 20 * 1024 * 1024  # Only parse log files under 20 MB
+MAX_LOG_PARSE_BYTES = 20 * 1024 * 1024  # Full-file parse threshold
+LARGE_LOG_TAIL_PARSE_BYTES = 16 * 1024 * 1024  # Tail parse window for oversized logs
 
 
 def _safe_parse_log(log_file: Path) -> list[ParsedLogIteration]:
-    """Parse log file only if it's small enough to avoid memory issues."""
+    """Parse log file with large-file safeguards.
+
+    Small logs are parsed in full. Oversized logs are parsed from a large
+    trailing window so recent iterations still have log output.
+    """
     if not log_file.exists():
         return []
     try:
-        if log_file.stat().st_size > MAX_LOG_PARSE_BYTES:
-            return []
+        log_size = log_file.stat().st_size
     except OSError:
         return []
-    return parse_ralph_log_file(log_file)
+    if log_size <= MAX_LOG_PARSE_BYTES:
+        return parse_ralph_log_file(log_file)
+    return parse_ralph_log_tail_file(log_file, LARGE_LOG_TAIL_PARSE_BYTES)
 
 
 async def list_project_iterations(project_id: str) -> list[IterationSummary]:

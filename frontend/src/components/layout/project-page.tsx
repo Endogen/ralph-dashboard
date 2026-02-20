@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { useParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { apiFetch } from "@/api/client"
 import { IterationHealthTimeline } from "@/components/charts/iteration-health-timeline"
@@ -14,6 +14,7 @@ import { PlanRenderer } from "@/components/project/plan-renderer"
 import { RecentActivityFeed } from "@/components/project/recent-activity-feed"
 import { IterationsTable } from "@/components/project/iterations-table"
 import { SpecFileBrowser } from "@/components/project/spec-file-browser"
+import { ControlFilesPane } from "@/components/project/control-files-pane"
 import { StatsGrid } from "@/components/project/stats-grid"
 import { StatusPanel } from "@/components/project/status-panel"
 import { CodeFilesPane } from "@/components/project/code-files-pane"
@@ -59,6 +60,14 @@ const VALID_PROJECT_STATUSES = new Set<ProjectStatus>([
   "complete",
   "error",
 ])
+
+function parseTabFromSearch(search: string): TabKey | null {
+  const value = new URLSearchParams(search).get("tab")
+  if (!value) {
+    return null
+  }
+  return TABS.some((tab) => tab.key === value) ? (value as TabKey) : null
+}
 
 function formatDuration(valueInSeconds: number): string {
   if (!Number.isFinite(valueInSeconds) || valueInSeconds <= 0) {
@@ -141,6 +150,8 @@ function ProjectPageSkeleton() {
 
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const activeProject = useActiveProjectStore((state) => state.activeProject)
   const fetchActiveProject = useActiveProjectStore((state) => state.fetchActiveProject)
   const patchActiveProject = useActiveProjectStore((state) => state.patchActiveProject)
@@ -167,9 +178,15 @@ export function ProjectPage() {
   const initialFetchDoneRef = useRef(false)
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabKey>("overview")
-  const activeTabRef = useRef<TabKey>("overview")
+  const initialTab = parseTabFromSearch(location.search) ?? "overview"
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
+  const activeTabRef = useRef<TabKey>(initialTab)
   const [hasUnreadLog, setHasUnreadLog] = useState(false)
+  const selectedCommitHash = useMemo(() => {
+    const value = new URLSearchParams(location.search).get("commit")
+    const trimmed = value?.trim() ?? ""
+    return trimmed.length > 0 ? trimmed : null
+  }, [location.search])
 
   // Track whether we've already fired a browser notification for completion
   const completionNotifiedRef = useRef(false)
@@ -220,6 +237,13 @@ export function ProjectPage() {
       setHasUnreadLog(false)
     }
   }, [activeTab])
+
+  useEffect(() => {
+    const requestedTab = parseTabFromSearch(location.search) ?? "overview"
+    if (requestedTab !== activeTabRef.current) {
+      setActiveTab(requestedTab)
+    }
+  }, [location.search])
 
   // Request browser notification permission on first project page visit
   useEffect(() => {
@@ -461,6 +485,31 @@ export function ProjectPage() {
     })
   }, [isRawPlanMode, plan])
 
+  const handleTabChange = useCallback(
+    (tab: TabKey) => {
+      setActiveTab(tab)
+      const params = new URLSearchParams(location.search)
+      params.set("tab", tab)
+      if (tab !== "code") {
+        params.delete("commit")
+      }
+      const nextSearch = params.toString()
+      const currentSearch = location.search.startsWith("?") ? location.search.slice(1) : location.search
+      if (nextSearch !== currentSearch) {
+        navigate(
+          {
+            pathname: id ? `/project/${id}` : location.pathname,
+            search: nextSearch ? `?${nextSearch}` : "",
+          },
+          { replace: false },
+        )
+      }
+      // Reset scroll position to prevent left-clipping on mobile
+      window.scrollTo({ left: 0 })
+    },
+    [id, location.pathname, location.search, navigate],
+  )
+
   const sortedIterations = [...iterations].sort((left, right) => left.number - right.number)
   const latestIteration = sortedIterations[sortedIterations.length - 1]
   const iterationLabel =
@@ -671,12 +720,17 @@ export function ProjectPage() {
         )
 
       case "specs":
-        return <SpecFileBrowser projectId={id} />
+        return (
+          <div className="space-y-4">
+            <ControlFilesPane projectId={id} />
+            <SpecFileBrowser projectId={id} />
+          </div>
+        )
 
       case "code":
         return (
           <div className="overflow-hidden">
-            <CodeFilesPane projectId={id} />
+            <CodeFilesPane projectId={id} initialCommitHash={selectedCommitHash} />
           </div>
         )
 
@@ -717,11 +771,7 @@ export function ProjectPage() {
             <button
               key={tab.key}
               type="button"
-              onClick={() => {
-                setActiveTab(tab.key)
-                // Reset scroll position to prevent left-clipping on mobile
-                window.scrollTo({ left: 0 })
-              }}
+              onClick={() => handleTabChange(tab.key)}
               className={`relative shrink-0 px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 sm:py-2.5 sm:text-sm ${
                 activeTab === tab.key
                   ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"

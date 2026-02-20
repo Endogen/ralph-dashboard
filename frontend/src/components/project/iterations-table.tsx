@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { Link } from "react-router-dom"
+
 import { apiFetch } from "@/api/client"
 import { GitDiffViewer } from "@/components/project/git-diff-viewer"
 import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
@@ -530,13 +532,13 @@ export function IterationsTable({
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {iteration.commit && projectId ? (
-                          <a
-                            href={`/project/${projectId}/?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
+                          <Link
+                            to={`/project/${projectId}?tab=code&commit=${encodeURIComponent(iteration.commit)}`}
                             className="underline decoration-dotted"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {iteration.commit}
-                          </a>
+                          </Link>
                         ) : (
                           iteration.commit ?? "n/a"
                         )}

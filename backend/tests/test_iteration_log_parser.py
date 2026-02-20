@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.iterations.log_parser import parse_ralph_log, parse_ralph_log_file
+from app.iterations.log_parser import parse_ralph_log, parse_ralph_log_file, parse_ralph_log_tail_file
 
 
 def test_parse_ralph_log_multiple_iterations() -> None:
@@ -71,3 +71,38 @@ def test_parse_ralph_log_file_reads_existing_file(tmp_path: Path) -> None:
     parsed = parse_ralph_log_file(log_file)
     assert len(parsed) == 1
     assert parsed[0].tokens_used == 1250.5
+
+
+def test_parse_ralph_log_file_tolerates_invalid_utf8(tmp_path: Path) -> None:
+    log_file = tmp_path / "ralph.log"
+    log_file.write_bytes(
+        b"[12:00:00] === Iteration 1/1 ===\n"
+        b"line with invalid bytes: \xff\xfe\n"
+        b"tokens used\n"
+        b"12\n"
+    )
+
+    parsed = parse_ralph_log_file(log_file)
+    assert len(parsed) == 1
+    assert parsed[0].number == 1
+    assert parsed[0].tokens_used == 12.0
+    assert "line with invalid bytes:" in parsed[0].raw_output
+
+
+def test_parse_ralph_log_tail_file_reads_recent_iterations(tmp_path: Path) -> None:
+    log_file = tmp_path / "ralph.log"
+    log_file.write_text(
+        "[12:00:00] === Iteration 1/3 ===\n"
+        + ("filler\n" * 200)
+        + "[12:05:00] === Iteration 2/3 ===\n"
+        + "mid chunk\n"
+        + ("filler\n" * 200)
+        + "[12:10:00] === Iteration 3/3 ===\n"
+        + "recent chunk\n",
+        encoding="utf-8",
+    )
+
+    parsed = parse_ralph_log_tail_file(log_file, max_bytes=1024)
+    assert len(parsed) >= 1
+    assert parsed[-1].number == 3
+    assert "recent chunk" in parsed[-1].raw_output

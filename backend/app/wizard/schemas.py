@@ -124,6 +124,7 @@ class CreateResponse(BaseModel):
     project_id: str
     project_path: str
     started: bool = False
+    start_error: str | None = None
 
 
 class TemplatesResponse(BaseModel):
