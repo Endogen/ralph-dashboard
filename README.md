@@ -7,6 +7,82 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 ![React](https://img.shields.io/badge/react-19-61dafb)
 ![FastAPI](https://img.shields.io/badge/fastapi-0.129-009688)
 
+![Project Overview](docs/screenshots/project-overview.png)
+*Project overview with live stats, progress charts, task burndown, token usage breakdown, and iteration health timeline.*
+
+### More Screenshots
+
+<details>
+<summary>📊 Dashboard & Project List</summary>
+
+![Dashboard](docs/screenshots/dashboard.png)
+*Project cards with completion status, iteration count, token usage, and cost.*
+</details>
+
+<details>
+<summary>📋 Plan Management</summary>
+
+![Plan](docs/screenshots/project-plan.png)
+*Interactive task board with phase progress bars, parsed from IMPLEMENTATION_PLAN.md.*
+</details>
+
+<details>
+<summary>🔄 Iteration Tracking</summary>
+
+![Iterations](docs/screenshots/project-iterations.png)
+*Sortable iteration table with status, health, duration, tokens, cost, and tasks.*
+
+![Iteration Expanded](docs/screenshots/project-iteration-expanded.png)
+*Expanded iteration with full terminal output and ANSI color rendering.*
+</details>
+
+<details>
+<summary>📝 Specs & Prompts</summary>
+
+![Specs](docs/screenshots/project-specs.png)
+*Browse, create, and edit spec files with side-by-side AGENTS.md and PROMPT.md editors.*
+</details>
+
+<details>
+<summary>💻 Code & Git History</summary>
+
+![Code](docs/screenshots/project-code.png)
+*Git commit history with file counts, insertions, and deletions.*
+
+![Code Expanded](docs/screenshots/project-code-expanded.png)
+*Expanded commit with syntax-highlighted diff viewer.*
+</details>
+
+<details>
+<summary>⚙️ Config & System</summary>
+
+![Config](docs/screenshots/project-config.png)
+*Loop configuration — CLI tool, flags, max iterations, and test command.*
+
+![System](docs/screenshots/project-system.png)
+*System metrics — loop process stats, server RAM/CPU/disk usage, and uptime.*
+</details>
+
+<details>
+<summary>🧙 Project Wizard</summary>
+
+![Wizard Setup](docs/screenshots/wizard-step1-setup.png)
+*Step 1: Project setup — name, path, and description.*
+
+![Wizard Agent](docs/screenshots/wizard-step2-agent.png)
+*Step 2: Agent configuration — CLI tool, model, and flags.*
+
+![Wizard Review](docs/screenshots/wizard-step3-review.png)
+*Step 3: Generate & review — AI-powered plan generation.*
+</details>
+
+<details>
+<summary>📦 Archive</summary>
+
+![Archive](docs/screenshots/archive.png)
+*Browse and restore archived projects.*
+</details>
+
 ## Setup First: Environment Variables
 
 The backend reads runtime config from environment variables. The easiest path is to run `ralph-dashboard init`, which generates:
