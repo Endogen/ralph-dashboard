@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.config import get_settings
 from app.notifications.router import get_notifications
+from app.projects.models import project_id_from_path
 
 
 def _seed_project(tmp_path: Path) -> Path:
@@ -40,11 +41,12 @@ def _seed_project(tmp_path: Path) -> Path:
 @pytest.mark.anyio
 async def test_get_notifications_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     workspace = _seed_project(tmp_path)
+    project_id = project_id_from_path(workspace / "notify-project")
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    notifications = await get_notifications("notify-project")
+    notifications = await get_notifications(project_id)
     assert len(notifications) == 4
     assert notifications[0].prefix == "ERROR"
     assert notifications[0].message == "Pending failure"

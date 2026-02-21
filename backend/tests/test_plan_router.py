@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.config import get_settings
 from app.plan.router import PlanUpdateRequest, get_plan, put_plan
+from app.projects.models import project_id_from_path
 
 
 def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -24,12 +25,13 @@ def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.mark.anyio
 async def test_get_plan_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    parsed = await get_plan("plan-project")
+    parsed = await get_plan(project_id)
 
     assert parsed.status == "READY"
     assert parsed.tasks_total == 1
@@ -40,12 +42,13 @@ async def test_put_plan_handler_updates_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     payload = PlanUpdateRequest(content="STATUS: COMPLETE\n\n## Phase 1: Setup\n- [x] 1.1: Done\n")
-    parsed = await put_plan("plan-project", payload)
+    parsed = await put_plan(project_id, payload)
 
     assert parsed.status == "COMPLETE"
     assert parsed.tasks_done == 1

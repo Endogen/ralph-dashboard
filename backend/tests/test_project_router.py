@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import get_settings
-from app.projects.models import ProjectStatus, ProjectSummary
+from app.projects.models import ProjectStatus, ProjectSummary, project_id_from_path
 from app.projects import router as project_router
 from app.projects.router import (
     RegisterProjectRequest,
@@ -39,7 +39,7 @@ async def test_get_projects_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     response = await get_projects()
     assert len(response) == 1
-    assert response[0].id == "handler-project"
+    assert response[0].id == project_id_from_path(project)
 
 
 @pytest.mark.anyio

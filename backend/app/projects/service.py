@@ -7,6 +7,7 @@ import json
 import time
 from pathlib import Path
 
+from app.config import get_settings
 from app.database import get_setting, set_setting
 from app.projects.discovery import discover_project_paths
 from app.projects.models import ProjectDetail, ProjectSummary, project_id_from_path
@@ -17,6 +18,7 @@ REGISTERED_PROJECTS_KEY = "registered_project_paths"
 # TTL cache for discovered paths to avoid repeated os.walk on every request
 _discovered_paths_cache: list[Path] | None = None
 _discovered_paths_timestamp: float = 0.0
+_discovered_paths_cache_key: tuple[str, ...] | None = None
 _DISCOVERY_CACHE_TTL_SECONDS = 10.0
 
 
@@ -74,6 +76,7 @@ async def register_project_path(project_path: Path) -> Path:
         return resolved
 
     await _save_registered_project_paths([*existing, resolved])
+    invalidate_discovery_cache()
     return resolved
 
 
@@ -84,6 +87,7 @@ async def unregister_project_by_id(project_id: str) -> bool:
     removed = len(remaining) != len(existing)
     if removed:
         await _save_registered_project_paths(remaining)
+        invalidate_discovery_cache()
     return removed
 
 
@@ -93,11 +97,15 @@ async def discover_all_project_paths() -> list[Path]:
     Results are cached for up to ``_DISCOVERY_CACHE_TTL_SECONDS`` to avoid
     repeated expensive ``os.walk`` calls on every request.
     """
-    global _discovered_paths_cache, _discovered_paths_timestamp
+    global _discovered_paths_cache, _discovered_paths_timestamp, _discovered_paths_cache_key
+
+    settings = get_settings()
+    current_cache_key = tuple(str(path) for path in settings.project_dirs)
 
     now = time.monotonic()
     if (
         _discovered_paths_cache is not None
+        and _discovered_paths_cache_key == current_cache_key
         and (now - _discovered_paths_timestamp) < _DISCOVERY_CACHE_TTL_SECONDS
     ):
         return _discovered_paths_cache
@@ -108,14 +116,16 @@ async def discover_all_project_paths() -> list[Path]:
     result = _normalize_paths([*discovered, *registered])
 
     _discovered_paths_cache = result
+    _discovered_paths_cache_key = current_cache_key
     _discovered_paths_timestamp = now
     return result
 
 
 def invalidate_discovery_cache() -> None:
     """Force the next ``discover_all_project_paths`` call to re-scan."""
-    global _discovered_paths_cache, _discovered_paths_timestamp
+    global _discovered_paths_cache, _discovered_paths_timestamp, _discovered_paths_cache_key
     _discovered_paths_cache = None
+    _discovered_paths_cache_key = None
     _discovered_paths_timestamp = 0.0
 
 

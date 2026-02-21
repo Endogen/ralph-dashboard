@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.config import get_settings
+from app.projects.models import project_id_from_path
 from app.system.models import ProcessMetrics, SystemMetrics
 from app.system.service import get_process_metrics, get_system_metrics, get_project_system_info
 
@@ -81,6 +82,7 @@ async def test_get_project_system_info_known_project(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "sys-project"
+    project_id = project_id_from_path(project)
     ralph_dir = project / ".ralph"
     ralph_dir.mkdir(parents=True)
     (ralph_dir / "ralph.pid").write_text(str(os.getpid()), encoding="utf-8")
@@ -89,7 +91,7 @@ async def test_get_project_system_info_known_project(
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    result = await get_project_system_info("sys-project")
+    result = await get_project_system_info(project_id)
     assert result.process.pid == os.getpid()
     assert result.process.rss_mb > 0
     assert result.system.ram_total_mb > 0

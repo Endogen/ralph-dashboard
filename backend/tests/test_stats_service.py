@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.config import get_settings
+from app.projects.models import project_id_from_path
 from app.stats.service import aggregate_project_stats
 
 
@@ -31,12 +32,13 @@ def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.mark.anyio
 async def test_aggregate_project_stats(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    stats = await aggregate_project_stats("stats-project")
+    stats = await aggregate_project_stats(project_id)
 
     assert stats.total_iterations == 3
     assert stats.total_tokens == 100.0

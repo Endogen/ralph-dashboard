@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import plistlib
 import re
 import secrets
 import shutil
@@ -23,6 +24,7 @@ DEFAULT_ENV_FILE = DEFAULT_CONFIG_DIR / "env"
 DEFAULT_CREDENTIALS_FILE = DEFAULT_CONFIG_DIR / "credentials.yaml"
 DEFAULT_PROJECT_DIRS = [Path.home() / "projects"]
 DEFAULT_SERVICE_NAME = "ralph-dashboard"
+DEFAULT_LAUNCHD_LABEL_PREFIX = "io.endogen"
 MIN_PYTHON_VERSION = (3, 12)
 ENV_SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_./:\-]+$")
 CHECK_MARK = "[OK]"
@@ -254,7 +256,10 @@ def run_init(args: argparse.Namespace) -> int:
     print("")
     print("Next steps:")
     print("1. Run: ralph-dashboard doctor")
-    print("2. Install service: ralph-dashboard service install --user --start")
+    if sys.platform == "darwin":
+        print("2. Install service: ralph-dashboard launchd install --start")
+    else:
+        print("2. Install service: ralph-dashboard service install --user --start")
     print("3. Open: http://127.0.0.1:{port}".format(port=port))
     return 0
 
@@ -609,6 +614,291 @@ def run_service_control(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def ensure_launchd_user_available() -> tuple[bool, str]:
+    """Check whether user-level launchd control is available."""
+    if sys.platform != "darwin":
+        return False, "launchd user services are only supported on macOS."
+    if check_binary("launchctl") is None:
+        return False, "`launchctl` not found on PATH."
+    return True, ""
+
+
+def launchd_service_slug(service_name: str) -> str:
+    """Normalize service names for launchd labels and filenames."""
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", service_name).strip("-.")
+    return cleaned or DEFAULT_SERVICE_NAME
+
+
+def launchd_service_label(service_name: str) -> str:
+    """Return launchd label for a given service name."""
+    return f"{DEFAULT_LAUNCHD_LABEL_PREFIX}.{launchd_service_slug(service_name)}"
+
+
+def resolve_launchd_domain_target() -> str:
+    """Return the best launchctl domain target for the current session.
+
+    Prefer ``gui/<uid>`` for interactive sessions and fall back to
+    ``user/<uid>`` for headless/SSH contexts.
+    """
+    uid = os.getuid()
+    candidates = [f"gui/{uid}", f"user/{uid}"]
+    for target in candidates:
+        result = run_command(["launchctl", "print", target], check=False)
+        if result.returncode == 0:
+            return target
+    return candidates[-1]
+
+
+def launchd_service_target(service_name: str, domain_target: str) -> str:
+    """Return fully-qualified launchctl service target."""
+    return f"{domain_target}/{launchd_service_label(service_name)}"
+
+
+def launchd_plist_path(service_name: str) -> Path:
+    """Return plist path for the launch agent."""
+    label = launchd_service_label(service_name)
+    return Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+
+
+def launchd_log_paths(service_name: str) -> tuple[Path, Path]:
+    """Return stdout/stderr log files for launchd service."""
+    slug = launchd_service_slug(service_name)
+    log_dir = DEFAULT_CONFIG_DIR / "logs"
+    return log_dir / f"{slug}.out.log", log_dir / f"{slug}.err.log"
+
+
+def render_launchd_service_plist(
+    *,
+    label: str,
+    backend_path: Path,
+    program_arguments: list[str],
+    environment_variables: dict[str, str],
+    stdout_path: Path,
+    stderr_path: Path,
+) -> str:
+    """Render launchd plist for Ralph Dashboard user agent."""
+    payload = {
+        "Label": label,
+        "ProgramArguments": program_arguments,
+        "EnvironmentVariables": environment_variables,
+        "WorkingDirectory": str(backend_path),
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "StandardOutPath": str(stdout_path),
+        "StandardErrorPath": str(stderr_path),
+    }
+    return plistlib.dumps(payload, fmt=plistlib.FMT_XML).decode("utf-8")
+
+
+def _command_output_or_fallback(result: subprocess.CompletedProcess[str]) -> str:
+    """Return useful command output for error reporting."""
+    stderr = (result.stderr or "").strip()
+    if stderr:
+        return stderr
+    return (result.stdout or "").strip()
+
+
+def _launchd_is_not_loaded(details: str) -> bool:
+    """Return True when launchctl output indicates no loaded job exists."""
+    normalized = details.lower()
+    patterns = (
+        "no such process",
+        "service does not exist",
+        "could not find service",
+        "not loaded",
+    )
+    return any(pattern in normalized for pattern in patterns)
+
+
+def run_launchd_install(args: argparse.Namespace) -> int:
+    """Install/update Ralph Dashboard macOS launchd user agent."""
+    ok, reason = ensure_launchd_user_available()
+    if not ok:
+        print(f"Error: {reason}")
+        return 1
+
+    env_file = Path(args.env_file).expanduser().resolve()
+    if not env_file.exists():
+        print(f"Error: env file not found: {env_file}")
+        print("Run `ralph-dashboard init` first.")
+        return 1
+
+    env_values = parse_env_file(env_file)
+    port_text = str(args.port) if args.port is not None else env_values.get("RALPH_PORT", str(DEFAULT_PORT))
+    try:
+        port = int(port_text)
+    except ValueError:
+        print(f"Error: invalid port value '{port_text}'.")
+        return 1
+    if port < 1 or port > 65535:
+        print("Error: port must be between 1 and 65535.")
+        return 1
+
+    uvicorn_exec = backend_dir() / ".venv" / "bin" / "uvicorn"
+    if not uvicorn_exec.exists():
+        print(f"Error: backend uvicorn executable not found: {uvicorn_exec}")
+        print("Run `./scripts/install.sh` first.")
+        return 1
+
+    service_name = args.service_name
+    label = launchd_service_label(service_name)
+    plist_path = launchd_plist_path(service_name)
+    stdout_log, stderr_log = launchd_log_paths(service_name)
+
+    plist_path.parent.mkdir(parents=True, exist_ok=True)
+    stdout_log.parent.mkdir(parents=True, exist_ok=True)
+    stdout_log.touch(exist_ok=True)
+    stderr_log.touch(exist_ok=True)
+
+    program_arguments = [
+        str(uvicorn_exec),
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
+    environment_variables = {key: str(value) for key, value in env_values.items()}
+
+    plist_path.write_text(
+        render_launchd_service_plist(
+            label=label,
+            backend_path=backend_dir(),
+            program_arguments=program_arguments,
+            environment_variables=environment_variables,
+            stdout_path=stdout_log,
+            stderr_path=stderr_log,
+        ),
+        encoding="utf-8",
+    )
+    plist_path.chmod(S_IRUSR | S_IWUSR)
+
+    domain_target = resolve_launchd_domain_target()
+    service_target = launchd_service_target(service_name, domain_target)
+    if args.start:
+        run_command(["launchctl", "bootout", domain_target, str(plist_path)], check=False)
+
+        bootstrap_result = run_command(
+            ["launchctl", "bootstrap", domain_target, str(plist_path)],
+            check=False,
+        )
+        if bootstrap_result.returncode != 0:
+            print("Error: failed to load launch agent.")
+            details = _command_output_or_fallback(bootstrap_result)
+            if details:
+                print(details)
+            return bootstrap_result.returncode or 1
+
+        kickstart_result = run_command(
+            ["launchctl", "kickstart", "-k", service_target],
+            check=False,
+        )
+        if kickstart_result.returncode != 0:
+            print("Error: failed to start launch agent.")
+            details = _command_output_or_fallback(kickstart_result)
+            if details:
+                print(details)
+            return kickstart_result.returncode or 1
+
+    print(f"{CHECK_MARK} Wrote launchd plist: {plist_path}")
+    if args.start:
+        print(f"{CHECK_MARK} Loaded {label}")
+        print(f"{CHECK_MARK} Started {label}")
+    else:
+        print(f"{WARN_MARK} Agent not started (`--no-start`): run `ralph-dashboard launchd start` when ready.")
+    print("")
+    print(f"Use `ralph-dashboard launchd status --service-name {service_name}` to inspect state.")
+    return 0
+
+
+def run_launchd_control(args: argparse.Namespace) -> int:
+    """Run launchd lifecycle commands through launchctl and tail."""
+    ok, reason = ensure_launchd_user_available()
+    if not ok:
+        print(f"Error: {reason}")
+        return 1
+
+    service_name = args.service_name
+    plist_path = launchd_plist_path(service_name)
+    domain_target = resolve_launchd_domain_target()
+    service_target = launchd_service_target(service_name, domain_target)
+
+    if args.launchd_command == "start":
+        if not plist_path.exists():
+            print(f"Error: launchd plist not found: {plist_path}")
+            print("Run `ralph-dashboard launchd install` first.")
+            return 1
+
+        bootstrap_result = run_command(
+            ["launchctl", "bootstrap", domain_target, str(plist_path)],
+            check=False,
+        )
+        if bootstrap_result.returncode != 0:
+            details = _command_output_or_fallback(bootstrap_result).lower()
+            if "already" not in details:
+                print("Error: failed to load launch agent.")
+                if details:
+                    print(details)
+                return bootstrap_result.returncode or 1
+
+        kickstart_result = run_command(
+            ["launchctl", "kickstart", "-k", service_target],
+            check=False,
+        )
+        if kickstart_result.returncode != 0:
+            print("Error: failed to start launch agent.")
+            details = _command_output_or_fallback(kickstart_result)
+            if details:
+                print(details)
+            return kickstart_result.returncode or 1
+        return 0
+
+    if args.launchd_command == "stop":
+        primary = run_command(
+            ["launchctl", "bootout", domain_target, service_target],
+            check=False,
+        )
+        if primary.returncode == 0:
+            return 0
+
+        fallback = run_command(
+            ["launchctl", "bootout", domain_target, str(plist_path)],
+            check=False,
+        )
+        if fallback.returncode == 0:
+            return 0
+
+        details = _command_output_or_fallback(fallback)
+        if _launchd_is_not_loaded(details):
+            return 0
+        if details:
+            print(details)
+        return fallback.returncode or 1
+
+    if args.launchd_command == "status":
+        result = subprocess.run(
+            ["launchctl", "print", service_target],
+            check=False,
+        )
+        return result.returncode
+
+    if args.launchd_command == "logs":
+        stdout_log, stderr_log = launchd_log_paths(service_name)
+        stdout_log.parent.mkdir(parents=True, exist_ok=True)
+        stdout_log.touch(exist_ok=True)
+        stderr_log.touch(exist_ok=True)
+
+        command = ["tail", "-n", str(args.lines)]
+        if args.follow:
+            command.append("-f")
+        command.extend([str(stdout_log), str(stderr_log)])
+        result = subprocess.run(command, check=False)
+        return result.returncode
+
+    print(f"Error: unsupported launchd command '{args.launchd_command}'.")
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build top-level argparse parser."""
     parser = argparse.ArgumentParser(prog="ralph-dashboard", description="Ralph Dashboard operations CLI")
@@ -636,7 +926,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE), help=f"Env file path (default: {DEFAULT_ENV_FILE})")
     doctor_parser.set_defaults(handler=run_doctor)
 
-    service_parser = subparsers.add_parser("service", help="Manage Ralph Dashboard systemd user service")
+    service_parser = subparsers.add_parser("service", help="Manage Ralph Dashboard systemd user service (Linux)")
     service_subparsers = service_parser.add_subparsers(dest="service_command", required=True)
 
     install_parser = service_subparsers.add_parser("install", help="Install/update systemd user service")
@@ -665,6 +955,34 @@ def build_parser() -> argparse.ArgumentParser:
     logs_parser.add_argument("-n", "--lines", type=int, default=200, help="Number of lines to show")
     logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow log output")
     logs_parser.set_defaults(handler=run_service_control)
+
+    launchd_parser = subparsers.add_parser("launchd", help="Manage Ralph Dashboard launchd user agent (macOS)")
+    launchd_subparsers = launchd_parser.add_subparsers(dest="launchd_command", required=True)
+
+    launchd_install_parser = launchd_subparsers.add_parser("install", help="Install/update launchd user agent")
+    launchd_install_parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE), help=f"Env file path (default: {DEFAULT_ENV_FILE})")
+    launchd_install_parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME, help=f"Service base name (default: {DEFAULT_SERVICE_NAME})")
+    launchd_install_parser.add_argument("--port", type=int, help="Override port baked into launchd plist")
+    launchd_install_parser.add_argument("--start", action=argparse.BooleanOptionalAction, default=True, help="Start/restart agent after install")
+    launchd_install_parser.set_defaults(handler=run_launchd_install)
+
+    launchd_start_parser = launchd_subparsers.add_parser("start", help="Start launch agent")
+    launchd_start_parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME)
+    launchd_start_parser.set_defaults(handler=run_launchd_control)
+
+    launchd_stop_parser = launchd_subparsers.add_parser("stop", help="Stop launch agent")
+    launchd_stop_parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME)
+    launchd_stop_parser.set_defaults(handler=run_launchd_control)
+
+    launchd_status_parser = launchd_subparsers.add_parser("status", help="Show launch agent status")
+    launchd_status_parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME)
+    launchd_status_parser.set_defaults(handler=run_launchd_control)
+
+    launchd_logs_parser = launchd_subparsers.add_parser("logs", help="Show launch agent logs")
+    launchd_logs_parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME)
+    launchd_logs_parser.add_argument("-n", "--lines", type=int, default=200, help="Number of lines to show")
+    launchd_logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow log output")
+    launchd_logs_parser.set_defaults(handler=run_launchd_control)
 
     return parser
 

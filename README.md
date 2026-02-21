@@ -7,6 +7,45 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 ![React](https://img.shields.io/badge/react-19-61dafb)
 ![FastAPI](https://img.shields.io/badge/fastapi-0.129-009688)
 
+## Setup First: Environment Variables
+
+The backend reads runtime config from environment variables. The easiest path is to run `ralph-dashboard init`, which generates:
+
+- `~/.config/ralph-dashboard/env`
+- `~/.config/ralph-dashboard/credentials.yaml`
+
+If you set env values manually, use this reference:
+
+| Environment Variable | Required | Default | Description |
+|---------------------|----------|---------|-------------|
+| `RALPH_SECRET_KEY` | Yes | *(none)* | JWT signing key. Must be a secure random value. |
+| `RALPH_PROJECT_DIRS` | No | `~/projects` | Project root directories to scan for `.ralph/` projects (path-separated or comma-separated). |
+| `RALPH_PORT` | No | `8420` | Backend server port. |
+| `RALPH_CREDENTIALS_FILE` | No | `~/.config/ralph-dashboard/credentials.yaml` | Path to dashboard credentials file. |
+| `RALPH_FRONTEND_DIST` | No | *(auto-detected)* | Optional override for frontend dist directory served by FastAPI. |
+
+Tracked template: `.env.example`
+
+Example env file:
+
+```bash
+# ~/.config/ralph-dashboard/env
+RALPH_SECRET_KEY=replace-with-random-secret
+RALPH_PROJECT_DIRS=/home/you/projects
+RALPH_PORT=8420
+RALPH_CREDENTIALS_FILE=/home/you/.config/ralph-dashboard/credentials.yaml
+```
+
+Generate a secure key with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Setup paths:
+- [Local Setup](#local-setup)
+- [Server Setup](#server-setup)
+
 ## Features
 
 ### 📊 Live Overview
@@ -193,48 +232,62 @@ Everything else is optional — the dashboard gracefully handles missing files a
 | **System Metrics** | psutil |
 | **Reverse Proxy** | Nginx with Let's Encrypt TLS |
 
-## Quick Start
+## Local Setup
 
 ### Prerequisites
 - Python 3.12+
 - Git
-- Node.js 22+ (only needed when frontend assets are not pre-packaged)
+- Node.js 22+ and npm (only needed if frontend assets are missing, or when developing the frontend)
+- An AI coding CLI if you plan to run loops from this machine ([Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), etc.)
 
-### 1. Clone
+### Shared Install Steps (all local methods)
 
 ```bash
 git clone https://github.com/Endogen/ralph-dashboard.git
 cd ralph-dashboard
-```
-
-### 2. Install
-
-```bash
 ./scripts/install.sh
-```
-
-If `ralph-dashboard` is not found afterwards, ensure `~/.local/bin` is on your `PATH`.
-
-### 3. Initialize Config + User
-
-```bash
 ralph-dashboard init
-```
-
-### 4. Run Doctor
-
-```bash
 ralph-dashboard doctor
 ```
 
-### 5. Start Dashboard
+`scripts/install.sh` creates/updates `backend/.venv`, installs the `ralph-dashboard` CLI wrapper in `~/.local/bin`, and packages frontend assets when possible.
 
-Linux (systemd):
+If `ralph-dashboard` is not found after install, ensure `~/.local/bin` is on your `PATH`.
+
+### Method 1: Linux user service (recommended)
+
 ```bash
 ralph-dashboard service install --user --start
 ```
 
-macOS or manual mode:
+Useful service commands:
+
+```bash
+ralph-dashboard service status
+ralph-dashboard service logs -f
+ralph-dashboard service stop
+ralph-dashboard service start
+```
+
+Open `http://127.0.0.1:8420` (or your configured `RALPH_PORT`) and log in.
+
+### Method 2: macOS launchd user agent
+
+```bash
+ralph-dashboard launchd install --start
+```
+
+Useful launchd commands:
+
+```bash
+ralph-dashboard launchd status
+ralph-dashboard launchd logs -f
+ralph-dashboard launchd stop
+ralph-dashboard launchd start
+```
+
+### Method 3: Manual run (macOS or Linux)
+
 ```bash
 set -a
 source ~/.config/ralph-dashboard/env
@@ -243,11 +296,9 @@ cd backend
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$RALPH_PORT"
 ```
 
-Open `http://localhost:8420` (or the `RALPH_PORT` you configured) and log in.
+### Method 4: Dashboard development workflow
 
-### Development Setup (manual)
-
-If you are developing the dashboard itself, you can still use the manual path:
+Use this when actively developing `ralph-dashboard` itself:
 
 ```bash
 cd backend
@@ -263,99 +314,90 @@ cd ..
 ralph-dashboard build-frontend
 ```
 
-## Complete Setup Guide
+## Server Setup
 
-A step-by-step guide to get Ralph Dashboard running from scratch on a fresh server. This covers installing the dashboard, setting up the Ralph loop script, and getting your first AI coding session monitored.
+Use this for a persistent deployment on a Linux host.
 
 ### Prerequisites
-
-- A Linux server (Ubuntu 22.04+ recommended) or macOS
+- Linux server (Ubuntu 22.04+ recommended)
 - Python 3.12+
-- Node.js 22+ and npm (only needed when frontend assets are not pre-packaged)
 - Git
-- An AI coding CLI tool ([Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), etc.)
+- Node.js 22+ and npm (only needed when frontend assets are not pre-packaged)
 
-### Step 1: Install the Dashboard
+### Method 1: Server install + systemd user service
 
 ```bash
 git clone https://github.com/Endogen/ralph-dashboard.git
 cd ralph-dashboard
-
 ./scripts/install.sh
-```
-
-`scripts/install.sh` will:
-- create/update `backend/.venv`
-- install the backend package and `ralph-dashboard` CLI
-- install a wrapper into `~/.local/bin/ralph-dashboard`
-- package frontend assets when available
-
-### Step 2: Initialize Runtime Config
-
-```bash
 ralph-dashboard init
-```
-
-This interactive step configures:
-- `RALPH_SECRET_KEY`
-- `RALPH_PROJECT_DIRS`
-- `RALPH_PORT`
-- `RALPH_CREDENTIALS_FILE`
-- first dashboard user credentials
-
-### Step 3: Validate Setup
-
-```bash
 ralph-dashboard doctor
-```
-
-### Step 4: Install User Service
-
-Linux (systemd):
-```bash
 ralph-dashboard service install --user --start
 ```
 
-Optional commands:
+This writes `~/.config/systemd/user/ralph-dashboard.service`, reloads the user daemon, enables the unit, and starts it.
+
+If the service should survive logout/reboot, enable linger once:
 
 ```bash
-ralph-dashboard service status
-ralph-dashboard service logs -f
-ralph-dashboard service stop
-ralph-dashboard service start
+sudo loginctl enable-linger "$USER"
 ```
 
-macOS or manual mode:
+### Method 1A: Non-interactive bootstrap (automation)
+
+Use this when provisioning a server from CI/cloud-init/Ansible.
 
 ```bash
-set -a
-source ~/.config/ralph-dashboard/env
-set +a
-cd backend
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$RALPH_PORT"
+RALPH_ADMIN_USER="admin"
+RALPH_ADMIN_PASSWORD="change-me-now"
+RALPH_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+
+ralph-dashboard init \
+  --project-dirs /srv/projects \
+  --port 8420 \
+  --username "$RALPH_ADMIN_USER" \
+  --password "$RALPH_ADMIN_PASSWORD" \
+  --password-confirm "$RALPH_ADMIN_PASSWORD" \
+  --secret-key "$RALPH_SECRET_KEY" \
+  --force
+
+ralph-dashboard doctor
+ralph-dashboard service install --user --start
 ```
 
-Open `http://localhost:8420` (or the `RALPH_PORT` you configured) in your browser and log in.
+This avoids interactive prompts. Prefer injecting secrets via your secret manager instead of shell history.
 
-### Step 5: Set Up Ralph Loop
+### Method 2: Reverse proxy + TLS (internet-facing)
 
-The dashboard monitors projects that use a [Ralph loop](https://ghuntley.com/ralph/) — an iterative AI coding technique where a script feeds a prompt to a coding tool (Codex, Claude Code, etc.) in a loop, building software one task at a time.
-
-The `ralph.sh` script is included in this repo at `scripts/ralph.sh`:
+An example nginx config is included at `scripts/nginx/ralph.xian.technology.conf`. Copy it to `/etc/nginx/sites-available/`, adjust domain/certificate paths, symlink to `sites-enabled`, and reload:
 
 ```bash
-# Copy the loop runner somewhere convenient
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Issue certificates with Let's Encrypt:
+
+```bash
+sudo certbot --nginx -d your.domain.com
+```
+
+## Connect Ralph Loop Projects (Local or Server)
+
+The dashboard discovers projects under `RALPH_PROJECT_DIRS` that contain a `.ralph/` directory.
+
+### 1. Copy the loop script
+
+```bash
 cp scripts/ralph.sh ~/ralph.sh
 chmod +x ~/ralph.sh
 ```
 
-### Step 6: Prepare a Project
+### 2. Create a project
 
 ```bash
 mkdir -p ~/projects/my-project
 cd ~/projects/my-project
 
-# Create the project files Ralph Loop expects
 cat > AGENTS.md << 'EOF'
 # My Project
 
@@ -381,75 +423,28 @@ STATUS: IN PROGRESS
 - [ ] 1.2: Add core dependencies
 EOF
 
-# Initialize git
 git init && git add -A && git commit -m "initial"
 ```
 
-### Step 7: Start a Ralph Loop
+### 3. Start a Ralph loop
 
 ```bash
 cd ~/projects/my-project
 
-# Start the loop (uses Codex by default)
-~/ralph.sh --max-iterations 10 --full-auto
+# Uses Codex by default
+~/ralph.sh 10
 
-# Or specify a different CLI tool
-~/ralph.sh --cli claude --max-iterations 10 --full-auto
+# Example with another CLI
+RALPH_CLI=claude-code ~/ralph.sh 10
 ```
 
-The loop creates `.ralph/` automatically. Refresh the dashboard — your project should appear in the sidebar.
-
-### Step 8: (Optional) Production Setup
-
-For a persistent deployment, set up a systemd service and nginx reverse proxy. See the [Production Deployment](#production-deployment) section above.
-
-## Production Deployment
-
-### Systemd service
-
-Use the built-in CLI to install/update a user service:
-
-```bash
-ralph-dashboard service install --user --start
-```
-
-This writes `~/.config/systemd/user/ralph-dashboard.service`, reloads the
-user daemon, enables the unit, and starts it.
-
-If you need the service to survive logout/reboot on Linux, enable linger once:
-
-```bash
-sudo loginctl enable-linger "$USER"
-```
-
-### Nginx reverse proxy
-
-An example config is included at `scripts/nginx/ralph.xian.technology.conf`. Copy it to `/etc/nginx/sites-available/`, adjust the domain and certificate paths, symlink to `sites-enabled`, and reload:
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### TLS with Let's Encrypt
-
-```bash
-sudo certbot --nginx -d your.domain.com
-```
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `RALPH_SECRET_KEY` | *(required)* | Secret key for JWT signing |
-| `RALPH_PROJECT_DIRS` | `~/projects` | Comma-separated directories to scan for `.ralph/` projects |
-| `RALPH_PORT` | `8420` | Backend server port |
-| `RALPH_CREDENTIALS_FILE` | `~/.config/ralph-dashboard/credentials.yaml` | Path to credentials file |
-| `RALPH_FRONTEND_DIST` | *(optional)* | Override frontend dist directory served by FastAPI |
+The loop creates `.ralph/` automatically. Refresh the dashboard and the project should appear.
 
 ## Project Structure
 
 ```
 ralph-dashboard/
+├── .env.example               # Template for runtime environment variables
 ├── backend/                   # FastAPI backend (58 Python files)
 │   ├── app/
 │   │   ├── auth/              # JWT authentication & user management

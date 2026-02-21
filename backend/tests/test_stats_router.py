@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import get_settings
+from app.projects.models import project_id_from_path
 from app.stats.router import get_project_stats
 
 
@@ -32,11 +33,12 @@ def _seed_project(tmp_path: Path) -> Path:
 @pytest.mark.anyio
 async def test_get_project_stats_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     workspace = _seed_project(tmp_path)
+    project_id = project_id_from_path(workspace / "stats-project")
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    stats = await get_project_stats("stats-project")
+    stats = await get_project_stats(project_id)
     assert stats.total_iterations == 2
     assert stats.errors_count == 1
     assert stats.tasks_total == 2

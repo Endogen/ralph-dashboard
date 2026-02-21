@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import plistlib
 import subprocess
 from pathlib import Path
 
@@ -12,8 +13,10 @@ import pytest
 from app.cli import dashboard as dashboard_cli
 from app.cli.dashboard import (
     build_doctor_checks,
+    launchd_service_label,
     parse_env_file,
     parse_project_dirs,
+    render_launchd_service_plist,
     render_systemd_service_unit,
     run_build_frontend,
     write_env_file,
@@ -123,3 +126,87 @@ def test_run_build_frontend_requires_npm(
 
     assert result == 1
     assert "npm not found on PATH" in output
+
+
+def test_render_launchd_service_plist_contains_expected_values(tmp_path: Path) -> None:
+    label = launchd_service_label("ralph-dashboard")
+    plist_text = render_launchd_service_plist(
+        label=label,
+        backend_path=tmp_path / "backend",
+        program_arguments=["/tmp/backend/.venv/bin/uvicorn", "app.main:app", "--port", "8420"],
+        environment_variables={
+            "RALPH_SECRET_KEY": "abc",
+            "RALPH_PROJECT_DIRS": "/tmp/projects",
+            "RALPH_PORT": "8420",
+            "RALPH_CREDENTIALS_FILE": "/tmp/credentials.yaml",
+        },
+        stdout_path=tmp_path / "logs" / "out.log",
+        stderr_path=tmp_path / "logs" / "err.log",
+    )
+    payload = plistlib.loads(plist_text.encode("utf-8"))
+
+    assert payload["Label"] == label
+    assert payload["ProgramArguments"] == ["/tmp/backend/.venv/bin/uvicorn", "app.main:app", "--port", "8420"]
+    assert payload["EnvironmentVariables"]["RALPH_SECRET_KEY"] == "abc"
+    assert payload["WorkingDirectory"] == str(tmp_path / "backend")
+    assert payload["RunAtLoad"] is True
+    assert payload["KeepAlive"] is True
+    assert payload["StandardOutPath"] == str(tmp_path / "logs" / "out.log")
+    assert payload["StandardErrorPath"] == str(tmp_path / "logs" / "err.log")
+
+
+def test_build_parser_accepts_launchd_install() -> None:
+    parser = dashboard_cli.build_parser()
+    args = parser.parse_args(["launchd", "install", "--no-start"])
+
+    assert args.command == "launchd"
+    assert args.launchd_command == "install"
+    assert args.start is False
+    assert "enable" not in vars(args)
+
+
+def test_run_launchd_install_requires_macos(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(dashboard_cli.sys, "platform", "linux")
+    args = argparse.Namespace(
+        env_file=str(tmp_path / "env"),
+        service_name="ralph-dashboard",
+        port=None,
+        start=True,
+    )
+
+    result = dashboard_cli.run_launchd_install(args)
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "only supported on macOS" in output
+
+
+def test_resolve_launchd_domain_target_falls_back_to_user_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dashboard_cli.os, "getuid", lambda: 501)
+
+    def fake_run_command(command: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+        target = command[-1]
+        if target == "gui/501":
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="domain does not exist")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(dashboard_cli, "run_command", fake_run_command)
+
+    assert dashboard_cli.resolve_launchd_domain_target() == "user/501"
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        "launchctl bootout returned: no such process",
+        "Could not find service",
+        "service does not exist",
+        "not loaded",
+    ],
+)
+def test_launchd_not_loaded_error_detection(details: str) -> None:
+    assert dashboard_cli._launchd_is_not_loaded(details)

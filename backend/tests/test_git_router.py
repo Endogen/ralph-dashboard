@@ -10,6 +10,7 @@ from git import Actor, Repo
 
 from app.config import get_settings
 from app.git_service.router import get_commit_diff, get_commit_log
+from app.projects.models import project_id_from_path
 
 
 def _seed_git_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -28,12 +29,13 @@ def _seed_git_project(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.mark.anyio
 async def test_get_commit_log_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    workspace, _ = _seed_git_project(tmp_path)
+    workspace, project = _seed_git_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    commits = await get_commit_log("git-project", limit=10, offset=0)
+    commits = await get_commit_log(project_id, limit=10, offset=0)
     assert len(commits) == 1
     assert commits[0].message == "initial commit"
 
@@ -42,12 +44,13 @@ async def test_get_commit_log_handler(monkeypatch: pytest.MonkeyPatch, tmp_path:
 async def test_get_commit_diff_handler_missing_commit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    workspace, _ = _seed_git_project(tmp_path)
+    workspace, project = _seed_git_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_commit_diff("git-project", "deadbeef")
+        await get_commit_diff(project_id, "deadbeef")
 
     assert exc_info.value.status_code == 404

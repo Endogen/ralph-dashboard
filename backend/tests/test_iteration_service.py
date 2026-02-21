@@ -13,6 +13,7 @@ from app.iterations.service import (
     list_project_iterations,
 )
 from app.iterations import service as iteration_service_module
+from app.projects.models import project_id_from_path
 
 
 def _seed_project_iteration_files(project: Path) -> None:
@@ -42,13 +43,14 @@ async def test_list_project_iterations_merges_log_and_jsonl(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "demo-project"
+    project_id = project_id_from_path(project)
     _seed_project_iteration_files(project)
 
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    iterations = await list_project_iterations("demo-project")
+    iterations = await list_project_iterations(project_id)
     assert len(iterations) == 2
     assert iterations[0].number == 1
     assert iterations[0].status == "success"
@@ -64,13 +66,14 @@ async def test_get_project_iteration_detail(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "demo-project"
+    project_id = project_id_from_path(project)
     _seed_project_iteration_files(project)
 
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    detail = await get_project_iteration_detail("demo-project", 1)
+    detail = await get_project_iteration_detail(project_id, 1)
     assert detail is not None
     # Detail view always parses log to get raw_output for the log viewer
     assert isinstance(detail.log_output, str)
@@ -96,6 +99,7 @@ async def test_get_project_iteration_detail_uses_tail_parse_for_large_logs(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "demo-project"
+    project_id = project_id_from_path(project)
     ralph_dir = project / ".ralph"
     ralph_dir.mkdir(parents=True, exist_ok=True)
 
@@ -119,6 +123,6 @@ async def test_get_project_iteration_detail_uses_tail_parse_for_large_logs(
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    detail = await get_project_iteration_detail("demo-project", 2)
+    detail = await get_project_iteration_detail(project_id, 2)
     assert detail is not None
     assert "tail payload line" in detail.log_output

@@ -101,7 +101,7 @@ async def test_list_projects_returns_project_summaries(
     projects = await list_projects()
 
     assert len(projects) == 1
-    assert projects[0].id == "from-discovery"
+    assert projects[0].id == project_id_from_path(discovered_project)
     assert projects[0].name == "from-discovery"
 
 
@@ -119,7 +119,7 @@ async def test_get_project_detail_by_id(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    detail = await get_project_detail("from-discovery")
+    detail = await get_project_detail(project_id_from_path(project))
     missing = await get_project_detail("missing")
 
     assert detail is not None
