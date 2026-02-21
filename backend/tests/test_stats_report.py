@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.config import get_settings
+from app.projects.models import project_id_from_path
 from app.stats.report import generate_project_report
 
 
@@ -31,11 +32,12 @@ def _seed_project(tmp_path: Path) -> Path:
 @pytest.mark.anyio
 async def test_generate_project_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     workspace = _seed_project(tmp_path)
+    project_id = project_id_from_path(workspace / "report-project")
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    report = await generate_project_report("report-project")
+    report = await generate_project_report(project_id)
 
     assert "# Project Report: report-project" in report
     assert "## Summary" in report

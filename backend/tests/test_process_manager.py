@@ -25,6 +25,7 @@ from app.control.process_manager import (
     terminate_pid,
     write_project_config,
 )
+from app.projects.models import project_id_from_path
 
 
 def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -49,11 +50,12 @@ async def test_start_project_process_returns_pid(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    started = await start_project_process("control-project", command=["sleep", "30"])
+    started = await start_project_process(project_id, command=["sleep", "30"])
     try:
         # Dashboard no longer writes PID file — ralph.sh manages it.
         # The returned PID should still be valid.
@@ -72,18 +74,19 @@ async def test_start_project_process_rejects_duplicate_start(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    started = await start_project_process("control-project", command=["sleep", "30"])
+    started = await start_project_process(project_id, command=["sleep", "30"])
     try:
         # Simulate ralph.sh writing its own PID file after launch
         pid_file = project / ".ralph" / "ralph.pid"
         pid_file.write_text(str(started.pid), encoding="utf-8")
 
         with pytest.raises(ProcessAlreadyRunningError):
-            await start_project_process("control-project", command=["sleep", "30"])
+            await start_project_process(project_id, command=["sleep", "30"])
     finally:
         terminate_pid(started.pid)
         for _ in range(20):
@@ -97,19 +100,20 @@ async def test_stop_project_process_stops_and_cleans_pid(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    started = await start_project_process("control-project", command=["sleep", "30"])
+    started = await start_project_process(project_id, command=["sleep", "30"])
     # Simulate ralph.sh writing its own PID file after launch
     pid_file = project / ".ralph" / "ralph.pid"
     pid_file.write_text(str(started.pid), encoding="utf-8")
 
-    stopped = await stop_project_process("control-project", grace_period_seconds=0.2)
+    stopped = await stop_project_process(project_id, grace_period_seconds=0.2)
 
     assert stopped
-    assert not await is_project_running("control-project")
+    assert not await is_project_running(project_id)
     assert not (project / ".ralph" / "ralph.pid").exists()
 
 
@@ -118,12 +122,13 @@ async def test_stop_project_process_returns_false_when_not_running(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     (project / ".ralph" / "ralph.pid").write_text("999999", encoding="utf-8")
-    stopped = await stop_project_process("control-project")
+    stopped = await stop_project_process(project_id)
 
     assert not stopped
     assert not (project / ".ralph" / "ralph.pid").exists()
@@ -134,13 +139,14 @@ async def test_pause_project_process_creates_pause_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    paused = await pause_project_process("control-project")
+    paused = await pause_project_process(project_id)
     pause_file = project / ".ralph" / "pause"
-    paused_again = await pause_project_process("control-project")
+    paused_again = await pause_project_process(project_id)
 
     assert paused
     assert not paused_again
@@ -153,6 +159,7 @@ async def test_resume_project_process_removes_pause_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
@@ -160,8 +167,8 @@ async def test_resume_project_process_removes_pause_file(
     pause_file = project / ".ralph" / "pause"
     pause_file.write_text("", encoding="utf-8")
 
-    resumed = await resume_project_process("control-project")
-    resumed_again = await resume_project_process("control-project")
+    resumed = await resume_project_process(project_id)
+    resumed_again = await resume_project_process(project_id)
 
     assert resumed
     assert not resumed_again
@@ -173,11 +180,12 @@ async def test_inject_project_message_writes_inject_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    written = await inject_project_message("control-project", "Use PostgreSQL for auth settings.")
+    written = await inject_project_message(project_id, "Use PostgreSQL for auth settings.")
 
     inject_file = project / ".ralph" / "inject.md"
     assert written == "Use PostgreSQL for auth settings.\n"
@@ -189,12 +197,13 @@ async def test_inject_project_message_appends_if_pending_injection_exists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    await inject_project_message("control-project", "First instruction.")
-    combined = await inject_project_message("control-project", "Second instruction.")
+    await inject_project_message(project_id, "First instruction.")
+    combined = await inject_project_message(project_id, "Second instruction.")
 
     assert combined == "First instruction.\n\nSecond instruction.\n"
     assert (project / ".ralph" / "inject.md").read_text(encoding="utf-8") == combined
@@ -204,25 +213,27 @@ async def test_inject_project_message_appends_if_pending_injection_exists(
 async def test_inject_project_message_rejects_empty_content(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     with pytest.raises(ProcessInjectionValidationError):
-        await inject_project_message("control-project", "   ")
+        await inject_project_message(project_id, "   ")
 
 
 @pytest.mark.anyio
 async def test_read_project_config_defaults_when_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    config = await read_project_config("control-project")
+    config = await read_project_config(project_id)
 
     assert config.cli == "codex"
     assert config.flags == ""
@@ -236,12 +247,13 @@ async def test_write_project_config_round_trips(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     written = await write_project_config(
-        "control-project",
+        project_id,
         {
             "cli": "claude",
             "flags": "--dangerously-skip-permissions",
@@ -250,7 +262,7 @@ async def test_write_project_config_round_trips(
             "model_pricing": {"claude": 0.015},
         },
     )
-    loaded = await read_project_config("control-project")
+    loaded = await read_project_config(project_id)
 
     config_file = project / ".ralph" / "config.json"
     assert config_file.exists()
@@ -263,6 +275,7 @@ async def test_read_project_config_rejects_invalid_json(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
@@ -270,20 +283,21 @@ async def test_read_project_config_rejects_invalid_json(
     (project / ".ralph" / "config.json").write_text("{not-json", encoding="utf-8")
 
     with pytest.raises(ProcessConfigParseError):
-        await read_project_config("control-project")
+        await read_project_config(project_id)
 
 
 @pytest.mark.anyio
 async def test_write_project_config_rejects_invalid_values(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     with pytest.raises(ProcessConfigValidationError):
-        await write_project_config("control-project", {"max_iterations": -1})
+        await write_project_config(project_id, {"max_iterations": -1})
 
 
 @pytest.mark.anyio
@@ -291,12 +305,13 @@ async def test_write_project_config_allows_unlimited_iterations(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    written = await write_project_config("control-project", {"max_iterations": 0})
-    loaded = await read_project_config("control-project")
+    written = await write_project_config(project_id, {"max_iterations": 0})
+    loaded = await read_project_config(project_id)
 
     assert written.max_iterations == 0
     assert loaded.max_iterations == 0

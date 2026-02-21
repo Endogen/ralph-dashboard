@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.config import get_settings
 from app.files.router import ProjectFileUpdateRequest, get_project_file, put_project_file
+from app.projects.models import project_id_from_path
 
 
 def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -22,12 +23,13 @@ def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.mark.anyio
 async def test_get_project_file_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    workspace, _ = _seed_project(tmp_path)
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    response = await get_project_file("files-project", "agents")
+    response = await get_project_file(project_id, "agents")
     assert response.name == "AGENTS.md"
     assert "agents content" in response.content
 
@@ -37,12 +39,13 @@ async def test_put_project_file_handler_updates_content(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
     payload = ProjectFileUpdateRequest(content="updated prompt\n")
-    response = await put_project_file("files-project", "prompt", payload)
+    response = await put_project_file(project_id, "prompt", payload)
 
     assert response.name == "PROMPT.md"
     assert response.content == "updated prompt\n"

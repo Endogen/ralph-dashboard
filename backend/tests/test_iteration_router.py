@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.config import get_settings
 from app.iterations.router import get_iteration_detail, get_iterations
+from app.projects.models import project_id_from_path
 
 
 def _seed_iteration_files(project: Path) -> None:
@@ -35,13 +36,14 @@ async def test_get_iterations_handler_filters_and_paginates(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "iter-project"
+    project_id = project_id_from_path(project)
     _seed_iteration_files(project)
 
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
-    response = await get_iterations("iter-project", status_filter="error", limit=10, offset=0)
+    response = await get_iterations(project_id, status_filter="error", limit=10, offset=0)
     assert response.total == 1
     assert len(response.iterations) == 1
     assert response.iterations[0].number == 2
@@ -53,6 +55,7 @@ async def test_get_iteration_detail_missing_iteration(
 ) -> None:
     workspace = tmp_path / "workspace"
     project = workspace / "iter-project"
+    project_id = project_id_from_path(project)
     _seed_iteration_files(project)
 
     monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
@@ -60,6 +63,6 @@ async def test_get_iteration_detail_missing_iteration(
     get_settings.cache_clear()
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_iteration_detail("iter-project", 999)
+        await get_iteration_detail(project_id, 999)
 
     assert exc_info.value.status_code == 404

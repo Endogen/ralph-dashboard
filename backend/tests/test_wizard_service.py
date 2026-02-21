@@ -112,7 +112,7 @@ async def test_create_project_full_auto_sets_flags(
     config = json.loads(
         (projects_root / "auto-project" / ".ralph" / "config.json").read_text()
     )
-    assert config["flags"] == "--full-auto"
+    assert config["flags"] == "-s danger-full-access"
 
     # Test with claude CLI
     request_claude = CreateRequest(
