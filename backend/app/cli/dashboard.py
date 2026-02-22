@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import importlib.util
 import os
 import plistlib
 import re
@@ -283,6 +284,15 @@ def check_binary(name: str) -> str | None:
     return shutil.which(name)
 
 
+def detect_websocket_runtime() -> tuple[bool, str]:
+    """Return websocket backend availability for uvicorn upgrades."""
+    if importlib.util.find_spec("websockets") is not None:
+        return True, "websockets"
+    if importlib.util.find_spec("wsproto") is not None:
+        return True, "wsproto"
+    return False, "No supported websocket backend detected"
+
+
 def build_doctor_checks(env_file: Path) -> list[CheckResult]:
     """Evaluate installation/runtime checks with remediation hints."""
     results: list[CheckResult] = []
@@ -316,6 +326,19 @@ def build_doctor_checks(env_file: Path) -> list[CheckResult]:
             ok=uvicorn_exec.exists(),
             message=str(uvicorn_exec) if uvicorn_exec.exists() else "backend/.venv not initialized",
             fix="Run scripts/install.sh to create venv and install dependencies.",
+        )
+    )
+
+    websocket_ok, websocket_impl = detect_websocket_runtime()
+    results.append(
+        CheckResult(
+            name="WebSocket runtime",
+            ok=websocket_ok,
+            message=websocket_impl,
+            fix=(
+                "Re-run scripts/install.sh, or install manually with "
+                "`backend/.venv/bin/pip install \"uvicorn[standard]\"`."
+            ),
         )
     )
 

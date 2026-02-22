@@ -78,6 +78,23 @@ def test_build_doctor_checks_reports_missing_env_file(tmp_path: Path) -> None:
     assert env_check.fix is not None
 
 
+def test_build_doctor_checks_reports_missing_websocket_runtime(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        dashboard_cli,
+        "detect_websocket_runtime",
+        lambda: (False, "No supported websocket backend detected"),
+    )
+
+    checks = build_doctor_checks(tmp_path / "missing.env")
+    websocket_check = next(check for check in checks if check.name == "WebSocket runtime")
+
+    assert websocket_check.ok is False
+    assert websocket_check.fix is not None
+    assert "uvicorn[standard]" in websocket_check.fix
+
+
 def test_run_build_frontend_runs_npm_build_then_package(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

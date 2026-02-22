@@ -1,5 +1,5 @@
 fastapi==0.129.0
-uvicorn==0.38.0
+uvicorn[standard]==0.38.0
 watchdog>=5.0,<7.0
 GitPython>=3.1,<4.0
 python-jose[cryptography]>=3.3,<4.0
