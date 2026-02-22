@@ -273,6 +273,13 @@ extract_token_count() {
   token_line="$(printf '%s' "$token_line" | tr -d '[:space:],')"
 
   if [[ "$token_line" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    # Normalize to k-tokens. Claude Code and Codex output k-tokens natively
+    # (e.g. 35.083 = 35,083 tokens), but other CLIs may output raw token
+    # counts (e.g. 35083). An integer >= 500 with no decimal is almost
+    # certainly raw tokens — a single iteration will never use 500k+ tokens.
+    if [[ "$token_line" =~ ^[0-9]+$ ]] && (( token_line >= 500 )); then
+      token_line="$(python3 -c "print(f'{$token_line / 1000:.3f}')")"
+    fi
     printf '%s' "$token_line"
   fi
 }
