@@ -35,7 +35,7 @@ class GenerateRequest(BaseModel):
     """Request body for LLM-powered spec/plan generation."""
 
     project_name: str = Field(min_length=1, max_length=100)
-    project_description: str = Field(min_length=1, max_length=50000)
+    project_description: str = Field(min_length=1, max_length=20000)
     tech_stack: list[str] = Field(default_factory=list)
     cli: str = "claude"
     auto_approval: str = "sandboxed"

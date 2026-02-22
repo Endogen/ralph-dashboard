@@ -59,12 +59,12 @@ export function StepProjectSetup() {
             onChange={(e) => setProjectDescription(e.target.value)}
             placeholder="Describe what you want to build in detail. Include features, user flows, API endpoints, data models — the more context the better."
             rows={8}
-            maxLength={50000}
+            maxLength={20000}
           />
           <div className="mt-1 flex justify-between text-xs text-muted-foreground">
             <span>Be as detailed as you like — the LLM will distill it into a spec.</span>
-            <span className={projectDescription.length > 45000 ? "text-destructive font-medium" : ""}>
-              {projectDescription.length.toLocaleString()} / 50,000
+            <span className={projectDescription.length > 18000 ? "text-destructive font-medium" : ""}>
+              {projectDescription.length.toLocaleString()} / 20,000
             </span>
           </div>
         </label>
