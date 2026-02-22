@@ -47,7 +47,7 @@ export function StepProjectSetup() {
             placeholder="my-awesome-project"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            This becomes the directory name under your projects folder.
+            This becomes the directory name under your projects folder. Spaces are converted to hyphens automatically.
           </p>
         </label>
 
@@ -59,7 +59,14 @@ export function StepProjectSetup() {
             onChange={(e) => setProjectDescription(e.target.value)}
             placeholder="Describe what you want to build in detail. Include features, user flows, API endpoints, data models — the more context the better."
             rows={8}
+            maxLength={50000}
           />
+          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+            <span>Be as detailed as you like — the LLM will distill it into a spec.</span>
+            <span className={projectDescription.length > 45000 ? "text-destructive font-medium" : ""}>
+              {projectDescription.length.toLocaleString()} / 50,000
+            </span>
+          </div>
         </label>
 
         <div>
@@ -99,7 +106,7 @@ export function StepProjectSetup() {
         {projectName.trim() && (
           <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              Target directory: <code className="font-mono text-foreground">~/projects/{projectName.trim()}</code>
+              Target directory: <code className="font-mono text-foreground">~/projects/{projectName.trim().replace(/\s+/g, "-").toLowerCase()}</code>
             </p>
           </div>
         )}

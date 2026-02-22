@@ -54,6 +54,22 @@ def test_generate_request_allows_unlimited_iterations() -> None:
     assert req.max_iterations == 0
 
 
+def test_generate_request_name_with_spaces_slugified() -> None:
+    req = GenerateRequest(
+        project_name="Chore Tracker",
+        project_description="A chore tracking app",
+    )
+    assert req.project_name == "chore-tracker"
+
+
+def test_generate_request_name_with_multiple_spaces_slugified() -> None:
+    req = GenerateRequest(
+        project_name="  My  Cool  Project  ",
+        project_description="desc",
+    )
+    assert req.project_name == "my-cool-project"
+
+
 def test_generate_request_empty_name_rejected() -> None:
     with pytest.raises(ValidationError):
         GenerateRequest(project_name="", project_description="desc")

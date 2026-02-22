@@ -11,12 +11,18 @@ _SAFE_PROJECT_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 
 
 def _validate_safe_project_name(value: str) -> str:
-    """Validate project name is safe (no path traversal, no special chars)."""
+    """Validate project name is safe (no path traversal, no special chars).
+
+    Spaces are automatically converted to hyphens so names like
+    "Chore Tracker" become "chore-tracker".
+    """
     normalized = value.strip()
     if not normalized:
         raise ValueError("project_name cannot be empty")
     if ".." in normalized or "/" in normalized or "\\" in normalized:
         raise ValueError("project_name must not contain path separators or '..'")
+    # Auto-slugify: lowercase, collapse whitespace → single hyphen, strip edge hyphens.
+    normalized = re.sub(r"\s+", "-", normalized).lower().strip("-")
     if not _SAFE_PROJECT_NAME_RE.match(normalized):
         raise ValueError(
             "project_name must start with alphanumeric and contain only "
@@ -29,7 +35,7 @@ class GenerateRequest(BaseModel):
     """Request body for LLM-powered spec/plan generation."""
 
     project_name: str = Field(min_length=1, max_length=100)
-    project_description: str = Field(min_length=1, max_length=10000)
+    project_description: str = Field(min_length=1, max_length=50000)
     tech_stack: list[str] = Field(default_factory=list)
     cli: str = "claude"
     auto_approval: str = "sandboxed"
