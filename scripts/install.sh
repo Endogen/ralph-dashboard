@@ -65,6 +65,7 @@ echo "Install complete."
 echo "Next steps:"
 echo "1. Ensure $WRAPPER_DIR is on your PATH"
 echo "2. Run: ralph-dashboard init"
+echo "   (auto-creates ~/.config/ralph-dashboard/env and credentials.yaml)"
 echo "3. Run: ralph-dashboard doctor"
 if [[ "$(uname -s)" == "Linux" ]]; then
   echo "4. Run: ralph-dashboard service install --user --start"

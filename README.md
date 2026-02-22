@@ -85,10 +85,12 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 
 ## Setup First: Environment Variables
 
-The backend reads runtime config from environment variables. The easiest path is to run `ralph-dashboard init`, which generates:
+The backend reads runtime config from environment variables. Run `ralph-dashboard init` to auto-create runtime config (no manual `.env` setup needed):
 
 - `~/.config/ralph-dashboard/env`
 - `~/.config/ralph-dashboard/credentials.yaml`
+
+Ralph uses `~/.config/ralph-dashboard/env` by default (not a repo-local `.env` file).
 
 If you set env values manually, use this reference:
 
@@ -319,6 +321,8 @@ cd ralph-dashboard
 ralph-dashboard init
 ralph-dashboard doctor
 ```
+
+`ralph-dashboard init` auto-generates `~/.config/ralph-dashboard/env` (including `RALPH_SECRET_KEY`) and `~/.config/ralph-dashboard/credentials.yaml`.
 
 `scripts/install.sh` creates/updates `backend/.venv`, installs the `ralph-dashboard` CLI wrapper in `~/.local/bin`, and packages frontend assets when possible.
 

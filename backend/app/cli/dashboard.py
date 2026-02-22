@@ -910,7 +910,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_frontend_parser.set_defaults(handler=run_build_frontend)
 
-    init_parser = subparsers.add_parser("init", help="Initialize env + credentials interactively")
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize env + credentials interactively (auto-generates env file + secret key)",
+    )
     init_parser.add_argument("--project-dirs", help=f"Project roots (pathsep/comma separated). Default: {DEFAULT_PROJECT_DIRS[0]}")
     init_parser.add_argument("--port", type=int, help=f"Dashboard port (default: {DEFAULT_PORT})")
     init_parser.add_argument("--username", help="Dashboard username")
