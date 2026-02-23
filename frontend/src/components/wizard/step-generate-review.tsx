@@ -63,7 +63,8 @@ export function StepGenerateReview() {
 
   const [activeTab, setActiveTab] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const pollIntervalRef = useRef<number | null>(null)
+  const pollTimeoutRef = useRef<number | null>(null)
+  const pollTokenRef = useRef(0)
 
   useEffect(() => {
     if (!isGenerating || !generationStartedAt) {
@@ -81,24 +82,26 @@ export function StepGenerateReview() {
     return () => window.clearInterval(intervalId)
   }, [generationStartedAt, isGenerating])
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current !== null) {
-        window.clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
-    }
-  }, [])
-
   const elapsedLabel = useMemo(() => formatElapsed(elapsedSeconds), [elapsedSeconds])
 
   const stopPolling = () => {
-    if (pollIntervalRef.current !== null) {
-      window.clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
+    pollTokenRef.current += 1
+    if (pollTimeoutRef.current !== null) {
+      window.clearTimeout(pollTimeoutRef.current)
+      pollTimeoutRef.current = null
     }
   }
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      pollTokenRef.current += 1
+      if (pollTimeoutRef.current !== null) {
+        window.clearTimeout(pollTimeoutRef.current)
+        pollTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const handleAbortGeneration = async () => {
     if (!isGenerating) return
@@ -123,6 +126,8 @@ export function StepGenerateReview() {
     if (isGenerating) return
 
     stopPolling()
+    const generationToken = pollTokenRef.current + 1
+    pollTokenRef.current = generationToken
 
     setIsGenerating(true)
     setGenerateError(null)
@@ -146,46 +151,64 @@ export function StepGenerateReview() {
         }),
       })
 
+      if (pollTokenRef.current !== generationToken || !useWizardStore.getState().isGenerating) {
+        return
+      }
+
       const requestId = startResponse.request_id
       setActiveGenerationRequestId(requestId)
 
-      // Step 2: Poll for status every 2 seconds
+      const finishGeneration = () => {
+        setIsGenerating(false)
+        setGenerationStartedAt(null)
+        setActiveGenerateController(null)
+        setActiveGenerationRequestId(null)
+      }
+
+      const scheduleNextPoll = () => {
+        if (pollTokenRef.current !== generationToken) return
+        pollTimeoutRef.current = window.setTimeout(() => {
+          void poll()
+        }, 2000)
+      }
+
+      // Step 2: Poll for status every 2 seconds (no overlap: next poll is scheduled after this one resolves)
       const poll = async () => {
+        if (pollTokenRef.current !== generationToken) return
+
         try {
           const statusResponse = await apiFetch<GenerationStatusApiResponse>(
             `/wizard/generate/status/${encodeURIComponent(requestId)}`,
           )
 
+          if (pollTokenRef.current !== generationToken) return
+
           if (statusResponse.status === "complete") {
             stopPolling()
             setGeneratedFiles(statusResponse.files ?? [])
             setActiveTab(0)
-            setIsGenerating(false)
-            setGenerationStartedAt(null)
-            setActiveGenerateController(null)
-            setActiveGenerationRequestId(null)
+            finishGeneration()
           } else if (statusResponse.status === "error") {
             stopPolling()
             setGenerateError(statusResponse.error ?? "Generation failed")
-            setIsGenerating(false)
-            setGenerationStartedAt(null)
-            setActiveGenerateController(null)
-            setActiveGenerationRequestId(null)
+            finishGeneration()
+          } else {
+            scheduleNextPoll()
           }
-          // "pending" — keep polling
         } catch (err) {
+          if (pollTokenRef.current !== generationToken) return
+
           stopPolling()
           const message = err instanceof Error ? err.message : "Failed to check generation status"
           setGenerateError(message)
-          setIsGenerating(false)
-          setGenerationStartedAt(null)
-          setActiveGenerateController(null)
-          setActiveGenerationRequestId(null)
+          finishGeneration()
         }
       }
 
-      pollIntervalRef.current = window.setInterval(poll, 2000)
+      await poll()
     } catch (err) {
+      if (pollTokenRef.current !== generationToken) return
+
       const message = err instanceof Error ? err.message : "Generation failed"
       setGenerateError(message)
       setIsGenerating(false)

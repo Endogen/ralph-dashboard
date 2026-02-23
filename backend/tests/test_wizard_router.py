@@ -8,8 +8,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.wizard.generator import (
-    ApiKeyNotConfiguredError,
-    GenerationError,
     _GenerationJob,
 )
 from app.wizard.router import (

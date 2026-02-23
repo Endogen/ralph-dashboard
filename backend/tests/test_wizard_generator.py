@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 
 import pytest
 
 from app.wizard.generator import (
+    _GENERATION_JOBS,
     ApiKeyNotConfiguredError,
     GenerationError,
     cancel_generation_request,
     generate_project_files,
+    get_generation_status,
+    start_generation,
 )
 from app.wizard import generator as wizard_generator_module
-from app.wizard.schemas import GenerateRequest
+from app.wizard.schemas import GenerateRequest, GeneratedFile
 
 
 class FakeProcess:
@@ -218,3 +222,84 @@ async def test_generate_rejects_unsupported_cli(monkeypatch: pytest.MonkeyPatch)
 
     with pytest.raises(GenerationError, match="Unsupported CLI"):
         await generate_project_files(request)
+
+
+@pytest.mark.anyio
+async def test_start_generation_assigns_request_id_for_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wizard_generator_module._GENERATION_JOBS.clear()
+    captured_request_ids: list[str] = []
+
+    async def _mock_cleanup() -> None:
+        return None
+
+    async def _mock_generate(request: GenerateRequest) -> list[GeneratedFile]:
+        captured_request_ids.append(request.request_id)
+        return [GeneratedFile(path="AGENTS.md", content="# Agents")]
+
+    monkeypatch.setattr("app.wizard.generator.cleanup_stale_jobs", _mock_cleanup)
+    monkeypatch.setattr("app.wizard.generator.generate_project_files", _mock_generate)
+
+    request = GenerateRequest(
+        project_name="test-project",
+        project_description="A simple test project",
+        cli="codex",
+    )
+    request_id = await start_generation(request)
+
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert request_id
+    assert captured_request_ids == [request_id]
+    job = await get_generation_status(request_id)
+    assert job is not None
+    assert job.done is True
+    assert job.error is None
+    assert job.result is not None
+
+    _GENERATION_JOBS.clear()
+
+
+@pytest.mark.anyio
+async def test_start_generation_marks_cancelled_tasks_as_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wizard_generator_module._GENERATION_JOBS.clear()
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _mock_cleanup() -> None:
+        return None
+
+    async def _mock_generate(_: GenerateRequest) -> list[GeneratedFile]:
+        started.set()
+        await release.wait()
+        return [GeneratedFile(path="AGENTS.md", content="# Agents")]
+
+    monkeypatch.setattr("app.wizard.generator.cleanup_stale_jobs", _mock_cleanup)
+    monkeypatch.setattr("app.wizard.generator.generate_project_files", _mock_generate)
+
+    request = GenerateRequest(
+        project_name="test-project",
+        project_description="A simple test project",
+        cli="codex",
+    )
+    request_id = await start_generation(request)
+    await started.wait()
+
+    job = await get_generation_status(request_id)
+    assert job is not None
+
+    job.task.cancel()
+    with suppress(asyncio.CancelledError):
+        await job.task
+
+    await asyncio.sleep(0)
+    done_job = await get_generation_status(request_id)
+    assert done_job is not None
+    assert done_job.done is True
+    assert done_job.error == "Generation cancelled."
+
+    _GENERATION_JOBS.clear()

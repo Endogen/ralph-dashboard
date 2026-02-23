@@ -8,7 +8,7 @@ import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from asyncio.subprocess import PIPE
 
 from app.wizard.schemas import GeneratedFile, GenerateRequest
@@ -368,9 +368,10 @@ async def start_generation(request: GenerateRequest) -> str:
     await cleanup_stale_jobs()
 
     request_id = request.request_id.strip() or str(uuid.uuid4())
+    request_with_id = request.model_copy(update={"request_id": request_id})
 
     async def _run() -> list[GeneratedFile]:
-        return await generate_project_files(request)
+        return await generate_project_files(request_with_id)
 
     task = asyncio.create_task(_run())
     job = _GenerationJob(task=task, created_at=time.monotonic())
@@ -378,9 +379,12 @@ async def start_generation(request: GenerateRequest) -> str:
     def _on_done(t: asyncio.Task) -> None:
         try:
             job.result = t.result()
+        except asyncio.CancelledError:
+            job.error = "Generation cancelled."
         except Exception as exc:
             job.error = str(exc)
-        job.done = True
+        finally:
+            job.done = True
 
     task.add_done_callback(_on_done)
 
