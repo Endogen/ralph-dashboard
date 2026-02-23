@@ -6,6 +6,9 @@ import asyncio
 import json
 import logging
 import os
+import time
+import uuid
+from dataclasses import dataclass, field
 from asyncio.subprocess import PIPE
 
 from app.wizard.schemas import GeneratedFile, GenerateRequest
@@ -13,6 +16,20 @@ from app.wizard.schemas import GeneratedFile, GenerateRequest
 LOGGER = logging.getLogger(__name__)
 _ACTIVE_GENERATIONS: dict[str, asyncio.subprocess.Process] = {}
 _ACTIVE_GENERATIONS_LOCK = asyncio.Lock()
+
+
+@dataclass
+class _GenerationJob:
+    task: asyncio.Task
+    created_at: float
+    result: list[GeneratedFile] | None = None
+    error: str | None = None
+    done: bool = False
+
+
+_GENERATION_JOBS: dict[str, _GenerationJob] = {}
+_GENERATION_JOBS_LOCK = asyncio.Lock()
+_JOB_TTL_SECONDS = 1800  # 30 minutes
 
 SYSTEM_PROMPT = """\
 You are an expert software architect and project planner. You create detailed, \
@@ -344,3 +361,59 @@ async def generate_project_files(request: GenerateRequest) -> list[GeneratedFile
 
     LOGGER.info("Generated %d files for project: %s", len(files), request.project_name)
     return files
+
+
+async def start_generation(request: GenerateRequest) -> str:
+    """Start an async generation task. Returns request_id immediately."""
+    await cleanup_stale_jobs()
+
+    request_id = request.request_id.strip() or str(uuid.uuid4())
+
+    async def _run() -> list[GeneratedFile]:
+        return await generate_project_files(request)
+
+    task = asyncio.create_task(_run())
+    job = _GenerationJob(task=task, created_at=time.monotonic())
+
+    def _on_done(t: asyncio.Task) -> None:
+        try:
+            job.result = t.result()
+        except Exception as exc:
+            job.error = str(exc)
+        job.done = True
+
+    task.add_done_callback(_on_done)
+
+    async with _GENERATION_JOBS_LOCK:
+        _GENERATION_JOBS[request_id] = job
+
+    return request_id
+
+
+async def get_generation_status(request_id: str) -> _GenerationJob | None:
+    """Return the job for *request_id*, or None if not found."""
+    async with _GENERATION_JOBS_LOCK:
+        return _GENERATION_JOBS.get(request_id)
+
+
+async def cleanup_stale_jobs() -> None:
+    """Remove jobs older than *_JOB_TTL_SECONDS* and kill any still-running subprocesses."""
+    now = time.monotonic()
+    async with _GENERATION_JOBS_LOCK:
+        stale_ids = [
+            rid
+            for rid, job in _GENERATION_JOBS.items()
+            if now - job.created_at > _JOB_TTL_SECONDS
+        ]
+        for rid in stale_ids:
+            job = _GENERATION_JOBS.pop(rid)
+            if not job.task.done():
+                job.task.cancel()
+            # Also kill any tracked subprocess for this request.
+            async with _ACTIVE_GENERATIONS_LOCK:
+                proc = _ACTIVE_GENERATIONS.pop(rid, None)
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass

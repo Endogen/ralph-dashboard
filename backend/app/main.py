@@ -27,6 +27,7 @@ from app.projects.service import discover_all_project_paths
 from app.stats.report_router import router as report_router
 from app.stats.router import router as stats_router
 from app.system.router import router as system_router
+from app.wizard.generator import cleanup_stale_jobs
 from app.wizard.router import router as wizard_router
 from app.ws.event_dispatcher import watcher_event_dispatcher
 from app.ws.file_watcher import file_watcher_service
@@ -81,6 +82,7 @@ async def _run_auto_archive() -> None:
 
 AUTO_ARCHIVE_INTERVAL_SECONDS = 3600  # Check every hour
 STATUS_RECONCILE_INTERVAL_SECONDS = 5  # Recheck process-backed status every 5s
+JOB_CLEANUP_INTERVAL_SECONDS = 300  # Clean stale generation jobs every 5 minutes
 
 
 async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
@@ -132,6 +134,27 @@ async def _status_reconcile_loop(stop_event: asyncio.Event) -> None:
             pass
 
 
+async def _job_cleanup_loop(stop_event: asyncio.Event) -> None:
+    """Periodically clean up stale wizard generation jobs."""
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=JOB_CLEANUP_INTERVAL_SECONDS)
+        return
+    except asyncio.TimeoutError:
+        pass
+
+    while not stop_event.is_set():
+        try:
+            await cleanup_stale_jobs()
+        except Exception:
+            LOGGER.warning("Generation job cleanup failed", exc_info=True)
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=JOB_CLEANUP_INTERVAL_SECONDS)
+            return
+        except asyncio.TimeoutError:
+            pass
+
+
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
     await init_database()
@@ -144,9 +167,18 @@ async def app_lifespan(_: FastAPI):
     status_reconcile_task = asyncio.create_task(
         _status_reconcile_loop(status_reconcile_stop)
     )
+    job_cleanup_stop = asyncio.Event()
+    job_cleanup_task = asyncio.create_task(_job_cleanup_loop(job_cleanup_stop))
     try:
         yield
     finally:
+        job_cleanup_stop.set()
+        job_cleanup_task.cancel()
+        try:
+            await job_cleanup_task
+        except asyncio.CancelledError:
+            pass
+
         status_reconcile_stop.set()
         status_reconcile_task.cancel()
         try:

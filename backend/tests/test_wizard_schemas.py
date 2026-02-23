@@ -12,6 +12,8 @@ from app.wizard.schemas import (
     GeneratedFile,
     GenerateRequest,
     GenerateResponse,
+    GenerationStatus,
+    StartGenerateResponse,
     TemplatesResponse,
 )
 
@@ -132,3 +134,34 @@ def test_cancel_generate_request_and_response() -> None:
     resp = CancelGenerateResponse(cancelled=True)
     assert req.request_id == "cancel-1"
     assert resp.cancelled is True
+
+
+def test_start_generate_response() -> None:
+    resp = StartGenerateResponse(request_id="abc-123")
+    assert resp.request_id == "abc-123"
+
+
+def test_generation_status_pending() -> None:
+    status = GenerationStatus(status="pending")
+    assert status.status == "pending"
+    assert status.files is None
+    assert status.error is None
+
+
+def test_generation_status_complete() -> None:
+    files = [
+        GeneratedFile(path="AGENTS.md", content="# Agents"),
+        GeneratedFile(path="PROMPT.md", content="# Prompt"),
+    ]
+    status = GenerationStatus(status="complete", files=files)
+    assert status.status == "complete"
+    assert status.files is not None
+    assert len(status.files) == 2
+    assert status.error is None
+
+
+def test_generation_status_error() -> None:
+    status = GenerationStatus(status="error", error="LLM failed")
+    assert status.status == "error"
+    assert status.error == "LLM failed"
+    assert status.files is None

@@ -133,6 +133,20 @@ class CreateResponse(BaseModel):
     start_error: str | None = None
 
 
+class StartGenerateResponse(BaseModel):
+    """Response from the async generation start endpoint."""
+
+    request_id: str
+
+
+class GenerationStatus(BaseModel):
+    """Response from the generation status polling endpoint."""
+
+    status: str  # "pending" | "complete" | "error"
+    files: list[GeneratedFile] | None = None
+    error: str | None = None
+
+
 class TemplatesResponse(BaseModel):
     """Response for default AGENTS/PROMPT template retrieval."""
 

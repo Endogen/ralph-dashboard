@@ -5,10 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from app.wizard.generator import (
-    ApiKeyNotConfiguredError,
-    GenerationError,
     cancel_generation_request,
-    generate_project_files,
+    get_generation_status,
+    start_generation,
 )
 from app.wizard.schemas import (
     CancelGenerateRequest,
@@ -16,7 +15,8 @@ from app.wizard.schemas import (
     CreateRequest,
     CreateResponse,
     GenerateRequest,
-    GenerateResponse,
+    GenerationStatus,
+    StartGenerateResponse,
     TemplatesResponse,
 )
 from app.wizard.service import (
@@ -36,22 +36,24 @@ async def get_templates() -> TemplatesResponse:
     return TemplatesResponse.model_validate(templates)
 
 
-@router.post("/generate", response_model=GenerateResponse)
-async def post_generate(payload: GenerateRequest) -> GenerateResponse:
-    """Generate project specs and implementation plan using LLM."""
-    try:
-        files = await generate_project_files(payload)
-        return GenerateResponse(files=files)
-    except ApiKeyNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except GenerationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+@router.post("/generate/start", response_model=StartGenerateResponse)
+async def post_generate_start(payload: GenerateRequest) -> StartGenerateResponse:
+    """Start async generation. Returns request_id immediately."""
+    request_id = await start_generation(payload)
+    return StartGenerateResponse(request_id=request_id)
+
+
+@router.get("/generate/status/{request_id}", response_model=GenerationStatus)
+async def get_generate_status(request_id: str) -> GenerationStatus:
+    """Poll generation status. Returns pending/complete/error."""
+    job = await get_generation_status(request_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Generation request not found")
+    if not job.done:
+        return GenerationStatus(status="pending")
+    if job.error:
+        return GenerationStatus(status="error", error=job.error)
+    return GenerationStatus(status="complete", files=job.result)
 
 
 @router.post("/generate/cancel", response_model=CancelGenerateResponse)
