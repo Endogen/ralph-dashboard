@@ -59,6 +59,10 @@ Important:
 - Each task should be completable in one iteration by an AI agent
 - Include setup tasks (project init, dependencies, config)
 - Include testing tasks throughout, not just at the end
+- For full-stack projects, ensure the plan covers BOTH backend AND frontend implementation: \
+  backend tasks (models, APIs, business logic) AND frontend tasks (pages, components, \
+  forms, state management, API integration). Do not leave either side as a single \
+  generic task — break UI features into specific screens and interactions.
 - Output ONLY valid JSON — no markdown fences, no commentary
 
 Output format:
