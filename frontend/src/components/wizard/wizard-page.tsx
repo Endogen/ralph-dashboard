@@ -127,6 +127,8 @@ export function WizardPage() {
   const navigate = useNavigate()
   const currentStep = useWizardStore((s) => s.currentStep)
   const setCurrentStep = useWizardStore((s) => s.setCurrentStep)
+  const projectMode = useWizardStore((s) => s.projectMode)
+  const existingProjectPath = useWizardStore((s) => s.existingProjectPath)
   const projectName = useWizardStore((s) => s.projectName)
   const projectDescription = useWizardStore((s) => s.projectDescription)
   const techStack = useWizardStore((s) => s.techStack)
@@ -144,7 +146,11 @@ export function WizardPage() {
   const canGoNext = useMemo(() => {
     switch (currentStep) {
       case 0:
-        return projectName.trim().length > 0 && projectDescription.trim().length > 0
+        return (
+          projectName.trim().length > 0 &&
+          projectDescription.trim().length > 0 &&
+          (projectMode === "new" || existingProjectPath.trim().length > 0)
+        )
       case 1:
         return true
       case 2:
@@ -154,7 +160,15 @@ export function WizardPage() {
       default:
         return false
     }
-  }, [currentStep, projectName, projectDescription, generatedFiles, isGenerating])
+  }, [
+    currentStep,
+    existingProjectPath,
+    generatedFiles,
+    isGenerating,
+    projectDescription,
+    projectMode,
+    projectName,
+  ])
 
   const goNext = useCallback(() => {
     if (currentStep < steps.length - 1) {
@@ -171,6 +185,8 @@ export function WizardPage() {
   const hasDraft = useMemo(() => {
     return (
       projectName.trim().length > 0 ||
+      projectMode !== "new" ||
+      existingProjectPath.trim().length > 0 ||
       projectDescription.trim().length > 0 ||
       techStack.length > 0 ||
       cli !== "claude" ||
@@ -187,12 +203,14 @@ export function WizardPage() {
     autoApproval,
     cli,
     currentStep,
+    existingProjectPath,
     generatedFiles.length,
     isCreating,
     isGenerating,
     maxIterations,
     modelOverride,
     projectDescription,
+    projectMode,
     projectName,
     techStack.length,
     testCommand,
@@ -242,8 +260,8 @@ export function WizardPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">New Project</h1>
-          <p className="text-sm text-muted-foreground">Create a new project with AI-generated specs and plans.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Project Wizard</h1>
+          <p className="text-sm text-muted-foreground">Create a new project or prepare an existing codebase for a Ralph loop.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={handleCancel}>
           Cancel

@@ -23,7 +23,7 @@ from app.wizard.schemas import (
     GeneratedFile,
     GenerateRequest,
 )
-from app.wizard.service import ProjectDirectoryExistsError
+from app.wizard.service import ProjectDirectoryExistsError, ProjectTargetValidationError
 from app.wizard import router as wizard_router_module
 
 
@@ -154,6 +154,25 @@ async def test_post_create_directory_exists(monkeypatch: pytest.MonkeyPatch) -> 
             )
         )
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_post_create_invalid_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _mock_create(_: CreateRequest):
+        raise ProjectTargetValidationError("Invalid existing project path")
+
+    monkeypatch.setattr(wizard_router_module, "create_project", _mock_create)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_create(
+            CreateRequest(
+                project_name="test",
+                project_mode="existing",
+                existing_project_path="/tmp/does-not-exist",
+                files=[GeneratedFile(path="f.md", content="c")],
+            )
+        )
+    assert exc_info.value.status_code == 400
 
 
 @pytest.mark.anyio

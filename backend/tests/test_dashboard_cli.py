@@ -95,6 +95,39 @@ def test_build_doctor_checks_reports_missing_websocket_runtime(
     assert "uvicorn[standard]" in websocket_check.fix
 
 
+def test_build_doctor_checks_treats_missing_project_dirs_as_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    missing_root = tmp_path / "projects"
+    env_file = tmp_path / "ralph.env"
+    env_file.write_text(f"RALPH_PROJECT_DIRS={missing_root}\n", encoding="utf-8")
+    monkeypatch.delenv("RALPH_PROJECT_DIRS", raising=False)
+
+    checks = build_doctor_checks(env_file)
+    project_dirs_check = next(check for check in checks if check.name == "Project directories")
+
+    assert project_dirs_check.ok is False
+    assert project_dirs_check.warning is True
+    assert str(missing_root) in project_dirs_check.message
+
+
+def test_build_doctor_checks_fails_when_project_dir_points_to_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    not_a_dir = tmp_path / "not-a-dir.txt"
+    not_a_dir.write_text("x", encoding="utf-8")
+    env_file = tmp_path / "ralph.env"
+    env_file.write_text(f"RALPH_PROJECT_DIRS={not_a_dir}\n", encoding="utf-8")
+    monkeypatch.delenv("RALPH_PROJECT_DIRS", raising=False)
+
+    checks = build_doctor_checks(env_file)
+    project_dirs_check = next(check for check in checks if check.name == "Project directories")
+
+    assert project_dirs_check.ok is False
+    assert project_dirs_check.warning is False
+    assert str(not_a_dir) in project_dirs_check.message
+
+
 def test_run_build_frontend_runs_npm_build_then_package(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -386,24 +386,39 @@ def build_doctor_checks(env_file: Path) -> list[CheckResult]:
     raw_project_dirs = effective_env.get("RALPH_PROJECT_DIRS", "")
     project_dirs = parse_project_dirs(raw_project_dirs) if raw_project_dirs else []
     if project_dirs:
-        missing = [path for path in project_dirs if not path.exists()]
-        if missing:
+        invalid_non_dirs = [path for path in project_dirs if path.exists() and not path.is_dir()]
+        if invalid_non_dirs:
             results.append(
                 CheckResult(
                     name="Project directories",
                     ok=False,
-                    message=", ".join(str(path) for path in missing),
-                    fix="Create missing directories or update RALPH_PROJECT_DIRS.",
+                    message=", ".join(str(path) for path in invalid_non_dirs),
+                    fix="Update RALPH_PROJECT_DIRS to contain directory paths only.",
                 )
             )
         else:
-            results.append(
-                CheckResult(
-                    name="Project directories",
-                    ok=True,
-                    message=", ".join(str(path) for path in project_dirs),
+            missing = [path for path in project_dirs if not path.exists()]
+            if missing:
+                results.append(
+                    CheckResult(
+                        name="Project directories",
+                        ok=False,
+                        warning=True,
+                        message=", ".join(str(path) for path in missing),
+                        fix=(
+                            "Create missing directories now, or let the wizard create them "
+                            "when creating your first project."
+                        ),
+                    )
                 )
-            )
+            else:
+                results.append(
+                    CheckResult(
+                        name="Project directories",
+                        ok=True,
+                        message=", ".join(str(path) for path in project_dirs),
+                    )
+                )
     else:
         results.append(
             CheckResult(

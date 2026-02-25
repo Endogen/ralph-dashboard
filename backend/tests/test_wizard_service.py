@@ -12,6 +12,7 @@ from app.projects.models import project_id_from_path
 from app.wizard.schemas import CreateRequest, GeneratedFile
 from app.wizard.service import (
     ProjectDirectoryExistsError,
+    ProjectTargetValidationError,
     create_project,
     get_default_templates,
 )
@@ -85,6 +86,92 @@ async def test_create_project_directory_exists(
     )
 
     with pytest.raises(ProjectDirectoryExistsError):
+        await create_project(request)
+
+
+@pytest.mark.anyio
+async def test_create_existing_project_with_existing_ralph_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    projects_root = tmp_path / "projects"
+    existing_project = projects_root / "existing-ralph-project"
+    (existing_project / ".ralph").mkdir(parents=True)
+    (existing_project / "README.md").write_text("old readme\n", encoding="utf-8")
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(projects_root))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    request = CreateRequest(
+        project_name="existing-ralph-project",
+        project_mode="existing",
+        existing_project_path=str(existing_project),
+        files=[
+            GeneratedFile(path="README.md", content="# Updated\n"),
+            GeneratedFile(path="AGENTS.md", content="# Agents\n"),
+        ],
+    )
+
+    response = await create_project(request)
+
+    assert response.project_id == project_id_from_path(existing_project)
+    assert response.project_path == str(existing_project.resolve())
+    assert (existing_project / ".ralph" / "config.json").is_file()
+    assert (existing_project / "README.md").read_text(encoding="utf-8") == "# Updated\n"
+    assert (existing_project / "AGENTS.md").is_file()
+
+
+@pytest.mark.anyio
+async def test_create_existing_non_ralph_project_bootstraps_ralph_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    projects_root = tmp_path / "projects"
+    existing_project = projects_root / "existing-non-ralph-project"
+    existing_project.mkdir(parents=True)
+    (existing_project / "src").mkdir()
+    (existing_project / "src" / "main.py").write_text("print('hello')\n", encoding="utf-8")
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(projects_root))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    request = CreateRequest(
+        project_name="existing-non-ralph-project",
+        project_mode="existing",
+        existing_project_path=str(existing_project),
+        files=[GeneratedFile(path="PROMPT.md", content="# Prompt\n")],
+    )
+
+    response = await create_project(request)
+
+    assert response.project_id == project_id_from_path(existing_project)
+    assert (existing_project / ".ralph").is_dir()
+    assert (existing_project / ".ralph" / "config.json").is_file()
+    assert (existing_project / ".git").exists()
+    assert (existing_project / "PROMPT.md").is_file()
+
+
+@pytest.mark.anyio
+async def test_create_existing_project_rejects_path_outside_project_roots(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    projects_root = tmp_path / "projects"
+    outside_project = tmp_path / "outside-project"
+    projects_root.mkdir()
+    outside_project.mkdir()
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(projects_root))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    request = CreateRequest(
+        project_name="outside-project",
+        project_mode="existing",
+        existing_project_path=str(outside_project),
+        files=[GeneratedFile(path="PROMPT.md", content="# Prompt\n")],
+    )
+
+    with pytest.raises(ProjectTargetValidationError, match="must be inside one of RALPH_PROJECT_DIRS"):
         await create_project(request)
 
 

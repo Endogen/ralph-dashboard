@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -109,6 +110,8 @@ class CreateRequest(BaseModel):
     """Request body for creating the project on disk."""
 
     project_name: str = Field(min_length=1, max_length=100)
+    project_mode: Literal["new", "existing"] = "new"
+    existing_project_path: str = ""
     cli: str = "claude"
     auto_approval: str = "sandboxed"
     # 0 means unlimited iterations.
@@ -122,6 +125,11 @@ class CreateRequest(BaseModel):
     @classmethod
     def _validate_project_name(cls, value: str) -> str:
         return _validate_safe_project_name(value)
+
+    @field_validator("existing_project_path")
+    @classmethod
+    def _normalize_existing_project_path(cls, value: str) -> str:
+        return value.strip()
 
 
 class CreateResponse(BaseModel):

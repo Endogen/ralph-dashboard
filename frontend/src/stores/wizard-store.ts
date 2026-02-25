@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware"
 
 export type AgentChoice = "codex" | "claude"
 export type ApprovalMode = "full-auto" | "sandboxed"
+export type ProjectMode = "new" | "existing"
 
 export type GeneratedFile = {
   path: string
@@ -15,6 +16,10 @@ type WizardState = {
   setCurrentStep: (step: number) => void
 
   // Step 1: Project Setup
+  projectMode: ProjectMode
+  setProjectMode: (mode: ProjectMode) => void
+  existingProjectPath: string
+  setExistingProjectPath: (path: string) => void
   projectName: string
   setProjectName: (name: string) => void
   projectDescription: string
@@ -64,6 +69,8 @@ type WizardState = {
 
 const initialState = {
   currentStep: 0,
+  projectMode: "new" as ProjectMode,
+  existingProjectPath: "",
   projectName: "",
   projectDescription: "",
   techStack: [] as string[],
@@ -89,6 +96,8 @@ export const useWizardStore = create<WizardState>()(
 
       setCurrentStep: (step) => set({ currentStep: step }),
 
+      setProjectMode: (projectMode) => set({ projectMode }),
+      setExistingProjectPath: (existingProjectPath) => set({ existingProjectPath }),
       setProjectName: (projectName) => set({ projectName }),
       setProjectDescription: (projectDescription) => set({ projectDescription }),
       setTechStack: (techStack) => set({ techStack }),
@@ -152,6 +161,8 @@ export const useWizardStore = create<WizardState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         currentStep: state.currentStep,
+        projectMode: state.projectMode,
+        existingProjectPath: state.existingProjectPath,
         projectName: state.projectName,
         projectDescription: state.projectDescription,
         techStack: state.techStack,

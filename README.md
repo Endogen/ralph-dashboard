@@ -291,6 +291,14 @@ cd ralph-dashboard
 
 `scripts/install.sh` creates/updates `backend/.venv`, installs the `ralph-dashboard` CLI wrapper in `~/.local/bin`, and packages frontend assets when possible.
 
+If your default `python3` is not 3.12+, choose an interpreter explicitly:
+
+```bash
+./scripts/install.sh --python python3.12
+# or:
+PYTHON_BIN=python3.12 ./scripts/install.sh
+```
+
 If `ralph-dashboard` is not found after install, ensure `~/.local/bin` is on your `PATH`.
 
 Choose one run method below. Each method includes `ralph-dashboard init`.

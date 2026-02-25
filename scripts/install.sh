@@ -9,18 +9,83 @@ VENV_DIR="$BACKEND_DIR/.venv"
 WRAPPER_DIR="${HOME}/.local/bin"
 WRAPPER_PATH="$WRAPPER_DIR/ralph-dashboard"
 
-PYTHON_BIN="${PYTHON_BIN:-python3}"
+CLI_PYTHON_BIN=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--python)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "Missing value for --python"
+        exit 1
+      fi
+      CLI_PYTHON_BIN="$1"
+      ;;
+    -h|--help)
+      cat <<'EOF_HELP'
+Usage: ./scripts/install.sh [--python <executable>]
+
+Options:
+  -p, --python   Python interpreter to use (must be Python 3.12+)
+  -h, --help     Show this help message
+
+You can also set PYTHON_BIN (or PYTHON) instead of passing --python.
+EOF_HELP
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Run ./scripts/install.sh --help for usage."
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+is_python_312_plus() {
+  local candidate="$1"
+  "$candidate" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 12) else 1)
+PY
+}
+
+python_version() {
+  local candidate="$1"
+  "$candidate" - <<'PY'
+import sys
+print(".".join(map(str, sys.version_info[:3])))
+PY
+}
+
+PYTHON_BIN="${CLI_PYTHON_BIN:-${PYTHON_BIN:-${PYTHON:-}}}"
+
+if [[ -z "$PYTHON_BIN" ]]; then
+  for candidate in python3.12 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && is_python_312_plus "$candidate"; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
 
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "Python executable not found: $PYTHON_BIN"
+  if [[ -n "${CLI_PYTHON_BIN:-}" ]]; then
+    echo "Python executable not found: $PYTHON_BIN"
+  else
+    echo "No suitable Python interpreter found."
+    echo "Install Python 3.12+ and rerun, or pass --python <executable>."
+  fi
   exit 1
 fi
 
-"$PYTHON_BIN" - <<'PY'
-import sys
-if sys.version_info < (3, 12):
-    raise SystemExit("Python 3.12+ is required.")
-PY
+if ! is_python_312_plus "$PYTHON_BIN"; then
+  actual_version="$(python_version "$PYTHON_BIN")"
+  echo "Python 3.12+ is required, but '$PYTHON_BIN' is $actual_version."
+  echo "Use --python python3.12 (or set PYTHON_BIN=python3.12)."
+  exit 1
+fi
+
+echo "==> Using Python: $PYTHON_BIN ($(python_version "$PYTHON_BIN"))"
 
 echo "==> Ensuring backend virtualenv"
 if [[ ! -d "$VENV_DIR" ]]; then

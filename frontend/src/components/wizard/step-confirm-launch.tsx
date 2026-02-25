@@ -20,6 +20,8 @@ export function StepConfirmLaunch() {
   const pushToast = useToastStore((s) => s.pushToast)
 
   const projectName = useWizardStore((s) => s.projectName)
+  const projectMode = useWizardStore((s) => s.projectMode)
+  const existingProjectPath = useWizardStore((s) => s.existingProjectPath)
   const cli = useWizardStore((s) => s.cli)
   const autoApproval = useWizardStore((s) => s.autoApproval)
   const maxIterations = useWizardStore((s) => s.maxIterations)
@@ -34,6 +36,11 @@ export function StepConfirmLaunch() {
   const reset = useWizardStore((s) => s.reset)
 
   const [startLoop, setStartLoop] = useState(false)
+  const targetPath =
+    projectMode === "existing"
+      ? existingProjectPath.trim()
+      : `~/projects/${projectName.trim().replace(/\s+/g, "-").toLowerCase()}`
+  const fileActionLabel = projectMode === "existing" ? "Files to create/update" : "Files to create"
 
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
@@ -44,6 +51,8 @@ export function StepConfirmLaunch() {
         method: "POST",
         body: JSON.stringify({
           project_name: projectName,
+          project_mode: projectMode,
+          existing_project_path: existingProjectPath,
           cli,
           auto_approval: autoApproval,
           max_iterations: maxIterations,
@@ -55,8 +64,8 @@ export function StepConfirmLaunch() {
       })
 
       pushToast({
-        title: "Project created!",
-        description: `${projectName} is ready${response.started ? " and building" : ""}`,
+        title: projectMode === "existing" ? "Project prepared!" : "Project created!",
+        description: `${response.project_path} is ready${response.started ? " and building" : ""}`,
         tone: "success",
       })
 
@@ -65,7 +74,7 @@ export function StepConfirmLaunch() {
           title: "Loop did not auto-start",
           description:
             response.start_error?.trim() ||
-            "Project was created, but the loop did not start automatically. Start it from the project page.",
+            "Project was prepared, but the loop did not start automatically. Start it from the project page.",
           tone: "info",
         })
       }
@@ -73,10 +82,10 @@ export function StepConfirmLaunch() {
       reset()
       navigate(`/project/${response.project_id}`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create project"
+      const message = err instanceof Error ? err.message : "Failed to prepare project"
       setCreateError(message)
       pushToast({
-        title: "Failed to create project",
+        title: "Failed to prepare project",
         description: message,
         tone: "error",
       })
@@ -84,8 +93,21 @@ export function StepConfirmLaunch() {
       setIsCreating(false)
     }
   }, [
-    projectName, cli, autoApproval, maxIterations, testCommand, modelOverride,
-    generatedFiles, startLoop, setIsCreating, setCreateError, reset, navigate, pushToast,
+    projectName,
+    projectMode,
+    existingProjectPath,
+    cli,
+    autoApproval,
+    maxIterations,
+    testCommand,
+    modelOverride,
+    generatedFiles,
+    startLoop,
+    setIsCreating,
+    setCreateError,
+    reset,
+    navigate,
+    pushToast,
   ])
 
   const agentLabels: Record<string, string> = {
@@ -100,7 +122,7 @@ export function StepConfirmLaunch() {
       <div>
         <h2 className="text-xl font-semibold">Confirm & Launch</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review your project configuration and create it.
+          Review your project configuration and apply it.
         </p>
       </div>
 
@@ -112,11 +134,15 @@ export function StepConfirmLaunch() {
           </div>
           <div>
             <p className="font-semibold">{projectName}</p>
-            <p className="text-xs text-muted-foreground">~/projects/{projectName}</p>
+            <p className="text-xs text-muted-foreground">{targetPath}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg border bg-muted/20 px-3 py-2">
+            <p className="text-xs text-muted-foreground">Project Mode</p>
+            <p className="text-sm font-medium capitalize">{projectMode}</p>
+          </div>
           <div className="rounded-lg border bg-muted/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Agent</p>
             <p className="text-sm font-medium">{agentLabels[cli] ?? cli}</p>
@@ -137,7 +163,7 @@ export function StepConfirmLaunch() {
 
         {/* Files list */}
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Files to create ({generatedFiles.length})</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{fileActionLabel} ({generatedFiles.length})</p>
           <div className="space-y-1">
             {generatedFiles.map((file) => (
               <div key={file.path} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
@@ -181,7 +207,7 @@ export function StepConfirmLaunch() {
         <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
           <div>
-            <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Creation Failed</p>
+            <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Preparation Failed</p>
             <p className="mt-0.5 text-xs text-rose-600 dark:text-rose-400">{createError}</p>
           </div>
         </div>
@@ -197,12 +223,13 @@ export function StepConfirmLaunch() {
         {isCreating ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Creating Project...
+            Preparing Project...
           </>
         ) : (
           <>
             <Rocket className="h-4 w-4" />
-            Create Project{startLoop ? " & Start Building" : ""}
+            {projectMode === "existing" ? "Prepare Project" : "Create Project"}
+            {startLoop ? " & Start Building" : ""}
           </>
         )}
       </Button>
