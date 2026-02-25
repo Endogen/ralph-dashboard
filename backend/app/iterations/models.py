@@ -27,3 +27,7 @@ class IterationDetail(IterationSummary):
 class IterationListResponse(BaseModel):
     iterations: list[IterationSummary] = Field(default_factory=list)
     total: int = 0
+
+
+class IterationDetailListResponse(BaseModel):
+    iterations: list[IterationDetail] = Field(default_factory=list)

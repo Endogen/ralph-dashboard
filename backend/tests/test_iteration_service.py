@@ -9,6 +9,7 @@ import pytest
 from app.config import get_settings
 from app.iterations.service import (
     ProjectNotFoundError,
+    get_project_iteration_details,
     get_project_iteration_detail,
     list_project_iterations,
 )
@@ -79,6 +80,24 @@ async def test_get_project_iteration_detail(
     assert isinstance(detail.log_output, str)
     assert len(detail.log_output) > 0
     assert detail.status == "success"
+
+
+@pytest.mark.anyio
+async def test_get_project_iteration_details_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    project = workspace / "demo-project"
+    project_id = project_id_from_path(project)
+    _seed_project_iteration_files(project)
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    details = await get_project_iteration_details(project_id, [2, 1, 999])
+    assert [detail.number for detail in details] == [1, 2]
+    assert all(isinstance(detail.log_output, str) for detail in details)
 
 
 @pytest.mark.anyio

@@ -3,7 +3,7 @@ import { ArrowDown, Pin, PinOff } from "lucide-react"
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import type { IterationDetail, IterationListResponse } from "@/types/project"
+import type { IterationDetailListResponse, IterationListResponse } from "@/types/project"
 
 type ProjectLogViewerProps = {
   projectId?: string
@@ -25,7 +25,7 @@ type AnsiSegment = {
   style: AnsiStyle
 }
 
-type ParsedLogLine = {
+type RenderedLogLine = {
   raw: string
   segments: AnsiSegment[]
 }
@@ -245,19 +245,22 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       try {
         const listResponse = await apiFetch<IterationListResponse>(`/projects/${projectId}/iterations?status=all&limit=500`)
         const ordered = [...listResponse.iterations].sort((left, right) => left.number - right.number)
-        // Only load the last 20 iterations to avoid overwhelming the
-        // backend with simultaneous requests for large projects.
+        // Only load the last 20 iterations to keep payload size bounded
+        // for large projects.
         const recentIterations = ordered.slice(-20)
-        const details = await Promise.all(
-          recentIterations.map((iteration) =>
-            apiFetch<IterationDetail>(`/projects/${projectId}/iterations/${iteration.number}`),
-          ),
+        const params = new URLSearchParams()
+        for (const iteration of recentIterations) {
+          params.append("numbers", String(iteration.number))
+        }
+        const detailsResponse = await apiFetch<IterationDetailListResponse>(
+          `/projects/${projectId}/iterations/details?${params.toString()}`,
         )
         if (cancelled) {
           return
         }
 
-        const merged = details
+        const merged = [...detailsResponse.iterations]
+          .sort((left, right) => left.number - right.number)
           .map((detail) => {
             const body = detail.log_output?.trim() || "(no log output captured)"
             return `[Iteration ${detail.number}]\n${body}`
@@ -331,9 +334,9 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
   const hasInvalidRange = parsedFrom !== null && parsedTo !== null && parsedFrom > parsedTo
   const hasActiveFilters = normalizedSearchTerm.length > 0 || filterMode !== "all" || hasIterationRange
 
-  const filteredLogContent = useMemo(() => {
+  const filteredLogLines = useMemo<string[]>(() => {
     if (logContent.length === 0 || hasInvalidRange) {
-      return ""
+      return []
     }
 
     const lines = logContent.split(/\r?\n/)
@@ -369,21 +372,11 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       filteredLines.push(line)
     }
 
-    return filteredLines.join("\n")
+    return filteredLines
   }, [filterMode, hasInvalidRange, hasIterationRange, logContent, normalizedSearchTerm, parsedFrom, parsedTo])
 
-  const parsedLogLines = useMemo<ParsedLogLine[]>(() => {
-    if (filteredLogContent.length === 0) {
-      return []
-    }
-    return filteredLogContent.split(/\r?\n/).map((raw) => ({
-      raw,
-      segments: parseAnsiText(raw),
-    }))
-  }, [filteredLogContent])
-
   const virtualizedWindow = useMemo(() => {
-    const totalLines = parsedLogLines.length
+    const totalLines = filteredLogLines.length
     if (totalLines === 0) {
       return {
         startIndex: 0,
@@ -406,19 +399,25 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       offsetY: startIndex * LOG_LINE_HEIGHT_PX,
       totalHeight: totalLines * LOG_LINE_HEIGHT_PX,
     }
-  }, [parsedLogLines.length, scrollTop])
+  }, [filteredLogLines.length, scrollTop])
 
-  const visibleLines = useMemo(
-    () => parsedLogLines.slice(virtualizedWindow.startIndex, virtualizedWindow.endIndex),
-    [parsedLogLines, virtualizedWindow.endIndex, virtualizedWindow.startIndex],
+  const visibleLines = useMemo<RenderedLogLine[]>(
+    () =>
+      filteredLogLines
+        .slice(virtualizedWindow.startIndex, virtualizedWindow.endIndex)
+        .map((raw) => ({
+          raw,
+          segments: parseAnsiText(raw),
+        })),
+    [filteredLogLines, virtualizedWindow.endIndex, virtualizedWindow.startIndex],
   )
 
   const iterationAnchors = useMemo<IterationAnchor[]>(() => {
     const anchors: IterationAnchor[] = []
     const seen = new Set<number>()
 
-    parsedLogLines.forEach((line, lineIndex) => {
-      const iteration = extractIterationNumber(line.raw)
+    filteredLogLines.forEach((line, lineIndex) => {
+      const iteration = extractIterationNumber(line)
       if (iteration === null || seen.has(iteration)) {
         return
       }
@@ -427,7 +426,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
     })
 
     return anchors
-  }, [parsedLogLines])
+  }, [filteredLogLines])
 
   const currentLineIndex = Math.floor(scrollTop / LOG_LINE_HEIGHT_PX)
   const previousAnchor = useMemo(
@@ -485,7 +484,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       return
     }
     scrollToBottom()
-  }, [filteredLogContent, isAutoScroll, scrollToBottom])
+  }, [filteredLogLines.length, isAutoScroll, scrollToBottom])
 
   return (
     <section className="rounded-xl p-4">
@@ -554,8 +553,13 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
         <select
           value={jumpIteration}
           onChange={(event) => {
-            setJumpIteration(event.target.value)
+            const value = event.target.value
+            setJumpIteration(value)
             setJumpError(null)
+            const parsed = Number.parseInt(value, 10)
+            if (Number.isFinite(parsed) && parsed > 0) {
+              jumpToIteration(parsed)
+            }
           }}
           className="min-w-44 rounded-md border border-input bg-background px-3 py-2 text-sm"
           aria-label="Jump to iteration"
@@ -603,7 +607,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
             <p className="text-zinc-400">Loading logs...</p>
           ) : error ? (
             <p className="text-rose-300">{error}</p>
-          ) : filteredLogContent.length === 0 ? (
+          ) : filteredLogLines.length === 0 ? (
             <p className="text-zinc-400">
               {logContent.length === 0
                 ? "No log output yet."
@@ -642,7 +646,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
           )}
         </div>
 
-        {!isAutoScroll && !isAtBottom && !isLoading && !error && parsedLogLines.length > 0 ? (
+        {!isAutoScroll && !isAtBottom && !isLoading && !error && filteredLogLines.length > 0 ? (
           <Button
             type="button"
             variant="secondary"

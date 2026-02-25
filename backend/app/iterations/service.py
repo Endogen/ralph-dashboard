@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from app.iterations.jsonl_parser import ParsedJsonlIteration, parse_iterations_jsonl_file
@@ -115,26 +116,42 @@ async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     """List merged iteration summaries for a project."""
     project_path = await _resolve_project_path(project_id)
     ralph_dir = project_path / ".ralph"
-    jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
+    jsonl_iterations = await asyncio.to_thread(parse_iterations_jsonl_file, ralph_dir / "iterations.jsonl")
 
     # Prefer jsonl data; only parse log if jsonl is empty and log is small
-    log_iterations = _safe_parse_log(ralph_dir / "ralph.log") if not jsonl_iterations else []
+    log_iterations = (
+        await asyncio.to_thread(_safe_parse_log, ralph_dir / "ralph.log")
+        if not jsonl_iterations
+        else []
+    )
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     details = [merged[number] for number in sorted(merged)]
     return [IterationSummary.model_validate(detail.model_dump()) for detail in details]
 
 
+async def get_project_iteration_details(
+    project_id: str, iteration_numbers: list[int]
+) -> list[IterationDetail]:
+    """Get merged iteration details for multiple iteration numbers."""
+    if not iteration_numbers:
+        return []
+
+    project_path = await _resolve_project_path(project_id)
+    ralph_dir = project_path / ".ralph"
+
+    jsonl_task = asyncio.to_thread(parse_iterations_jsonl_file, ralph_dir / "iterations.jsonl")
+    log_task = asyncio.to_thread(_safe_parse_log, ralph_dir / "ralph.log")
+    jsonl_iterations, log_iterations = await asyncio.gather(jsonl_task, log_task)
+
+    merged = _build_iteration_map(log_iterations, jsonl_iterations)
+    requested = sorted({number for number in iteration_numbers if number > 0})
+    return [merged[number] for number in requested if number in merged]
+
+
 async def get_project_iteration_detail(
     project_id: str, iteration_number: int
 ) -> IterationDetail | None:
     """Get merged iteration detail for a specific iteration number."""
-    project_path = await _resolve_project_path(project_id)
-    ralph_dir = project_path / ".ralph"
-    jsonl_iterations = parse_iterations_jsonl_file(ralph_dir / "iterations.jsonl")
-
-    # Always parse log for detail view to get raw_output
-    log_iterations = _safe_parse_log(ralph_dir / "ralph.log")
-
-    merged = _build_iteration_map(log_iterations, jsonl_iterations)
-    return merged.get(iteration_number)
+    details = await get_project_iteration_details(project_id, [iteration_number])
+    return details[0] if details else None

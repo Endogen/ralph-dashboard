@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import get_settings
-from app.iterations.router import get_iteration_detail, get_iterations
+from app.iterations.router import get_iteration_detail, get_iteration_details, get_iterations
 from app.projects.models import project_id_from_path
 
 
@@ -66,3 +66,20 @@ async def test_get_iteration_detail_missing_iteration(
         await get_iteration_detail(project_id, 999)
 
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_iteration_details_handler_returns_requested_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    project = workspace / "iter-project"
+    project_id = project_id_from_path(project)
+    _seed_iteration_files(project)
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    response = await get_iteration_details(project_id, numbers=[2, 1, 999])
+    assert [item.number for item in response.iterations] == [1, 2]

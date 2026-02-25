@@ -37,6 +37,10 @@ export type IterationDetail = IterationSummary & {
   log_output: string
 }
 
+export type IterationDetailListResponse = {
+  iterations: IterationDetail[]
+}
+
 export type GitCommitDiff = {
   hash: string
   diff: string

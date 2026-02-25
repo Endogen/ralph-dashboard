@@ -6,9 +6,10 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.iterations.models import IterationDetail, IterationListResponse
+from app.iterations.models import IterationDetail, IterationDetailListResponse, IterationListResponse
 from app.iterations.service import (
     ProjectNotFoundError,
+    get_project_iteration_details,
     get_project_iteration_detail,
     list_project_iterations,
 )
@@ -36,6 +37,27 @@ async def get_iterations(
     total = len(iterations)
     paginated = iterations[offset : offset + limit]
     return IterationListResponse(iterations=paginated, total=total)
+
+
+@router.get("/details", response_model=IterationDetailListResponse)
+async def get_iteration_details(
+    project_id: str,
+    numbers: list[int] = Query(default_factory=list, alias="numbers"),
+) -> IterationDetailListResponse:
+    normalized = sorted({number for number in numbers if number > 0})
+    if not normalized:
+        return IterationDetailListResponse(iterations=[])
+    if len(normalized) > 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many iteration numbers requested (max 200).",
+        )
+
+    try:
+        details = await get_project_iteration_details(project_id, normalized)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return IterationDetailListResponse(iterations=details)
 
 
 @router.get("/{iteration_number}", response_model=IterationDetail)
