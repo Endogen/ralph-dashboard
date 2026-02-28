@@ -459,15 +459,6 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
     [iterationAnchors],
   )
 
-  const handleJumpSubmit = useCallback(() => {
-    const parsed = Number.parseInt(jumpIteration, 10)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setJumpError("Select a valid iteration to jump.")
-      return
-    }
-    jumpToIteration(parsed)
-  }, [jumpIteration, jumpToIteration])
-
   useEffect(() => {
     if (iterationAnchors.length === 0) {
       setJumpIteration("")
@@ -572,9 +563,6 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
             </option>
           ))}
         </select>
-        <Button type="button" size="sm" variant="outline" onClick={handleJumpSubmit} disabled={!jumpIteration}>
-          Go
-        </Button>
         <Button
           type="button"
           size="sm"
