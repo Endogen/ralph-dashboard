@@ -1,21 +1,11 @@
 import {
   AlertTriangle,
   BadgeCheck,
-  Coins,
-  Gauge,
   ListChecks,
   Percent,
-  Repeat2,
-  Wallet,
 } from "lucide-react"
 
-import { displayTokens } from "@/lib/utils"
-
 type StatsGridProps = {
-  totalTokens: number
-  estimatedCostUsd: number
-  iterationsCompleted: number
-  averageIterationDuration: string
   tasksCompleted: number
   tasksTotal: number
   errorCount: number
@@ -25,16 +15,7 @@ type StatsGridProps = {
 type StatItem = {
   label: string
   value: string
-  icon: typeof Coins
-}
-
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+  icon: typeof ListChecks
 }
 
 function formatInt(value: number): string {
@@ -42,20 +23,12 @@ function formatInt(value: number): string {
 }
 
 export function StatsGrid({
-  totalTokens,
-  estimatedCostUsd,
-  iterationsCompleted,
-  averageIterationDuration,
   tasksCompleted,
   tasksTotal,
   errorCount,
   successRate,
 }: StatsGridProps) {
   const items: StatItem[] = [
-    { label: "Total Tokens", value: formatInt(displayTokens(totalTokens)), icon: Coins },
-    { label: "Estimated Cost", value: formatUsd(estimatedCostUsd), icon: Wallet },
-    { label: "Iterations", value: formatInt(iterationsCompleted), icon: Repeat2 },
-    { label: "Avg Duration", value: averageIterationDuration, icon: Gauge },
     { label: "Tasks Done", value: `${tasksCompleted}/${tasksTotal}`, icon: ListChecks },
     { label: "Errors", value: formatInt(errorCount), icon: AlertTriangle },
     { label: "Success Rate", value: `${successRate.toFixed(1)}%`, icon: Percent },

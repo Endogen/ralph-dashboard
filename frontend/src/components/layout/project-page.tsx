@@ -16,7 +16,7 @@ import { IterationsTable } from "@/components/project/iterations-table"
 import { SpecFileBrowser } from "@/components/project/spec-file-browser"
 import { ControlFilesPane } from "@/components/project/control-files-pane"
 import { StatsGrid } from "@/components/project/stats-grid"
-import { StatusPanel } from "@/components/project/status-panel"
+// StatusPanel removed — data now shown in ProjectTopBar
 import { CodeFilesPane } from "@/components/project/code-files-pane"
 import { ProjectConfigPanel } from "@/components/project/project-config-panel"
 import { SystemPanel } from "@/components/project/system-panel"
@@ -166,7 +166,7 @@ export function ProjectPage() {
   const [isRawPlanMode, setIsRawPlanMode] = useState(false)
   const isRawPlanModeRef = useRef(false)
   const [stats, setStats] = useState<ProjectStats | null>(null)
-  const [cliLabel, setCliLabel] = useState("codex")
+  const [, setCliLabel] = useState("codex")
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const isSavingPlanTask = false // read-only; toggling disabled
@@ -565,7 +565,7 @@ export function ProjectPage() {
 
   const projectName = activeProject?.name ?? id ?? "Unknown Project"
   const status = activeProject?.status ?? "stopped"
-  const modeLabel = status === "running" || status === "paused" ? "BUILDING" : "READY"
+  // modeLabel removed — was only used by StatusPanel
   const taskMetadata = buildTaskMetadata(sortedIterations)
 
   // --- Control bar handlers ---
@@ -667,19 +667,7 @@ export function ProjectPage() {
       case "overview":
         return (
           <div className="space-y-4">
-            <StatusPanel
-              status={status}
-              iterationLabel={iterationLabel}
-              runningFor={runtimeLabel}
-              cliLabel={cliLabel}
-              modeLabel={modeLabel}
-            />
-
             <StatsGrid
-              totalTokens={tokensUsed}
-              estimatedCostUsd={estimatedCostUsd}
-              iterationsCompleted={iterationsCompleted}
-              averageIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
               tasksCompleted={tasksCompleted}
               tasksTotal={tasksTotal}
               errorCount={errorCount}
@@ -794,6 +782,7 @@ export function ProjectPage() {
         runtimeLabel={runtimeLabel}
         tokensUsed={tokensUsed}
         estimatedCostUsd={estimatedCostUsd}
+        avgIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
       />
 
       {/* Tab bar */}
