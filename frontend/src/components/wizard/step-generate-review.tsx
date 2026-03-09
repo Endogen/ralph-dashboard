@@ -272,7 +272,7 @@ export function StepGenerateReview() {
           <div className="text-center">
             <p className="text-sm font-medium">Generating project files...</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              This usually takes 15-30 seconds. {generatorAgentLabel} is creating detailed specs and an implementation plan.
+              {generatorAgentLabel} is creating detailed specs and an implementation plan. Duration depends on the model used.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Elapsed: {elapsedLabel}</p>
           </div>
