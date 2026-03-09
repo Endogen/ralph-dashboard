@@ -705,16 +705,24 @@ export function ProjectPage() {
 
       case "plan":
         return (
-          <div className="space-y-3">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={toggleRawPlanMode}
-                className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-background/80"
-              >
-                {isRawPlanMode ? "Rendered View" : "Raw Markdown Mode"}
-              </button>
-            </div>
+          <section className="max-w-full overflow-hidden rounded-xl p-4">
+            <header className="mb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Plan</h3>
+                  <p className="break-words text-sm text-muted-foreground">
+                    Implementation plan with task tracking. Toggle raw mode to edit the markdown directly.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleRawPlanMode}
+                  className="shrink-0 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-background/80"
+                >
+                  {isRawPlanMode ? "Rendered View" : "Raw Markdown Mode"}
+                </button>
+              </div>
+            </header>
 
             {isRawPlanMode ? (
               <PlanMarkdownEditor
@@ -732,7 +740,7 @@ export function ProjectPage() {
                 isSavingTask={isSavingPlanTask || isSavingPlanRaw}
               />
             )}
-          </div>
+          </section>
         )
 
       case "iterations":
