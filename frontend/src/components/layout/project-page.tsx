@@ -552,7 +552,7 @@ export function ProjectPage() {
           ? `Iteration ${latestIteration.number}/${latestIteration.max_iterations}`
           : `Iteration ${latestIteration.number}`
       : "Iteration n/a"
-  const runtimeLabel = `Running for ${formatDuration(stats?.total_duration_seconds ?? 0)}`
+  const runtimeLabel = `Running ${formatDuration(stats?.total_duration_seconds ?? 0)}`
 
   const tokensUsed = stats?.total_tokens ?? 0
   const estimatedCostUsd = stats?.total_cost_usd ?? 0

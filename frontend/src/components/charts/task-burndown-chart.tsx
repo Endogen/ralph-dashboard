@@ -183,7 +183,7 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
                 stackId="behind"
                 name="Behind Schedule"
                 fill="#EF4444"
-                fillOpacity={0.16}
+                fillOpacity={0.35}
                 stroke="none"
               />
               <Area
@@ -201,7 +201,7 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
                 stackId="ahead"
                 name="Ahead of Schedule"
                 fill="#22C55E"
-                fillOpacity={0.16}
+                fillOpacity={0.35}
                 stroke="none"
               />
               <Line
