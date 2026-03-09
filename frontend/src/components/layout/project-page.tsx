@@ -667,7 +667,7 @@ export function ProjectPage() {
       case "overview":
         return (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Overview</h2>
+            <h3 className="text-base font-semibold">Overview</h3>
             <StatsGrid
               tasksCompleted={tasksCompleted}
               tasksTotal={tasksTotal}
