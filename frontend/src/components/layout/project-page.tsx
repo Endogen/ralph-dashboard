@@ -290,6 +290,38 @@ export function ProjectPage() {
         }
       }
 
+      // Browser notification on iteration errors
+      if (event.type === "iteration_completed" && event.data && typeof event.data === "object") {
+        const data = event.data as Record<string, unknown>
+        if (data.status === "error") {
+          const errors = Array.isArray(data.errors) ? (data.errors as string[]).join(", ") : "Unknown error"
+          const iterNum = typeof data.iteration === "number" ? data.iteration : "?"
+          const name = projectNameRef.current ?? id ?? "Project"
+          void showBrowserNotification({
+            title: `❌ ${name} — Iteration ${iterNum} failed`,
+            body: errors,
+            tag: `ralph-iter-error-${id}-${iterNum}`,
+            onClick: () => window.focus(),
+          })
+        }
+      }
+
+      // Browser notification on error notifications from the loop
+      if (event.type === "notification" && event.data && typeof event.data === "object") {
+        const data = event.data as Record<string, unknown>
+        if (data.prefix === "ERROR" || data.prefix === "BLOCKED" || data.prefix === "DECISION") {
+          const name = projectNameRef.current ?? id ?? "Project"
+          const prefix = data.prefix as string
+          const emoji = prefix === "ERROR" ? "❌" : prefix === "BLOCKED" ? "🚫" : "🤔"
+          void showBrowserNotification({
+            title: `${emoji} ${name} — ${prefix}`,
+            body: typeof data.message === "string" ? data.message : "Check the dashboard for details.",
+            tag: `ralph-notification-${id}`,
+            onClick: () => window.focus(),
+          })
+        }
+      }
+
       // Browser notification on project completion
       if (!completionNotifiedRef.current && event.data && typeof event.data === "object") {
         const data = event.data as Record<string, unknown>

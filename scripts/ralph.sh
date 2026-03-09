@@ -716,6 +716,14 @@ except: pass
   if ((AGENT_EXIT_CODE != 0)); then
     ITER_ERRORS+=("Agent exited with code $AGENT_EXIT_CODE")
     log "${YELLOW}⚠️ Agent exited with code $AGENT_EXIT_CODE${NC}"
+
+    # Detect rate-limit / usage-limit errors and stop the loop
+    if echo "$AGENT_OUTPUT" | grep -qiE "usage limit|rate limit|rate_limit|quota exceeded|too many requests|try again at"; then
+      log "${RED}🛑 Rate limit detected — stopping loop${NC}"
+      notify "ERROR" "Rate limit hit on iteration $CURRENT_ITER — loop stopped" "The AI provider returned a rate/usage limit error. Restart the loop once the limit resets."
+      exit 0
+    fi
+
     notify "ERROR" "Agent crashed on iteration $CURRENT_ITER" "Exit code: $AGENT_EXIT_CODE. Check log for details."
   fi
 
