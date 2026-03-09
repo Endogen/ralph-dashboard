@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 
 import { ITERATION_HEALTH_TIMELINE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
 import type { IterationSummary } from "@/types/project"
@@ -34,9 +34,16 @@ export function IterationHealthTimeline({
   onSelectIteration,
 }: IterationHealthTimelineProps) {
   const points = useMemo(
-    () => [...iterations].sort((left, right) => right.number - left.number).map(classifyHealth),
+    () => [...iterations].sort((left, right) => left.number - right.number).map(classifyHealth),
     [iterations],
   )
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+    }
+  }, [points])
 
   return (
     <section className="max-w-full overflow-hidden p-4">
@@ -68,7 +75,7 @@ export function IterationHealthTimeline({
             </span>
           </div>
 
-          <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+          <div ref={scrollRef} className="mt-3 flex items-center gap-1 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
             {points.map((point) => (
               <button
                 key={point.iteration}
