@@ -34,7 +34,7 @@ export function IterationHealthTimeline({
   onSelectIteration,
 }: IterationHealthTimelineProps) {
   const points = useMemo(
-    () => [...iterations].sort((left, right) => left.number - right.number).map(classifyHealth),
+    () => [...iterations].sort((left, right) => right.number - left.number).map(classifyHealth),
     [iterations],
   )
 
@@ -68,7 +68,7 @@ export function IterationHealthTimeline({
             </span>
           </div>
 
-          <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-1">
+          <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
             {points.map((point) => (
               <button
                 key={point.iteration}
@@ -76,8 +76,10 @@ export function IterationHealthTimeline({
                 onClick={() => onSelectIteration?.(point.iteration)}
                 title={`Iteration ${point.iteration}: ${point.label} (${point.score})`}
                 aria-label={`Iteration ${point.iteration}: ${point.label} (${point.score})`}
-                className={`h-6 w-4 shrink-0 rounded-sm transition-colors ${healthClassName(point.health)}`}
-              />
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-[9px] font-semibold text-white/80 transition-colors ${healthClassName(point.health)}`}
+              >
+                {point.iteration}
+              </button>
             ))}
           </div>
         </>
