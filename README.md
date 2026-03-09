@@ -281,6 +281,11 @@ Everything else is optional — the dashboard gracefully handles missing files a
 - Node.js 22+ and npm (only needed if frontend assets are missing, or when developing the frontend)
 - An AI coding CLI if you plan to run loops from this machine ([Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), etc.)
 
+> **Note:** When running as a systemd service, the service gets a minimal `PATH` that may not include user-installed CLIs (e.g. `~/.npm-global/bin`). If the wizard reports that `codex` or `claude` is not found, symlink it into a system-wide path:
+> ```bash
+> sudo ln -sf $(which codex) /usr/local/bin/codex
+> ```
+
 ### Step 1: Install CLI and dependencies (once)
 
 ```bash
