@@ -1,7 +1,6 @@
 import { useMemo } from "react"
 
 import {
-  Area,
   CartesianGrid,
   Legend,
   Line,
@@ -168,42 +167,6 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
               <YAxis tick={{ fontSize: 12 }} domain={[0, tasksTotal]} />
               <Tooltip content={<BurndownTooltip />} />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Area
-                type="linear"
-                dataKey="behindBase"
-                stackId="behind"
-                fill="transparent"
-                stroke="none"
-                isAnimationActive={false}
-                legendType="none"
-              />
-              <Area
-                type="linear"
-                dataKey="behindGap"
-                stackId="behind"
-                name="Behind Schedule"
-                fill="#EF4444"
-                fillOpacity={0.35}
-                stroke="none"
-              />
-              <Area
-                type="linear"
-                dataKey="aheadBase"
-                stackId="ahead"
-                fill="transparent"
-                stroke="none"
-                isAnimationActive={false}
-                legendType="none"
-              />
-              <Area
-                type="linear"
-                dataKey="aheadGap"
-                stackId="ahead"
-                name="Ahead of Schedule"
-                fill="#22C55E"
-                fillOpacity={0.35}
-                stroke="none"
-              />
               <Line
                 type="linear"
                 dataKey="idealRemaining"
