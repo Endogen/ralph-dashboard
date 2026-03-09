@@ -666,8 +666,14 @@ export function ProjectPage() {
     switch (activeTab) {
       case "overview":
         return (
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold">Overview</h3>
+          <section className="max-w-full overflow-hidden rounded-xl p-4">
+            <header className="mb-3">
+              <h3 className="text-base font-semibold">Overview</h3>
+              <p className="break-words text-sm text-muted-foreground">
+                Project health, progress charts, and recent activity at a glance.
+              </p>
+            </header>
+            <div className="space-y-4">
             <StatsGrid
               tasksCompleted={tasksCompleted}
               tasksTotal={tasksTotal}
@@ -693,7 +699,8 @@ export function ProjectPage() {
             </div>
 
             <RecentActivityFeed iterations={sortedIterations} notifications={notifications} />
-          </div>
+            </div>
+          </section>
         )
 
       case "plan":
