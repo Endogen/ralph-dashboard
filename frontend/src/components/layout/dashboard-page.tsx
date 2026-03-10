@@ -60,7 +60,7 @@ export function DashboardPage() {
         try {
           const [stats, iterResponse] = await Promise.all([
             apiFetch<ProjectStats>(`/projects/${project.id}/stats`),
-            apiFetch<IterationListResponse>(`/projects/${project.id}/iterations`),
+            apiFetch<IterationListResponse>(`/projects/${project.id}/iterations?limit=500`),
           ])
           return [project.id, { stats, iterations: iterResponse.iterations }] as const
         } catch {
