@@ -2,7 +2,7 @@ import { ProjectCard } from "@/components/dashboard/project-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { ProjectStatus } from "@/types/project"
 
-type IterationHealth = "productive" | "partial" | "failed"
+type IterationHealthPoint = { health: "productive" | "partial" | "failed"; iteration: number }
 
 export type ProjectGridItem = {
   id: string
@@ -13,7 +13,7 @@ export type ProjectGridItem = {
   totalTokens: number
   estimatedCostUsd: number
   lastActivityLabel: string
-  healthStrip: IterationHealth[]
+  healthStrip: IterationHealthPoint[]
 }
 
 type ProjectGridProps = {

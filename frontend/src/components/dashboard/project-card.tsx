@@ -1,10 +1,12 @@
+import { useEffect, useRef } from "react"
+
 import { Archive, Clock3, Coins, GitBranch } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { displayTokens } from "@/lib/utils"
 import type { ProjectStatus } from "@/types/project"
 
-type IterationHealth = "productive" | "partial" | "failed"
+type IterationHealthPoint = { health: "productive" | "partial" | "failed"; iteration: number }
 
 type ProjectCardProps = {
   id: string
@@ -15,7 +17,7 @@ type ProjectCardProps = {
   totalTokens: number
   estimatedCostUsd: number
   lastActivityLabel: string
-  healthStrip: IterationHealth[]
+  healthStrip: IterationHealthPoint[]
   onOpen?: (projectId: string) => void
   onArchive?: (projectId: string) => void
 }
@@ -36,7 +38,7 @@ const statusClassName: Record<ProjectStatus, string> = {
   error: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
 }
 
-const healthCellClass: Record<IterationHealth, string> = {
+const healthCellClass: Record<"productive" | "partial" | "failed", string> = {
   productive: "bg-emerald-500/80",
   partial: "bg-amber-500/80",
   failed: "bg-rose-500/80",
@@ -58,6 +60,31 @@ function formatUsd(amount: number): string {
 
 function formatIterationCount(value: number): string {
   return `${value} iteration${value === 1 ? "" : "s"}`
+}
+
+function HealthStrip({ id, healthStrip }: { id: string; healthStrip: IterationHealthPoint[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+    }
+  }, [healthStrip])
+
+  if (healthStrip.length === 0) return null
+
+  return (
+    <div ref={scrollRef} className="flex gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+      {healthStrip.map((point) => (
+        <span
+          key={`${id}-health-${point.iteration}`}
+          title={`Iteration ${point.iteration}`}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[7px] font-semibold text-white/80 ${healthCellClass[point.health]}`}
+        >
+          {point.iteration}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 export function ProjectCard({
@@ -142,11 +169,7 @@ export function ProjectCard({
           <Clock3 className="h-3 w-3" />
           {lastActivityLabel}
         </p>
-        <div className="flex gap-1">
-          {healthStrip.map((health, index) => (
-            <span key={`${id}-health-${index}`} className={`h-2 flex-1 rounded-sm ${healthCellClass[health]}`} />
-          ))}
-        </div>
+        <HealthStrip id={id} healthStrip={healthStrip} />
       </div>
 
       <div className="mt-4 flex gap-2">

@@ -34,11 +34,10 @@ function relativeTimeLabel(isoTimestamp: string | null | undefined): string {
 
 function buildHealthStrip(iterations: IterationSummary[]): ProjectGridItem["healthStrip"] {
   const sorted = [...iterations].sort((a, b) => a.number - b.number)
-  const recent = sorted.slice(-10)
+  const recent = sorted.slice(-20)
   return recent.map((iter) => {
-    if (iter.has_errors) return "failed"
-    if (iter.tasks_completed.length > 0) return "productive"
-    return "partial"
+    const health: "productive" | "partial" | "failed" = iter.has_errors ? "failed" : iter.tasks_completed.length > 0 ? "productive" : "partial"
+    return { health, iteration: iter.number }
   })
 }
 
