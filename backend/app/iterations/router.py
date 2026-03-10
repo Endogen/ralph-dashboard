@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api/projects/{project_id}/iterations", tags=["iterat
 async def get_iterations(
     project_id: str,
     status_filter: Literal["all", "success", "error"] = Query(default="all", alias="status"),
+    sort: Literal["asc", "desc"] = Query(default="asc"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> IterationListResponse:
@@ -33,6 +34,9 @@ async def get_iterations(
         iterations = [item for item in iterations if item.status == "success"]
     elif status_filter == "error":
         iterations = [item for item in iterations if item.has_errors or item.status == "error"]
+
+    if sort == "desc":
+        iterations = list(reversed(iterations))
 
     total = len(iterations)
     paginated = iterations[offset : offset + limit]
