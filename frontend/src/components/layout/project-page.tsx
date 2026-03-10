@@ -798,7 +798,6 @@ export function ProjectPage() {
         runtimeLabel={runtimeLabel}
         tokensUsed={tokensUsed}
         estimatedCostUsd={estimatedCostUsd}
-        avgIterationDuration={formatDuration(stats?.avg_iteration_duration_seconds ?? 0)}
       />
 
       {/* Tab bar */}

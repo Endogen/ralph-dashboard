@@ -1,4 +1,4 @@
-import { Clock3, Coins, Gauge, LoaderCircle, Wallet } from "lucide-react"
+import { Clock3, Coins, LoaderCircle, Wallet } from "lucide-react"
 
 import { displayTokens } from "@/lib/utils"
 import type { ProjectStatus } from "@/types/project"
@@ -10,7 +10,6 @@ type ProjectTopBarProps = {
   runtimeLabel: string
   tokensUsed: number
   estimatedCostUsd: number
-  avgIterationDuration?: string
 }
 
 type StatusMeta = {
@@ -62,7 +61,6 @@ export function ProjectTopBar({
   runtimeLabel,
   tokensUsed,
   estimatedCostUsd,
-  avgIterationDuration,
 }: ProjectTopBarProps) {
   const meta = statusMeta[status]
 
@@ -95,12 +93,7 @@ export function ProjectTopBar({
           <Wallet className="h-4 w-4 text-primary" />
           <span>{formatCost(estimatedCostUsd)}</span>
         </div>
-        {avgIterationDuration && (
-          <div className="flex items-center gap-2 rounded-lg bg-card/40 px-3 py-2">
-            <Gauge className="h-4 w-4 text-primary" />
-            <span>Avg {avgIterationDuration}</span>
-          </div>
-        )}
+
       </div>
     </header>
   )
