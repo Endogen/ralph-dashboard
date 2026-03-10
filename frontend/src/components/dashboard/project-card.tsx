@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react"
-
 import { Archive, Clock3, Coins, GitBranch } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -63,25 +61,16 @@ function formatIterationCount(value: number): string {
 }
 
 function HealthStrip({ id, healthStrip }: { id: string; healthStrip: IterationHealthPoint[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-    }
-  }, [healthStrip])
-
   if (healthStrip.length === 0) return null
 
   return (
-    <div ref={scrollRef} className="flex gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+    <div className="flex gap-1">
       {healthStrip.map((point) => (
         <span
           key={`${id}-health-${point.iteration}`}
           title={`Iteration ${point.iteration}`}
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[7px] font-semibold text-white/80 ${healthCellClass[point.health]}`}
-        >
-          {point.iteration}
-        </span>
+          className={`h-2 flex-1 rounded-sm ${healthCellClass[point.health]}`}
+        />
       ))}
     </div>
   )
