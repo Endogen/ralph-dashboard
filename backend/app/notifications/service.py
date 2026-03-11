@@ -75,6 +75,28 @@ def _entry_from_payload(payload: dict[str, object], source: str, fallback_timest
     )
 
 
+def notification_entry_key(entry: NotificationEntry) -> tuple[str, str | None, str, int | None, str | None]:
+    return (entry.timestamp, entry.prefix, entry.message, entry.iteration, entry.details)
+
+
+def _entry_to_payload(entry: NotificationEntry) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "timestamp": entry.timestamp,
+        "message": entry.message,
+    }
+    if entry.prefix is not None:
+        payload["prefix"] = entry.prefix
+    if entry.status is not None:
+        payload["status"] = entry.status
+    if entry.iteration is not None:
+        payload["iteration"] = entry.iteration
+    if entry.details is not None:
+        payload["details"] = entry.details
+    if entry.source is not None:
+        payload["source"] = entry.source
+    return payload
+
+
 def parse_notification_file(path: Path) -> NotificationEntry | None:
     if not path.exists() or not path.is_file():
         return None
@@ -119,6 +141,51 @@ def parse_notification_jsonl(path: Path) -> list[NotificationEntry]:
     return entries
 
 
+def _read_last_notification_jsonl_entry(path: Path) -> NotificationEntry | None:
+    if not path.exists() or not path.is_file():
+        return None
+
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            if size == 0:
+                return None
+            read_size = min(4096, size)
+            handle.seek(size - read_size)
+            chunk = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
+
+    fallback_timestamp = _fallback_timestamp(path)
+    for raw_line in reversed(chunk.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        return _entry_from_payload(payload, path.name, fallback_timestamp)
+    return None
+
+
+def append_notification_history_entry(ralph_dir: Path, entry: NotificationEntry) -> bool:
+    history_file = ralph_dir / "notifications" / "events.jsonl"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+
+    last_entry = _read_last_notification_jsonl_entry(history_file)
+    if last_entry is not None and notification_entry_key(last_entry) == notification_entry_key(entry):
+        return False
+
+    payload = _entry_to_payload(entry)
+    with history_file.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    return True
+
+
 def _iter_archive_candidates(ralph_dir: Path) -> list[Path]:
     candidates: list[Path] = []
     for archive_dir in (ralph_dir / "notifications", ralph_dir / "archive" / "notifications"):
@@ -130,36 +197,36 @@ def _iter_archive_candidates(ralph_dir: Path) -> list[Path]:
 
 
 async def get_notification_history(project_id: str) -> list[NotificationEntry]:
-    """Return pending + last + archived notifications for a project."""
+    """Return notification history plus any active pending notification."""
     ralph_dir = await _resolve_ralph_dir(project_id)
 
     seen_keys: set[tuple[str, str | None, str, int | None, str | None]] = set()
     entries: list[NotificationEntry] = []
 
-    primary_files = [
-        ralph_dir / "pending-notification.txt",
-        ralph_dir / "last-notification.txt",
-    ]
+    pending_file = ralph_dir / "pending-notification.txt"
     archive_files = _iter_archive_candidates(ralph_dir)
-    jsonl_files = [
+    history_files = [
         ralph_dir / "notifications" / "events.jsonl",
     ]
 
     def append_entry(entry: NotificationEntry) -> None:
-        key = (entry.timestamp, entry.prefix, entry.message, entry.iteration, entry.details)
+        key = notification_entry_key(entry)
         if key in seen_keys:
             return
         seen_keys.add(key)
         entries.append(entry)
 
-    for path in [*primary_files, *archive_files]:
-        entry = parse_notification_file(path)
-        if entry is None:
-            continue
-        append_entry(entry)
-
-    for path in jsonl_files:
+    for path in history_files:
         for entry in parse_notification_jsonl(path):
+            append_entry(entry)
+
+    pending_entry = parse_notification_file(pending_file)
+    if pending_entry is not None:
+        append_entry(pending_entry)
+
+    for path in archive_files:
+        entry = parse_notification_file(path)
+        if entry is not None:
             append_entry(entry)
 
     entries.sort(key=lambda item: item.timestamp, reverse=True)

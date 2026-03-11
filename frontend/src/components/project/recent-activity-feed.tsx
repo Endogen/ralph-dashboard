@@ -46,7 +46,10 @@ function formatTokens(value: number | null): string {
   return `${displayTokens(value).toLocaleString("en-US")} tokens`
 }
 
-function buildIterationEvents(iterations: IterationSummary[]): ActivityItem[] {
+function buildIterationEvents(
+  iterations: IterationSummary[],
+  alertedIterations: Set<number>,
+): ActivityItem[] {
   const ordered = [...iterations].sort((left, right) => left.number - right.number)
   const fallbackBase = Date.now() - ordered.length * 60_000
 
@@ -76,7 +79,8 @@ function buildIterationEvents(iterations: IterationSummary[]): ActivityItem[] {
       })
     }
 
-    if (iteration.has_errors || status === "error" || iteration.test_passed === false) {
+    const hasIterationFailure = iteration.has_errors || status === "error" || iteration.test_passed === false
+    if (hasIterationFailure && !alertedIterations.has(iteration.number)) {
       const firstError = iteration.errors[0] ?? "Check iteration logs for details."
       events.push({
         id: `error-${iteration.number}`,
@@ -107,6 +111,19 @@ function buildNotificationEvents(notifications: NotificationEntry[]): ActivityIt
   })
 }
 
+function buildAlertedIterationSet(notifications: NotificationEntry[]): Set<number> {
+  const alerted = new Set<number>()
+  for (const notification of notifications) {
+    if (
+      notification.iteration &&
+      (notification.prefix === "ERROR" || notification.prefix === "BLOCKED")
+    ) {
+      alerted.add(notification.iteration)
+    }
+  }
+  return alerted
+}
+
 function iconForKind(kind: ActivityKind) {
   if (kind === "task") {
     return <ListChecks className="h-4 w-4 text-emerald-500" />
@@ -126,7 +143,11 @@ export function RecentActivityFeed({
   limit = 12,
 }: RecentActivityFeedProps) {
   const items = useMemo(() => {
-    const merged = [...buildIterationEvents(iterations), ...buildNotificationEvents(notifications)]
+    const alertedIterations = buildAlertedIterationSet(notifications)
+    const merged = [
+      ...buildIterationEvents(iterations, alertedIterations),
+      ...buildNotificationEvents(notifications),
+    ]
     return merged.sort((left, right) => right.timeMs - left.timeMs).slice(0, limit)
   }, [iterations, notifications, limit])
 

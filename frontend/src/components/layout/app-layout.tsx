@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { FolderPlus, MoonStar, Sun } from "lucide-react"
-import { NavLink, Outlet } from "react-router-dom"
+import { NavLink, Outlet, useNavigate } from "react-router-dom"
 
 import { AddProjectDialog } from "@/components/dashboard/add-project-dialog"
 import { AppSidebar } from "@/components/layout/app-sidebar"
@@ -9,19 +9,33 @@ import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ToastRegion } from "@/components/ui/toast-region"
 import { useTheme } from "@/hooks/use-theme"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
+import { deliverAttentionSignal } from "@/lib/native-notifications"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import { useProjectsStore } from "@/stores/projects-store"
 import type { ProjectStatus } from "@/types/project"
 export function AppLayout() {
+  const navigate = useNavigate()
   const [addProjectOpen, setAddProjectOpen] = useState(false)
   const { preference, resolvedTheme, setPreference, toggleTheme } = useTheme()
   const projects = useProjectsStore((state) => state.projects)
   const fetchProjects = useProjectsStore((state) => state.fetchProjects)
   const patchProject = useProjectsStore((state) => state.patchProject)
   const upsertProject = useProjectsStore((state) => state.upsertProject)
+  const activeProjectId = useActiveProjectStore((state) => state.activeProjectId)
   const patchActiveProject = useActiveProjectStore((state) => state.patchActiveProject)
+  const subscribedProjects = useMemo(() => {
+    const ids = new Set(projects.map((project) => project.id))
+    if (activeProjectId) {
+      ids.add(activeProjectId)
+    }
+    return Array.from(ids)
+  }, [activeProjectId, projects])
   const handleSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
+      const projectName = event.project
+        ? (projects.find((project) => project.id === event.project)?.name ?? event.project)
+        : null
+
       if (
         (event.type === "iteration_started" ||
           event.type === "iteration_completed" ||
@@ -31,13 +45,71 @@ export function AppLayout() {
         void fetchProjects()
       }
 
+      if (event.type === "notification" && event.project && event.data && typeof event.data === "object") {
+        const data = event.data as {
+          prefix?: unknown
+          message?: unknown
+          details?: unknown
+          iteration?: unknown
+        }
+        const prefix = typeof data.prefix === "string" ? data.prefix.trim().toUpperCase() : ""
+        const message = typeof data.message === "string" ? data.message.trim() : ""
+        const details = typeof data.details === "string" ? data.details.trim() : ""
+        const iteration = typeof data.iteration === "number" ? data.iteration : null
+
+        if (!prefix || !message || prefix === "PROGRESS") {
+          return
+        }
+
+        const titleMap: Record<string, string> = {
+          ERROR: `${projectName ?? "Project"} - Error`,
+          BLOCKED: `${projectName ?? "Project"} - Blocked`,
+          DECISION: `${projectName ?? "Project"} - Decision needed`,
+          DONE: `${projectName ?? "Project"} complete`,
+          PLANNING_COMPLETE: `${projectName ?? "Project"} ready for building`,
+        }
+        const toneMap = {
+          ERROR: "error",
+          BLOCKED: "error",
+          DECISION: "info",
+          DONE: "success",
+          PLANNING_COMPLETE: "info",
+        } as const
+        if (!(prefix in titleMap)) {
+          return
+        }
+        const supportedPrefix =
+          prefix as "ERROR" | "BLOCKED" | "DECISION" | "DONE" | "PLANNING_COMPLETE"
+
+        const description = details || message
+        const dedupeKey = [
+          "runtime-alert",
+          event.project,
+          prefix,
+          iteration ?? "none",
+          event.timestamp ?? "no-ts",
+          message,
+        ].join(":")
+        void deliverAttentionSignal({
+          title: titleMap[supportedPrefix],
+          description,
+          tone: toneMap[supportedPrefix],
+          durationMs: prefix === "DONE" ? 6000 : 5000,
+          dedupeKey,
+          browserTag: `ralph-runtime-${event.project}-${prefix.toLowerCase()}`,
+          onClick: () => {
+            navigate(`/project/${event.project}`)
+          },
+        })
+        return
+      }
+
       if (event.type !== "status_changed" || !event.project) {
         return
       }
       if (!event.data || typeof event.data !== "object") {
         return
       }
-
       const status = (event.data as { status?: string }).status
       if (!status) {
         return
@@ -50,10 +122,10 @@ export function AppLayout() {
       patchProject(event.project, { status: status as ProjectStatus })
       patchActiveProject(event.project, { status: status as ProjectStatus })
     },
-    [fetchProjects, patchProject, patchActiveProject],
+    [fetchProjects, navigate, patchProject, patchActiveProject, projects],
   )
   const { connected, reconnecting } = useWebSocket({
-    projects: projects.map((project) => project.id),
+    projects: subscribedProjects,
     onEvent: handleSocketEvent,
   })
 

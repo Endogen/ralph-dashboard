@@ -16,6 +16,7 @@ class ProjectStatus(StrEnum):
     running = "running"
     paused = "paused"
     stopped = "stopped"
+    error = "error"
     complete = "complete"
 
 

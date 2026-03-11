@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -130,3 +131,55 @@ async def test_reconcile_project_status_emits_only_when_status_changes(
             "data": {"status": "stopped", "previous": "running"},
         },
     ]
+
+
+@pytest.mark.anyio
+async def test_notification_change_emits_once_and_records_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project_path = tmp_path / "notify-project"
+    ralph_dir = project_path / ".ralph"
+    notify_path = ralph_dir / "pending-notification.txt"
+    notify_path.parent.mkdir(parents=True, exist_ok=True)
+    notify_path.write_text(
+        '{"timestamp":"2026-03-12T10:00:00Z","prefix":"ERROR","message":"Tests failed","iteration":4,"details":"pytest -q failed"}\n',
+        encoding="utf-8",
+    )
+
+    fake_hub = CapturingHub()
+    monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
+    dispatcher = event_dispatcher.WatcherEventDispatcher()
+    change = FileChangeEvent(
+        project_id="notify-project",
+        project_path=project_path,
+        path=notify_path,
+        event_type="modified",
+    )
+
+    await dispatcher.handle_change(change)
+    await dispatcher.handle_change(change)
+
+    notification_events = [event for event in fake_hub.events if event["type"] == "notification"]
+    assert notification_events == [
+        {
+            "type": "notification",
+            "project": "notify-project",
+            "data": {
+                "prefix": "ERROR",
+                "message": "Tests failed",
+                "iteration": 4,
+                "details": "pytest -q failed",
+                "status": None,
+                "source": "pending-notification.txt",
+            },
+        }
+    ]
+
+    history_path = ralph_dir / "notifications" / "events.jsonl"
+    lines = history_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["prefix"] == "ERROR"
+    assert payload["message"] == "Tests failed"
+    assert payload["iteration"] == 4

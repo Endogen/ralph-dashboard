@@ -23,7 +23,6 @@ import { SystemPanel } from "@/components/project/system-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
-import { requestNotificationPermission, showBrowserNotification } from "@/lib/browser-notifications"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import { useToastStore } from "@/stores/toast-store"
 import type {
@@ -188,15 +187,6 @@ export function ProjectPage() {
     return trimmed.length > 0 ? trimmed : null
   }, [location.search])
 
-  // Track whether we've already fired a browser notification for completion
-  const completionNotifiedRef = useRef(false)
-
-  // Ref for activeProject name to avoid stale closures in socket handler
-  const projectNameRef = useRef(activeProject?.name)
-  useEffect(() => {
-    projectNameRef.current = activeProject?.name
-  }, [activeProject?.name])
-
   const queueOverviewRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) {
       return
@@ -227,7 +217,6 @@ export function ProjectPage() {
     logChunkIdRef.current = 0
     setHasUnreadLog(false)
     initialFetchDoneRef.current = false
-    completionNotifiedRef.current = false
   }, [id])
 
   // Clear unread indicator when switching to Log tab
@@ -244,11 +233,6 @@ export function ProjectPage() {
       setActiveTab(requestedTab)
     }
   }, [location.search])
-
-  // Request browser notification permission on first project page visit
-  useEffect(() => {
-    void requestNotificationPermission()
-  }, [])
 
   const handleOverviewSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
@@ -289,64 +273,8 @@ export function ProjectPage() {
           patchActiveProject(id, { status: status as ProjectStatus })
         }
       }
-
-      // Browser notification on iteration errors
-      if (event.type === "iteration_completed" && event.data && typeof event.data === "object") {
-        const data = event.data as Record<string, unknown>
-        if (data.status === "error") {
-          const errors = Array.isArray(data.errors) ? (data.errors as string[]).join(", ") : "Unknown error"
-          const iterNum = typeof data.iteration === "number" ? data.iteration : "?"
-          const name = projectNameRef.current ?? id ?? "Project"
-          void showBrowserNotification({
-            title: `❌ ${name} — Iteration ${iterNum} failed`,
-            body: errors,
-            tag: `ralph-iter-error-${id}-${iterNum}`,
-            onClick: () => window.focus(),
-          })
-        }
-      }
-
-      // Browser notification on error notifications from the loop
-      if (event.type === "notification" && event.data && typeof event.data === "object") {
-        const data = event.data as Record<string, unknown>
-        if (data.prefix === "ERROR" || data.prefix === "BLOCKED" || data.prefix === "DECISION") {
-          const name = projectNameRef.current ?? id ?? "Project"
-          const prefix = data.prefix as string
-          const emoji = prefix === "ERROR" ? "❌" : prefix === "BLOCKED" ? "🚫" : "🤔"
-          void showBrowserNotification({
-            title: `${emoji} ${name} — ${prefix}`,
-            body: typeof data.message === "string" ? data.message : "Check the dashboard for details.",
-            tag: `ralph-notification-${id}`,
-            onClick: () => window.focus(),
-          })
-        }
-      }
-
-      // Browser notification on project completion
-      if (!completionNotifiedRef.current && event.data && typeof event.data === "object") {
-        const data = event.data as Record<string, unknown>
-        const isComplete =
-          (event.type === "plan_updated" && typeof data.status === "string" && data.status.toUpperCase() === "COMPLETE") ||
-          (event.type === "notification" && data.prefix === "DONE")
-
-        if (isComplete) {
-          completionNotifiedRef.current = true
-          const name = projectNameRef.current ?? id ?? "Project"
-          void showBrowserNotification({
-            title: `✅ ${name} — Complete`,
-            body: "All tasks finished successfully.",
-            tag: `ralph-complete-${id}`,
-            onClick: () => window.focus(),
-          })
-          pushToast({
-            title: `${name} complete!`,
-            description: "All tasks in the implementation plan are done.",
-            tone: "success",
-          })
-        }
-      }
     },
-    [id, queueOverviewRefresh, pushToast, patchActiveProject],
+    [id, queueOverviewRefresh, patchActiveProject],
   )
 
   useWebSocket({

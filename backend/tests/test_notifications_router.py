@@ -23,16 +23,13 @@ def _seed_project(tmp_path: Path) -> Path:
         '{"timestamp":"2026-01-01T01:00:00Z","prefix":"ERROR","message":"Pending failure","status":"pending"}',
         encoding="utf-8",
     )
-    (ralph_dir / "last-notification.txt").write_text(
-        '{"timestamp":"2026-01-01T00:30:00Z","message":"PROGRESS: Last status","status":"delivered"}',
-        encoding="utf-8",
-    )
     (archive_dir / "2025-12-31.txt").write_text(
         '{"timestamp":"2025-12-31T23:00:00Z","message":"DONE: Archived message","status":"archived"}',
         encoding="utf-8",
     )
     (archive_dir / "events.jsonl").write_text(
-        '{"timestamp":"2026-01-01T00:45:00Z","prefix":"ERROR","message":"Historical failure","status":"delivered","iteration":3}\n',
+        '{"timestamp":"2026-01-01T01:00:00Z","prefix":"ERROR","message":"Pending failure","status":"pending"}\n'
+        '{"timestamp":"2026-01-01T00:45:00Z","prefix":"ERROR","message":"Historical failure","status":"recorded","iteration":3}\n',
         encoding="utf-8",
     )
     return workspace
@@ -47,13 +44,12 @@ async def test_get_notifications_handler(monkeypatch: pytest.MonkeyPatch, tmp_pa
     get_settings.cache_clear()
 
     notifications = await get_notifications(project_id)
-    assert len(notifications) == 4
+    assert len(notifications) == 3
     assert notifications[0].prefix == "ERROR"
     assert notifications[0].message == "Pending failure"
     assert notifications[1].prefix == "ERROR"
     assert notifications[1].message == "Historical failure"
-    assert notifications[2].prefix == "PROGRESS"
-    assert notifications[3].prefix == "DONE"
+    assert notifications[2].prefix == "DONE"
 
 
 @pytest.mark.anyio

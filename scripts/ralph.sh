@@ -10,8 +10,6 @@ PLAN_FILE="IMPLEMENTATION_PLAN.md"
 LOG_DIR=".ralph"
 LOG_FILE="$LOG_DIR/ralph.log"
 NOTIFY_FILE="$LOG_DIR/pending-notification.txt"
-NOTIFY_HISTORY_DIR="$LOG_DIR/notifications"
-NOTIFY_HISTORY_FILE="$NOTIFY_HISTORY_DIR/events.jsonl"
 ITERATIONS_FILE="$LOG_DIR/iterations.jsonl"
 PID_FILE="$LOG_DIR/ralph.pid"
 PAUSE_FILE="$LOG_DIR/pause"
@@ -67,9 +65,7 @@ base64_nowrap() {
   base64 | tr -d '\n'
 }
 
-# Send notification via OpenClaw cron + write details to file.
-# The orchestrating agent (OpenClaw) will triage and decide whether to
-# forward to human or attempt to help.
+# Persist a notification for the dashboard and local history.
 notify() {
   local prefix="$1"
   local message="$2"
@@ -82,25 +78,7 @@ notify() {
   project_name="$(basename "$project_dir")"
   local log_tail
   log_tail="$(tail -50 "$LOG_FILE" 2>/dev/null | base64_nowrap || true)"
-  local status="pending"
-
-  if command -v openclaw &>/dev/null; then
-    local event_text="[Ralph:${project_name}] ${prefix}: ${message}"
-    if openclaw cron add \
-      --name "ralph-${project_name}-notify" \
-      --at "5s" \
-      --session main \
-      --system-event "$event_text" \
-      --wake now \
-      --delete-after-run >/dev/null 2>&1; then
-      status="delivered"
-      log "✅ OpenClaw notification scheduled"
-    else
-      log "⚠️ OpenClaw cron failed - notification saved to file for heartbeat pickup"
-    fi
-  else
-    log "📋 openclaw not found - notification saved to $NOTIFY_FILE"
-  fi
+  local status="recorded"
 
   if command -v python3 &>/dev/null; then
     if ! NOTIFY_TIMESTAMP="$timestamp" \
@@ -115,7 +93,6 @@ notify() {
       NOTIFY_LOG_TAIL="$log_tail" \
       NOTIFY_STATUS="$status" \
       NOTIFY_FILE_PATH="$NOTIFY_FILE" \
-      NOTIFY_HISTORY_FILE_PATH="$NOTIFY_HISTORY_FILE" \
       python3 - <<'PY'
 import json
 import os
@@ -146,17 +123,11 @@ payload = {
 notify_file = Path(os.environ["NOTIFY_FILE_PATH"])
 notify_file.parent.mkdir(parents=True, exist_ok=True)
 notify_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-history_file = Path(os.environ["NOTIFY_HISTORY_FILE_PATH"])
-history_file.parent.mkdir(parents=True, exist_ok=True)
-with history_file.open("a", encoding="utf-8") as handle:
-    handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
 PY
     then
       log "⚠️ Failed to persist notification payload to disk"
     fi
   else
-    mkdir -p "$NOTIFY_HISTORY_DIR"
     printf '{"timestamp":"%s","project":"%s","project_name":"%s","prefix":"%s","message":"%s","details":"%s","iteration":%s,"max_iterations":%s,"cli":"%s","log_tail":"%s","status":"%s"}\n' \
       "$timestamp" \
       "$project_dir" \
@@ -169,21 +140,9 @@ PY
       "${CLI:-}" \
       "$log_tail" \
       "$status" > "$NOTIFY_FILE" 2>/dev/null || true
-    printf '{"timestamp":"%s","project":"%s","project_name":"%s","prefix":"%s","message":"%s","details":"%s","iteration":%s,"max_iterations":%s,"cli":"%s","log_tail":"%s","status":"%s"}\n' \
-      "$timestamp" \
-      "$project_dir" \
-      "$project_name" \
-      "$prefix" \
-      "$message" \
-      "$details" \
-      "${CURRENT_ITER:-0}" \
-      "${MAX_ITERS:-0}" \
-      "${CLI:-}" \
-      "$log_tail" \
-      "$status" >> "$NOTIFY_HISTORY_FILE" 2>/dev/null || true
   fi
 
-  log "📝 Notification written to $NOTIFY_FILE (status: $status)"
+  log "📝 Notification saved to $NOTIFY_FILE"
 }
 
 load_config_file() {
@@ -425,7 +384,7 @@ handle_unexpected_error() {
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
 
 # Setup
-mkdir -p "$LOG_DIR" "$NOTIFY_HISTORY_DIR"
+mkdir -p "$LOG_DIR"
 
 CLI="$DEFAULT_CLI"
 CLI_FLAGS=""

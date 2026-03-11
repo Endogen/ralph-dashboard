@@ -8,7 +8,7 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
-from app.notifications.service import parse_notification_file
+from app.notifications.service import append_notification_history_entry, parse_notification_file
 from app.plan.parser import parse_implementation_plan_file
 from app.projects.status import detect_project_status
 from app.ws.file_watcher import FileChangeEvent
@@ -260,6 +260,14 @@ class WatcherEventDispatcher:
         if self._last_notification_keys.get(change.project_id) == key:
             return
         self._last_notification_keys[change.project_id] = key
+        try:
+            append_notification_history_entry(change.path.parent, entry)
+        except OSError:
+            LOGGER.warning(
+                "Failed to append notification history for %s",
+                change.project_id,
+                exc_info=True,
+            )
 
         await hub.emit(
             "notification",

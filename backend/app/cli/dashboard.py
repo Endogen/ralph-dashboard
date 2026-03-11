@@ -449,17 +449,6 @@ def build_doctor_checks(env_file: Path) -> list[CheckResult]:
             )
         )
 
-    openclaw_path = check_binary("openclaw")
-    results.append(
-        CheckResult(
-            name="OpenClaw",
-            ok=openclaw_path is not None,
-            warning=True,
-            message=openclaw_path or "Not installed (optional)",
-            fix="Install OpenClaw to enable automated notification triage.",
-        )
-    )
-
     return results
 
 

@@ -504,9 +504,9 @@ Response:
 
 ---
 
-## Notification-Driven Orchestration (OpenClaw-Compatible)
+## Notification-Driven Orchestration
 
-Use this section when an orchestration agent (for example OpenClaw) sits between Ralph and a human/user.
+Use this section when an orchestration agent sits between Ralph and a human/user.
 
 Goal:
 - react automatically to loop notifications
@@ -515,7 +515,7 @@ Goal:
 
 ### Trigger Source
 
-Ralph writes `.ralph/pending-notification.txt` and may also schedule an OpenClaw event when `openclaw` is installed (handled by `ralph.sh`).
+Ralph writes `.ralph/pending-notification.txt`, and the dashboard records notification history in `.ralph/notifications/events.jsonl`.
 
 Treat the dashboard notification history endpoint as the source of truth:
 

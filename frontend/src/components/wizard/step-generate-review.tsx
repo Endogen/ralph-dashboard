@@ -5,7 +5,7 @@ import { AlertCircle, FileText, Loader2, RefreshCw, Sparkles } from "lucide-reac
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { showBrowserNotification, requestNotificationPermission } from "@/lib/browser-notifications"
+import { deliverAttentionSignal } from "@/lib/native-notifications"
 import { type GeneratedFile, useWizardStore } from "@/stores/wizard-store"
 
 type StartGenerateApiResponse = {
@@ -133,7 +133,6 @@ export function StepGenerateReview() {
     setIsGenerating(true)
     setGenerateError(null)
     setGenerationStartedAt(Date.now())
-    void requestNotificationPermission()
     setActiveGenerateController(null)
     setActiveGenerationRequestId(null)
 
@@ -190,22 +189,32 @@ export function StepGenerateReview() {
             setGeneratedFiles(statusResponse.files ?? [])
             setActiveTab(0)
             finishGeneration()
-            void showBrowserNotification({
-              title: "✅ Plan generation complete",
-              body: `${statusResponse.files?.length ?? 0} files ready for review.`,
-              tag: "ralph-wizard-generate",
-              onClick: () => window.focus(),
+            void deliverAttentionSignal({
+              title: "Plan generation complete",
+              description: `${statusResponse.files?.length ?? 0} files ready for review.`,
+              tone: "success",
+              durationMs: 5000,
+              dedupeKey: `wizard-generate-complete:${requestId}`,
+              browserTag: "ralph-wizard-generate",
+              onClick: () => {
+                window.focus()
+              },
             })
           } else if (statusResponse.status === "error") {
             stopPolling()
             const errorMsg = statusResponse.error ?? "Generation failed"
             setGenerateError(errorMsg)
             finishGeneration()
-            void showBrowserNotification({
-              title: "❌ Plan generation failed",
-              body: errorMsg,
-              tag: "ralph-wizard-generate",
-              onClick: () => window.focus(),
+            void deliverAttentionSignal({
+              title: "Plan generation failed",
+              description: errorMsg,
+              tone: "error",
+              durationMs: 6000,
+              dedupeKey: `wizard-generate-error:${requestId}:${errorMsg}`,
+              browserTag: "ralph-wizard-generate",
+              onClick: () => {
+                window.focus()
+              },
             })
           } else {
             scheduleNextPoll()

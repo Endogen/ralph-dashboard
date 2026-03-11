@@ -41,6 +41,58 @@ def test_detect_complete_status(tmp_path: Path) -> None:
     assert status == ProjectStatus.complete
 
 
+def test_detect_error_status_from_latest_failed_iteration(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    (project / ".ralph" / "iterations.jsonl").write_text(
+        '{"iteration":1,"max":5,"start":"2026-03-12T10:00:00Z","end":"2026-03-12T10:05:00Z","status":"error","errors":["test failed"]}\n',
+        encoding="utf-8",
+    )
+
+    status = detect_project_status(project)
+    assert status == ProjectStatus.error
+
+
+def test_detect_error_status_from_pending_error_notification_without_iterations(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    (project / ".ralph" / "pending-notification.txt").write_text(
+        '{"timestamp":"2026-03-12T11:00:00Z","prefix":"ERROR","message":"Preflight failed"}\n',
+        encoding="utf-8",
+    )
+
+    status = detect_project_status(project)
+    assert status == ProjectStatus.error
+
+
+def test_detect_error_status_from_blocked_notification_after_successful_iteration(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    (project / ".ralph" / "iterations.jsonl").write_text(
+        '{"iteration":1,"max":1,"start":"2026-03-12T10:00:00Z","end":"2026-03-12T10:05:00Z","status":"success","errors":[]}\n',
+        encoding="utf-8",
+    )
+    (project / ".ralph" / "pending-notification.txt").write_text(
+        '{"timestamp":"2026-03-12T10:06:00Z","prefix":"BLOCKED","message":"Max iterations reached"}\n',
+        encoding="utf-8",
+    )
+
+    status = detect_project_status(project)
+    assert status == ProjectStatus.error
+
+
+def test_stale_pending_error_is_ignored_after_later_successful_iteration(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    (project / ".ralph" / "pending-notification.txt").write_text(
+        '{"timestamp":"2026-03-12T10:00:00Z","prefix":"ERROR","message":"Tests failed"}\n',
+        encoding="utf-8",
+    )
+    (project / ".ralph" / "iterations.jsonl").write_text(
+        '{"iteration":1,"max":5,"start":"2026-03-12T10:00:00Z","end":"2026-03-12T10:20:00Z","status":"success","errors":[]}\n',
+        encoding="utf-8",
+    )
+
+    status = detect_project_status(project)
+    assert status == ProjectStatus.stopped
+
+
 def test_detect_stopped_status_with_stale_pid(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     pid_file = project / ".ralph" / "ralph.pid"
