@@ -151,6 +151,12 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 - **Live events** — plan updates, iteration completions, status changes, log appends, notifications
 - **Per-project subscriptions** — only receive events for projects you're viewing
 
+### 🚨 Notifications & Attention Signals
+- **Structured notifications** — parses `pending-notification.txt` payloads into typed events with severity, status, details, and iteration context
+- **In-app toasts** — `ERROR`, `BLOCKED`, `DECISION`, `DONE`, and `PLANNING_COMPLETE` alerts surface immediately while the dashboard tab is visible
+- **Browser notifications** — the same alerts can use the Browser Notification API when the tab is in the background
+- **Notification history** — live alerts are deduped and persisted so the activity feed and project page keep prior context
+
 ## How Project Tracking Works
 
 The dashboard automatically discovers and tracks Ralph Loop projects — no registration or configuration per project is needed.
@@ -186,6 +192,7 @@ From `.ralph/`:
 | `pause` | Sentinel file — presence means the loop is paused |
 | `inject.md` | Runtime instructions injected into the next iteration |
 | `pending-notification.txt` | Current pending notification from the agent |
+| `notifications/events.jsonl` | Persisted notification history captured from live alerts |
 
 From the project root:
 
@@ -544,7 +551,7 @@ The loop creates `.ralph/` automatically. Refresh the dashboard and the project 
 ```
 ralph-dashboard/
 ├── .env.example               # Template for runtime environment variables
-├── backend/                   # FastAPI backend (58 Python files)
+├── backend/                   # FastAPI backend
 │   ├── app/
 │   │   ├── auth/              # JWT authentication & user management
 │   │   ├── cli/               # `ralph-dashboard` operational CLI
@@ -552,15 +559,15 @@ ralph-dashboard/
 │   │   ├── files/             # AGENTS.md, PROMPT.md, specs CRUD
 │   │   ├── git_service/       # Git log & diff via GitPython
 │   │   ├── iterations/        # Log & JSONL iteration parsers
-│   │   ├── notifications/     # Ralph notification file parsing
+│   │   ├── notifications/     # Notification parsing and history
 │   │   ├── plan/              # IMPLEMENTATION_PLAN.md parser
 │   │   ├── projects/          # Project discovery, registration, status
 │   │   ├── stats/             # Aggregation, projections, reports
 │   │   ├── system/            # System & process metrics (psutil)
 │   │   ├── ws/                # WebSocket hub, file watcher, event dispatcher
 │   │   └── static/            # Optional packaged frontend dist for no-Node installs
-│   └── tests/                 # 126 tests (pytest)
-├── frontend/                  # React SPA (43 TS/TSX files)
+│   └── tests/                 # Pytest suite
+├── frontend/                  # React SPA
 │   └── src/
 │       ├── api/               # API client with auth refresh
 │       ├── components/
@@ -582,36 +589,49 @@ ralph-dashboard/
 
 ## API Overview
 
-All API endpoints are under `/api/` and require a Bearer JWT token (except `/api/health`, `/api/auth/login`, `/api/auth/refresh`).
+All API endpoints are under `/api/` and require a Bearer JWT token except `/api/health`, `/api/auth/login`, and `/api/auth/refresh`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/auth/login` | Login (returns access + refresh tokens) |
 | `POST` | `/api/auth/refresh` | Refresh access token |
-| `GET` | `/api/projects` | List active projects (excludes archived) |
+| `GET` | `/api/projects` | List active projects (default; excludes archived) |
+| `POST` | `/api/projects` | Register an existing Ralph project path |
 | `GET` | `/api/projects/archived` | List archived projects |
 | `GET/PUT` | `/api/projects/archive/settings` | Auto-archive configuration |
-| `POST` | `/api/projects/{id}/archive` | Archive a project |
-| `POST` | `/api/projects/{id}/unarchive` | Unarchive a project |
-| `GET` | `/api/projects/{id}` | Project detail |
-| `GET` | `/api/projects/{id}/plan` | Parsed implementation plan |
-| `PUT` | `/api/projects/{id}/plan` | Update plan markdown |
-| `GET` | `/api/projects/{id}/iterations` | List iterations (filterable) |
-| `GET` | `/api/projects/{id}/iterations/{n}` | Iteration detail with log output |
-| `GET` | `/api/projects/{id}/stats` | Aggregated stats & projections |
-| `GET` | `/api/projects/{id}/system` | System & process metrics |
-| `GET` | `/api/projects/{id}/notifications` | Notification history |
-| `GET` | `/api/projects/{id}/git/log` | Commit history |
-| `GET` | `/api/projects/{id}/git/diff/{hash}` | Commit diff |
-| `GET/PUT` | `/api/projects/{id}/files/{name}` | Read/write AGENTS.md or PROMPT.md |
-| `GET/POST/PUT/DELETE` | `/api/projects/{id}/specs` | Spec file CRUD |
-| `GET/PUT` | `/api/projects/{id}/config` | Loop configuration |
-| `POST` | `/api/projects/{id}/inject` | Send runtime instruction |
-| `POST` | `/api/projects/{id}/start` | Start Ralph loop |
-| `POST` | `/api/projects/{id}/stop` | Stop Ralph loop |
-| `POST` | `/api/projects/{id}/pause` | Pause loop |
-| `POST` | `/api/projects/{id}/resume` | Resume loop |
+| `POST` | `/api/projects/{project_id}/archive` | Archive a project |
+| `POST` | `/api/projects/{project_id}/unarchive` | Unarchive a project |
+| `GET` | `/api/projects/{project_id}` | Project detail |
+| `DELETE` | `/api/projects/{project_id}` | Unregister a project |
+| `GET` | `/api/projects/{project_id}/plan` | Parsed implementation plan |
+| `PUT` | `/api/projects/{project_id}/plan` | Update plan markdown |
+| `GET` | `/api/projects/{project_id}/iterations` | List iterations (filterable, sortable, paginated) |
+| `GET` | `/api/projects/{project_id}/iterations/details?numbers=1&numbers=2` | Fetch details for multiple iterations in one request |
+| `GET` | `/api/projects/{project_id}/iterations/{iteration_number}` | Iteration detail with log output |
+| `GET` | `/api/projects/{project_id}/stats` | Aggregated stats & projections |
+| `GET` | `/api/projects/{project_id}/report` | Generated project summary report |
+| `GET` | `/api/projects/{project_id}/system` | System & process metrics |
+| `GET` | `/api/projects/{project_id}/notifications` | Current pending notification plus persisted history |
+| `GET` | `/api/projects/{project_id}/git/log` | Commit history |
+| `GET` | `/api/projects/{project_id}/git/diff/{commit_hash}` | Commit diff |
+| `GET/PUT` | `/api/projects/{project_id}/files/{filename}` | Read/write `AGENTS.md` or `PROMPT.md` |
+| `GET` | `/api/projects/{project_id}/specs` | List spec files |
+| `POST` | `/api/projects/{project_id}/specs` | Create a spec file |
+| `GET` | `/api/projects/{project_id}/specs/{name}` | Read a spec file |
+| `PUT` | `/api/projects/{project_id}/specs/{name}` | Update a spec file |
+| `DELETE` | `/api/projects/{project_id}/specs/{name}` | Delete a spec file |
+| `GET/PUT` | `/api/projects/{project_id}/config` | Read or update loop configuration |
+| `POST` | `/api/projects/{project_id}/inject` | Send a runtime instruction |
+| `POST` | `/api/projects/{project_id}/start` | Start Ralph loop with optional runtime overrides |
+| `POST` | `/api/projects/{project_id}/stop` | Stop Ralph loop |
+| `POST` | `/api/projects/{project_id}/pause` | Pause loop |
+| `POST` | `/api/projects/{project_id}/resume` | Resume loop |
+| `GET` | `/api/wizard/templates` | Fetch default wizard templates |
+| `POST` | `/api/wizard/generate/start` | Start async wizard generation |
+| `GET` | `/api/wizard/generate/status/{request_id}` | Poll wizard generation status |
+| `POST` | `/api/wizard/generate/cancel` | Cancel an in-flight wizard generation request |
+| `POST` | `/api/wizard/create` | Create a project from wizard output |
 | `WS` | `/api/ws?token=...` | WebSocket for real-time events |
 
 ## Running Tests
@@ -620,6 +640,11 @@ All API endpoints are under `/api/` and require a Bearer JWT token (except `/api
 cd backend
 source .venv/bin/activate
 pytest tests/ -q
+```
+
+```bash
+cd frontend
+npm test
 ```
 
 ## License
