@@ -85,6 +85,10 @@ async def test_antique_catalogue_fixture_end_to_end(
 
     notifications = await get_notifications(project_id)
     assert len(notifications) == 1
+    assert notifications[0].event_id.startswith("notif-")
+    assert notifications[0].kind == "progress"
+    assert notifications[0].severity == "info"
+    assert notifications[0].active is True
     assert notifications[0].prefix == "PROGRESS"
     assert notifications[0].message == "Fixture notification"
 

@@ -47,17 +47,24 @@ export function AppLayout() {
 
       if (event.type === "notification" && event.project && event.data && typeof event.data === "object") {
         const data = event.data as {
+          event_id?: unknown
           prefix?: unknown
+          kind?: unknown
+          severity?: unknown
+          active?: unknown
           message?: unknown
           details?: unknown
           iteration?: unknown
         }
+        const eventId = typeof data.event_id === "string" ? data.event_id.trim() : ""
         const prefix = typeof data.prefix === "string" ? data.prefix.trim().toUpperCase() : ""
+        const kind = typeof data.kind === "string" ? data.kind.trim().toLowerCase() : ""
+        const severity = typeof data.severity === "string" ? data.severity.trim().toLowerCase() : ""
         const message = typeof data.message === "string" ? data.message.trim() : ""
         const details = typeof data.details === "string" ? data.details.trim() : ""
         const iteration = typeof data.iteration === "number" ? data.iteration : null
 
-        if (!prefix || !message || prefix === "PROGRESS") {
+        if (!prefix || !message || prefix === "PROGRESS" || kind === "progress") {
           return
         }
 
@@ -82,21 +89,29 @@ export function AppLayout() {
           prefix as "ERROR" | "BLOCKED" | "DECISION" | "DONE" | "PLANNING_COMPLETE"
 
         const description = details || message
-        const dedupeKey = [
-          "runtime-alert",
-          event.project,
-          prefix,
-          iteration ?? "none",
-          event.timestamp ?? "no-ts",
-          message,
-        ].join(":")
+        const tone =
+          severity === "error"
+            ? "error"
+            : severity === "success"
+              ? "success"
+              : toneMap[supportedPrefix]
+        const dedupeKey =
+          eventId ||
+          [
+            "runtime-alert",
+            event.project,
+            prefix,
+            iteration ?? "none",
+            event.timestamp ?? "no-ts",
+            message,
+          ].join(":")
         void deliverAttentionSignal({
           title: titleMap[supportedPrefix],
           description,
-          tone: toneMap[supportedPrefix],
+          tone,
           durationMs: prefix === "DONE" ? 6000 : 5000,
           dedupeKey,
-          browserTag: `ralph-runtime-${event.project}-${prefix.toLowerCase()}`,
+          browserTag: eventId || `ralph-runtime-${event.project}-${prefix.toLowerCase()}`,
           onClick: () => {
             navigate(`/project/${event.project}`)
           },

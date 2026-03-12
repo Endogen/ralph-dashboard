@@ -1,7 +1,7 @@
 import path from "node:path"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig } from "vite"
+import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -19,5 +19,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
       "react-is": path.resolve(__dirname, "./src/vendor/react-is.ts"),
     },
+  },
+  test: {
+    environment: "jsdom",
   },
 })

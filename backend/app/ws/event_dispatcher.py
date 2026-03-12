@@ -28,7 +28,7 @@ class WatcherEventDispatcher:
         self._log_prefixes: dict[str, bytes] = {}
         self._log_remainders: dict[str, str] = {}
         self._plan_snapshots: dict[str, tuple[int, int, tuple[tuple[str, int, int, str], ...]]] = {}
-        self._last_notification_keys: dict[str, tuple[str, str, str | None, int | None]] = {}
+        self._last_notification_keys: dict[str, str] = {}
         self._statuses: dict[str, str] = {}
         # FileWatcherService already consumes file events sequentially, but keep
         # a lock here so direct callers/tests also get deterministic ordering.
@@ -59,6 +59,7 @@ class WatcherEventDispatcher:
 
         if change.path.name == "pending-notification.txt" and change.path.parent.name == ".ralph":
             await self._handle_notification_change(change)
+            await self._emit_status_if_changed(change.project_id, change.project_path)
             return
 
         if change.path.parent.name == ".ralph" and change.path.name in {"ralph.pid", "pause"}:
@@ -254,9 +255,10 @@ class WatcherEventDispatcher:
     async def _handle_notification_change(self, change: FileChangeEvent) -> None:
         entry = parse_notification_file(change.path)
         if entry is None:
+            self._last_notification_keys.pop(change.project_id, None)
             return
 
-        key = (entry.timestamp, entry.message, entry.prefix, entry.iteration)
+        key = entry.event_id
         if self._last_notification_keys.get(change.project_id) == key:
             return
         self._last_notification_keys[change.project_id] = key
@@ -273,7 +275,11 @@ class WatcherEventDispatcher:
             "notification",
             change.project_id,
             {
+                "event_id": entry.event_id,
                 "prefix": entry.prefix,
+                "kind": entry.kind,
+                "severity": entry.severity,
+                "active": entry.active,
                 "message": entry.message,
                 "iteration": entry.iteration,
                 "details": entry.details,

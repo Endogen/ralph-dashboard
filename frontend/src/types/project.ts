@@ -146,8 +146,12 @@ export type LoopConfig = {
 }
 
 export type NotificationEntry = {
+  event_id: string
   timestamp: string
   prefix: string | null
+  kind: string
+  severity: string
+  active: boolean
   message: string
   status: string | null
   iteration: number | null

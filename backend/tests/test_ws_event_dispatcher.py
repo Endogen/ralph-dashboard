@@ -134,7 +134,7 @@ async def test_reconcile_project_status_emits_only_when_status_changes(
 
 
 @pytest.mark.anyio
-async def test_notification_change_emits_once_and_records_history(
+async def test_notification_change_emits_once_records_history_and_updates_status(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -149,6 +149,16 @@ async def test_notification_change_emits_once_and_records_history(
 
     fake_hub = CapturingHub()
     monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
+
+    class _StatusValue:
+        def __init__(self, value: str) -> None:
+            self.value = value
+
+    def _mock_detect_project_status(project_root: Path) -> _StatusValue:
+        current_notify_path = project_root / ".ralph" / "pending-notification.txt"
+        return _StatusValue("error" if current_notify_path.exists() else "stopped")
+
+    monkeypatch.setattr(event_dispatcher, "detect_project_status", _mock_detect_project_status)
     dispatcher = event_dispatcher.WatcherEventDispatcher()
     change = FileChangeEvent(
         project_id="notify-project",
@@ -159,27 +169,53 @@ async def test_notification_change_emits_once_and_records_history(
 
     await dispatcher.handle_change(change)
     await dispatcher.handle_change(change)
+    notify_path.unlink()
+    await dispatcher.handle_change(
+        FileChangeEvent(
+            project_id="notify-project",
+            project_path=project_path,
+            path=notify_path,
+            event_type="deleted",
+        )
+    )
 
     notification_events = [event for event in fake_hub.events if event["type"] == "notification"]
-    assert notification_events == [
+    assert len(notification_events) == 1
+    assert notification_events[0]["type"] == "notification"
+    assert notification_events[0]["project"] == "notify-project"
+    assert notification_events[0]["data"]["event_id"].startswith("notif-")
+    assert notification_events[0]["data"]["prefix"] == "ERROR"
+    assert notification_events[0]["data"]["kind"] == "error"
+    assert notification_events[0]["data"]["severity"] == "error"
+    assert notification_events[0]["data"]["active"] is True
+    assert notification_events[0]["data"]["message"] == "Tests failed"
+    assert notification_events[0]["data"]["iteration"] == 4
+    assert notification_events[0]["data"]["details"] == "pytest -q failed"
+    assert notification_events[0]["data"]["status"] is None
+    assert notification_events[0]["data"]["source"] == "pending-notification.txt"
+
+    status_events = [event for event in fake_hub.events if event["type"] == "status_changed"]
+    assert status_events == [
         {
-            "type": "notification",
+            "type": "status_changed",
             "project": "notify-project",
-            "data": {
-                "prefix": "ERROR",
-                "message": "Tests failed",
-                "iteration": 4,
-                "details": "pytest -q failed",
-                "status": None,
-                "source": "pending-notification.txt",
-            },
-        }
+            "data": {"status": "error"},
+        },
+        {
+            "type": "status_changed",
+            "project": "notify-project",
+            "data": {"status": "stopped", "previous": "error"},
+        },
     ]
 
     history_path = ralph_dir / "notifications" / "events.jsonl"
     lines = history_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
     payload = json.loads(lines[0])
+    assert payload["event_id"] == notification_events[0]["data"]["event_id"]
+    assert payload["kind"] == "error"
+    assert payload["severity"] == "error"
+    assert payload["active"] is False
     assert payload["prefix"] == "ERROR"
     assert payload["message"] == "Tests failed"
     assert payload["iteration"] == 4

@@ -94,6 +94,7 @@ notify() {
       NOTIFY_STATUS="$status" \
       NOTIFY_FILE_PATH="$NOTIFY_FILE" \
       python3 - <<'PY'
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -107,10 +108,41 @@ def parse_int(value: str, default: int = 0) -> int:
 
 
 payload = {
+    "event_id": "notif-"
+    + hashlib.sha1(
+        json.dumps(
+            {
+                "timestamp": os.environ.get("NOTIFY_TIMESTAMP", ""),
+                "prefix": os.environ.get("NOTIFY_PREFIX", ""),
+                "message": os.environ.get("NOTIFY_MESSAGE", ""),
+                "iteration": parse_int(os.environ.get("NOTIFY_ITERATION", "0"), 0),
+                "details": os.environ.get("NOTIFY_DETAILS", ""),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()[:16],
     "timestamp": os.environ.get("NOTIFY_TIMESTAMP", ""),
     "project": os.environ.get("NOTIFY_PROJECT_DIR", ""),
     "project_name": os.environ.get("NOTIFY_PROJECT_NAME", ""),
     "prefix": os.environ.get("NOTIFY_PREFIX", ""),
+    "kind": {
+        "ERROR": "error",
+        "BLOCKED": "blocked",
+        "DECISION": "decision",
+        "PROGRESS": "progress",
+        "DONE": "done",
+        "PLANNING_COMPLETE": "planning_complete",
+    }.get(os.environ.get("NOTIFY_PREFIX", ""), "notification"),
+    "severity": {
+        "ERROR": "error",
+        "BLOCKED": "error",
+        "DECISION": "info",
+        "PROGRESS": "info",
+        "DONE": "success",
+        "PLANNING_COMPLETE": "info",
+    }.get(os.environ.get("NOTIFY_PREFIX", ""), "info"),
+    "active": True,
     "message": os.environ.get("NOTIFY_MESSAGE", ""),
     "details": os.environ.get("NOTIFY_DETAILS", ""),
     "iteration": parse_int(os.environ.get("NOTIFY_ITERATION", "0"), 0),
@@ -143,6 +175,10 @@ PY
   fi
 
   log "📝 Notification saved to $NOTIFY_FILE"
+}
+
+clear_current_notification() {
+  [[ -f "$NOTIFY_FILE" ]] && rm -f "$NOTIFY_FILE"
 }
 
 load_config_file() {
@@ -531,7 +567,7 @@ trap 'handle_signal SIGINT' INT
 trap 'handle_unexpected_error "$?" "$LINENO"' ERR
 
 # Clear any stale pending notification from previous run
-[[ -f "$NOTIFY_FILE" ]] && rm -f "$NOTIFY_FILE"
+clear_current_notification
 
 # Resume iteration numbering from last JSONL entry
 ITER_OFFSET=0
@@ -754,6 +790,10 @@ except: pass
     "$TEST_PASSED" \
     "$TEST_OUTPUT" \
     "$ERRORS_JSON"
+
+  if [[ "$ITER_STATUS" == "success" ]]; then
+    clear_current_notification
+  fi
 
   if grep -Fq "$BUILDING_DONE" "$PLAN_FILE" 2>/dev/null; then
     log "${GREEN}✅ All tasks complete!${NC}"
