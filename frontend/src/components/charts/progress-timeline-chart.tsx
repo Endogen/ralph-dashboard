@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 
+import { ChartContainer } from "@/components/charts/chart-container"
 import { displayTokens } from "@/lib/utils"
 import {
   Area,
@@ -8,7 +9,6 @@ import {
   ComposedChart,
   Legend,
   Line,
-  ResponsiveContainer,
   Scatter,
   Tooltip,
   XAxis,
@@ -206,56 +206,54 @@ export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimeli
           No iteration data yet.
         </div>
       ) : (
-        <div className="h-[320px] w-full overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis
-                dataKey="timeMs"
-                type="number"
-                scale="time"
-                domain={["dataMin", "dataMax"]}
-                tick={{ fontSize: 12 }}
-                minTickGap={36}
-                tickFormatter={formatTimestamp}
-              />
-              <YAxis yAxisId="tasks" tick={{ fontSize: 12 }} domain={[0, tasksUpperBound]} />
-              <YAxis yAxisId="tokens" orientation="right" tick={{ fontSize: 12 }} />
-              <Tooltip content={<TimelineTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Area
-                yAxisId="tasks"
-                type="monotone"
-                dataKey="tasksCumulative"
-                name="Tasks Completed"
-                stroke="#2563EB"
-                fill="#2563EB"
-                fillOpacity={0.2}
-                dot={false}
-              />
-              <Bar
-                yAxisId="tokens"
-                dataKey="tokens"
-                name="Tokens / Iteration"
-                fill="#8B5CF6"
-                radius={[4, 4, 0, 0]}
-                barSize={14}
-              />
-              <Line
-                yAxisId="tasks"
-                type="linear"
-                dataKey="projectionTasks"
-                name="Projection"
-                stroke="#64748B"
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={false}
-                connectNulls
-              />
-              <Scatter yAxisId="tasks" dataKey="errorTasks" name="Errors" fill="#EF4444" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartContainer className="h-[320px] w-full overflow-hidden">
+          <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis
+              dataKey="timeMs"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              tick={{ fontSize: 12 }}
+              minTickGap={36}
+              tickFormatter={formatTimestamp}
+            />
+            <YAxis yAxisId="tasks" tick={{ fontSize: 12 }} domain={[0, tasksUpperBound]} />
+            <YAxis yAxisId="tokens" orientation="right" tick={{ fontSize: 12 }} />
+            <Tooltip content={<TimelineTooltip />} />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+            <Area
+              yAxisId="tasks"
+              type="monotone"
+              dataKey="tasksCumulative"
+              name="Tasks Completed"
+              stroke="#2563EB"
+              fill="#2563EB"
+              fillOpacity={0.2}
+              dot={false}
+            />
+            <Bar
+              yAxisId="tokens"
+              dataKey="tokens"
+              name="Tokens / Iteration"
+              fill="#8B5CF6"
+              radius={[4, 4, 0, 0]}
+              barSize={14}
+            />
+            <Line
+              yAxisId="tasks"
+              type="linear"
+              dataKey="projectionTasks"
+              name="Projection"
+              stroke="#64748B"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={false}
+              connectNulls
+            />
+            <Scatter yAxisId="tasks" dataKey="errorTasks" name="Errors" fill="#EF4444" />
+          </ComposedChart>
+        </ChartContainer>
       )}
     </section>
   )

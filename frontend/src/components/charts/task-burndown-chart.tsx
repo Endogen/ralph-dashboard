@@ -1,11 +1,11 @@
 import { useMemo } from "react"
 
+import { ChartContainer } from "@/components/charts/chart-container"
 import {
   CartesianGrid,
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -151,42 +151,40 @@ export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartP
           Burndown requires iteration and task data.
         </div>
       ) : (
-        <div className="h-[300px] w-full overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis
-                dataKey="timeMs"
-                type="number"
-                scale="time"
-                domain={["dataMin", "dataMax"]}
-                tick={{ fontSize: 12 }}
-                minTickGap={32}
-                tickFormatter={formatTimestamp}
-              />
-              <YAxis tick={{ fontSize: 12 }} domain={[0, tasksTotal]} />
-              <Tooltip content={<BurndownTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Line
-                type="linear"
-                dataKey="idealRemaining"
-                name="Ideal Remaining"
-                stroke="#64748B"
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="actualRemaining"
-                name="Actual Remaining"
-                stroke="#2563EB"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartContainer className="h-[300px] w-full overflow-hidden">
+          <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis
+              dataKey="timeMs"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              tick={{ fontSize: 12 }}
+              minTickGap={32}
+              tickFormatter={formatTimestamp}
+            />
+            <YAxis tick={{ fontSize: 12 }} domain={[0, tasksTotal]} />
+            <Tooltip content={<BurndownTooltip />} />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+            <Line
+              type="linear"
+              dataKey="idealRemaining"
+              name="Ideal Remaining"
+              stroke="#64748B"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="actualRemaining"
+              name="Actual Remaining"
+              stroke="#2563EB"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ChartContainer>
       )}
     </section>
   )

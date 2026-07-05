@@ -1,7 +1,8 @@
 import { useMemo } from "react"
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { Cell, Pie, PieChart, Tooltip } from "recharts"
 
+import { ChartContainer } from "@/components/charts/chart-container"
 import { displayTokens } from "@/lib/utils"
 import type { PhaseTokenUsage } from "@/types/project"
 
@@ -71,7 +72,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
         </div>
       ) : (
         <div className="relative h-[300px] w-full overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer className="h-full w-full">
             <PieChart>
               <Pie
                 data={chartData}
@@ -91,7 +92,7 @@ export function TokenUsagePhaseChart({ data, totalTokens }: TokenUsagePhaseChart
               </Pie>
               <Tooltip content={<TokenTooltip />} />
             </PieChart>
-          </ResponsiveContainer>
+          </ChartContainer>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-md border bg-background/90 px-3 py-2 text-center">
               <p className="text-xs text-muted-foreground">Total Tokens</p>
