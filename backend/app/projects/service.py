@@ -143,10 +143,12 @@ async def get_project_detail(project_id: str) -> ProjectDetail | None:
     paths = await discover_all_project_paths()
 
     def _find_detail() -> ProjectDetail | None:
+        # Match by computed id first — building the detail runs status
+        # detection (PID checks, plan/JSONL reads) which is wasted work
+        # for every non-matching project.
         for path in paths:
-            detail = build_project_detail(path)
-            if detail.id == project_id:
-                return detail
+            if project_id_from_path(path) == project_id:
+                return build_project_detail(path)
         return None
 
     return await asyncio.to_thread(_find_detail)
