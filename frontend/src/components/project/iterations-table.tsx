@@ -4,6 +4,8 @@ import { Link } from "react-router-dom"
 
 import { apiFetch } from "@/api/client"
 import { GitDiffViewer } from "@/components/project/git-diff-viewer"
+import { AnsiTextBlock } from "@/components/ui/ansi-text"
+import { stripAnsi } from "@/lib/ansi"
 import { ITERATION_HEALTH_BADGE_CLASS, evaluateIterationHealth } from "@/lib/iteration-health"
 import { displayTokens } from "@/lib/utils"
 import type { GitCommitDiff, IterationDetail, IterationSummary } from "@/types/project"
@@ -281,7 +283,7 @@ export function IterationsTable({
         return true
       }
 
-      const detailLog = iterationDetails[iteration.number]?.log_output ?? ""
+      const detailLog = stripAnsi(iterationDetails[iteration.number]?.log_output ?? "")
       const searchable = [
         iteration.number.toString(),
         iteration.status ?? "",
@@ -563,7 +565,7 @@ export function IterationsTable({
                               <p className="text-rose-300">{detailError}</p>
                             ) : (
                               <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words pr-2 text-[11px] leading-5">
-                                {detailText}
+                                <AnsiTextBlock text={detailText} />
                               </pre>
                             )}
                           </div>

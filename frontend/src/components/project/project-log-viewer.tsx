@@ -3,6 +3,7 @@ import { ArrowDown, Pin, PinOff } from "lucide-react"
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
+import { type AnsiSegment, ansiStyleToClass, parseAnsiText, stripAnsi } from "@/lib/ansi"
 import type { IterationDetailListResponse, IterationListResponse } from "@/types/project"
 
 type ProjectLogViewerProps = {
@@ -15,16 +16,6 @@ type ProjectLogViewerProps = {
 
 type LogFilterMode = "all" | "errors"
 
-type AnsiStyle = {
-  color: string | null
-  bold: boolean
-}
-
-type AnsiSegment = {
-  text: string
-  style: AnsiStyle
-}
-
 type RenderedLogLine = {
   raw: string
   segments: AnsiSegment[]
@@ -35,94 +26,11 @@ type IterationAnchor = {
   lineIndex: number
 }
 
-const ANSI_ESCAPE = String.fromCharCode(27)
-const ANSI_PATTERN = new RegExp(`${ANSI_ESCAPE}\\[([0-9;]*)m`, "g")
 const BOTTOM_OFFSET_PX = 20
 const LOG_ERROR_PATTERN = /(error|failed|exception|traceback|fatal|❌|⚠)/i
 const LOG_VIEWPORT_HEIGHT_PX = 520
 const LOG_LINE_HEIGHT_PX = 18
 const LOG_OVERSCAN_LINES = 20
-
-const ANSI_COLOR_CLASS: Record<string, string> = {
-  "30": "text-zinc-900",
-  "31": "text-rose-300",
-  "32": "text-emerald-300",
-  "33": "text-amber-200",
-  "34": "text-sky-300",
-  "35": "text-fuchsia-300",
-  "36": "text-cyan-300",
-  "37": "text-zinc-100",
-  "90": "text-zinc-400",
-  "91": "text-rose-200",
-  "92": "text-emerald-200",
-  "93": "text-amber-100",
-  "94": "text-sky-200",
-  "95": "text-fuchsia-200",
-  "96": "text-cyan-200",
-  "97": "text-white",
-}
-
-function applyAnsiCodes(style: AnsiStyle, rawCodes: string): AnsiStyle {
-  const codes = rawCodes.length === 0 ? ["0"] : rawCodes.split(";")
-  let nextStyle = style
-
-  for (const code of codes) {
-    if (code === "0") {
-      nextStyle = { color: null, bold: false }
-      continue
-    }
-    if (code === "1") {
-      nextStyle = { ...nextStyle, bold: true }
-      continue
-    }
-    if (ANSI_COLOR_CLASS[code]) {
-      nextStyle = { ...nextStyle, color: code }
-    }
-  }
-
-  return nextStyle
-}
-
-function parseAnsiText(input: string): AnsiSegment[] {
-  const segments: AnsiSegment[] = []
-  let style: AnsiStyle = { color: null, bold: false }
-  let cursor = 0
-
-  for (const match of input.matchAll(ANSI_PATTERN)) {
-    const matchIndex = match.index ?? 0
-    if (matchIndex > cursor) {
-      segments.push({
-        text: input.slice(cursor, matchIndex),
-        style,
-      })
-    }
-    style = applyAnsiCodes(style, match[1] ?? "")
-    cursor = matchIndex + match[0].length
-  }
-
-  if (cursor < input.length) {
-    segments.push({
-      text: input.slice(cursor),
-      style,
-    })
-  }
-
-  if (segments.length === 0) {
-    return [{ text: input, style: { color: null, bold: false } }]
-  }
-  return segments
-}
-
-function styleToClass(style: AnsiStyle): string {
-  const classes = ["text-zinc-100"]
-  if (style.color && ANSI_COLOR_CLASS[style.color]) {
-    classes.push(ANSI_COLOR_CLASS[style.color])
-  }
-  if (style.bold) {
-    classes.push("font-semibold")
-  }
-  return classes.join(" ")
-}
 
 function appendLogChunk(current: string, chunk: string): string {
   if (!chunk) {
@@ -135,10 +43,6 @@ function appendLogChunk(current: string, chunk: string): string {
     return `${current}${chunk}`
   }
   return `${current}\n${chunk}`
-}
-
-function stripAnsi(input: string): string {
-  return input.replace(ANSI_PATTERN, "")
 }
 
 function extractIterationNumber(line: string): number | null {
@@ -621,7 +525,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
                         <span className="text-zinc-100">&nbsp;</span>
                       ) : (
                         line.segments.map((segment, segmentIndex) => (
-                          <span key={segmentIndex} className={styleToClass(segment.style)}>
+                          <span key={segmentIndex} className={ansiStyleToClass(segment.style)}>
                             {segment.text}
                           </span>
                         ))
