@@ -28,6 +28,7 @@ class ProjectSummary(BaseModel):
 
 
 class ProjectDetail(ProjectSummary):
+    pause_requested: bool = False
     ralph_dir: Path
     plan_file: Path | None = None
     log_file: Path | None = None

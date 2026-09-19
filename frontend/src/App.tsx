@@ -1,11 +1,12 @@
+import { lazy, Suspense } from "react"
 import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 
 import { AppLayout } from "@/components/layout/app-layout"
-import { ArchivePage } from "@/components/layout/archive-page"
-import { DashboardPage } from "@/components/layout/dashboard-page"
+const ArchivePage = lazy(() => import("@/components/layout/archive-page").then((module) => ({ default: module.ArchivePage })))
+const DashboardPage = lazy(() => import("@/components/layout/dashboard-page").then((module) => ({ default: module.DashboardPage })))
 import { LoginPage } from "@/components/layout/login-page"
-import { ProjectPage } from "@/components/layout/project-page"
-import { WizardPage } from "@/components/wizard/wizard-page"
+const ProjectPage = lazy(() => import("@/components/layout/project-page").then((module) => ({ default: module.ProjectPage })))
+const WizardPage = lazy(() => import("@/components/wizard/wizard-page").then((module) => ({ default: module.WizardPage })))
 import { useAuthStore } from "@/stores/auth-store"
 
 function RequireAuth() {
@@ -28,6 +29,7 @@ function LoginRoute() {
 
 export function App() {
   return (
+    <Suspense fallback={<p role="status" className="p-6">Loading…</p>}>
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/" element={<RequireAuth />}>
@@ -38,5 +40,6 @@ export function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

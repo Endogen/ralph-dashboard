@@ -58,31 +58,9 @@ def _parse_timestamp(value: object) -> datetime | None:
 
 
 def _read_last_jsonl_payload(path: Path) -> dict[str, object] | None:
-    if not path.exists() or not path.is_file():
-        return None
-    try:
-        with path.open("rb") as handle:
-            handle.seek(0, 2)
-            size = handle.tell()
-            if size == 0:
-                return None
-            read_size = min(4096, size)
-            handle.seek(size - read_size)
-            chunk = handle.read().decode("utf-8", errors="replace")
-    except OSError:
-        return None
+    from app.utils.files import read_last_jsonl_record
 
-    for raw_line in reversed(chunk.splitlines()):
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            return payload
-    return None
+    return read_last_jsonl_record(path)
 
 
 def _latest_iteration_state(ralph_dir: Path) -> tuple[datetime | None, bool]:
@@ -95,7 +73,7 @@ def _latest_iteration_state(ralph_dir: Path) -> tuple[datetime | None, bool]:
     errors = payload.get("errors")
     has_errors = isinstance(errors, list) and any(str(item).strip() for item in errors)
     test_failed = payload.get("test_passed") is False
-    failed = status == "error" or has_errors or test_failed
+    failed = status in {"error", "blocked", "cancelled"} or has_errors or test_failed
     return end_timestamp, failed
 
 
@@ -135,14 +113,27 @@ def detect_project_status(project_path: Path) -> ProjectStatus:
     if running:
         pause_file = ralph_dir / "pause"
         if pause_file.exists():
-            return ProjectStatus.paused
+            try:
+                state = json.loads((ralph_dir / "state.json").read_text())
+            except (OSError, ValueError):
+                state = {"status": "paused"}  # Legacy runners lack lifecycle state.
+            if state.get("status") == "paused":
+                return ProjectStatus.paused
         return ProjectStatus.running
-
-    if _is_plan_complete(resolved_path):
-        return ProjectStatus.complete
 
     notification_timestamp, notification_prefix = _pending_notification_state(ralph_dir)
     latest_iteration_timestamp, latest_iteration_failed = _latest_iteration_state(ralph_dir)
+
+    try:
+        state = json.loads((ralph_dir / "state.json").read_text())
+        stopped_at = _parse_timestamp(state.get("timestamp"))
+        if state.get("status") == "stopped" and stopped_at and all(
+            timestamp is None or timestamp <= stopped_at
+            for timestamp in (notification_timestamp, latest_iteration_timestamp)
+        ):
+            return ProjectStatus.stopped
+    except (OSError, ValueError):
+        pass
 
     if notification_prefix in {"ERROR", "BLOCKED"}:
         if (
@@ -154,6 +145,9 @@ def detect_project_status(project_path: Path) -> ProjectStatus:
 
     if latest_iteration_failed:
         return ProjectStatus.error
+
+    if _is_plan_complete(resolved_path):
+        return ProjectStatus.complete
 
     return ProjectStatus.stopped
 
@@ -181,6 +175,7 @@ def build_project_detail(project_path: Path) -> ProjectDetail:
         path=resolved_path,
         status=detect_project_status(resolved_path),
         ralph_dir=ralph_dir,
+        pause_requested=(ralph_dir / "pause").exists(),
         plan_file=plan_file if plan_file.exists() else None,
         log_file=log_file if log_file.exists() else None,
     )

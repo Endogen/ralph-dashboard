@@ -1,8 +1,9 @@
+import { fetchIterationHistory } from "@/api/iterations"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
-import { apiFetch } from "@/api/client"
+import { apiFetch, apiRevision } from "@/api/client"
 import { IterationHealthTimeline } from "@/components/charts/iteration-health-timeline"
 import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
 import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
@@ -22,11 +23,10 @@ import { ProjectConfigPanel } from "@/components/project/project-config-panel"
 import { SystemPanel } from "@/components/project/system-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
+import { type WebSocketEnvelope } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import { useToastStore } from "@/stores/toast-store"
 import type {
-  IterationListResponse,
   IterationSummary,
   LoopConfig,
   NotificationEntry,
@@ -158,10 +158,12 @@ export function ProjectPage() {
   const projectLoading = useActiveProjectStore((state) => state.isLoading)
   const pushToast = useToastStore((state) => state.pushToast)
 
+  const [controlError, setControlError] = useState<string | null>(null)
   const [iterations, setIterations] = useState<IterationSummary[]>([])
   const [notifications, setNotifications] = useState<NotificationEntry[]>([])
   const [plan, setPlan] = useState<ParsedImplementationPlan | null>(null)
   const [planDraft, setPlanDraft] = useState("")
+  const planDraftRevision = useRef("")
   const [isRawPlanMode, setIsRawPlanMode] = useState(false)
   const isRawPlanModeRef = useRef(false)
   const [stats, setStats] = useState<ProjectStats | null>(null)
@@ -236,6 +238,7 @@ export function ProjectPage() {
 
   const handleOverviewSocketEvent = useCallback(
     (event: WebSocketEnvelope) => {
+      if (event.type === "reconnected") { queueOverviewRefresh(); return }
       if (!id || event.project !== id) {
         return
       }
@@ -277,11 +280,11 @@ export function ProjectPage() {
     [id, queueOverviewRefresh, patchActiveProject],
   )
 
-  useWebSocket({
-    enabled: Boolean(id),
-    projects: id ? [id] : [],
-    onEvent: handleOverviewSocketEvent,
-  })
+  useEffect(() => {
+    const receive = (event: Event) => handleOverviewSocketEvent((event as CustomEvent<WebSocketEnvelope>).detail)
+    window.addEventListener("ralph-live-event", receive)
+    return () => window.removeEventListener("ralph-live-event", receive)
+  }, [handleOverviewSocketEvent])
 
   useEffect(() => {
     let cancelled = false
@@ -310,7 +313,7 @@ export function ProjectPage() {
 
       try {
         const [iterationsResult, statsResult, notificationsResult, planResult, configResult] = await Promise.allSettled([
-          apiFetch<IterationListResponse>(`/projects/${id}/iterations?status=all&limit=500`),
+          fetchIterationHistory(id),
           apiFetch<ProjectStats>(`/projects/${id}/stats`),
           apiFetch<NotificationEntry[]>(`/projects/${id}/notifications`),
           apiFetch<ParsedImplementationPlan>(`/projects/${id}/plan`),
@@ -351,6 +354,7 @@ export function ProjectPage() {
           setPlan(planResult.value)
           if (!isRawPlanModeRef.current) {
             setPlanDraft(planResult.value.raw)
+            planDraftRevision.current = apiRevision(planResult.value)
           }
         } else {
           setPlan(null)
@@ -394,6 +398,7 @@ export function ProjectPage() {
   useEffect(() => {
     if (plan && !isRawPlanMode) {
       setPlanDraft(plan.raw)
+      planDraftRevision.current = apiRevision(plan)
     }
   }, [isRawPlanMode, plan])
 
@@ -409,6 +414,7 @@ export function ProjectPage() {
     try {
       const updatedPlan = await apiFetch<ParsedImplementationPlan>(`/projects/${id}/plan`, {
         method: "PUT",
+        headers: { "If-Match": planDraftRevision.current },
         body: JSON.stringify({ content: planDraft }),
       })
       setPlan(updatedPlan)
@@ -437,6 +443,7 @@ export function ProjectPage() {
   const toggleRawPlanMode = useCallback(() => {
     if (!isRawPlanMode && plan) {
       setPlanDraft(plan.raw)
+      planDraftRevision.current = apiRevision(plan)
     }
     setIsRawPlanMode((current) => {
       const next = !current
@@ -480,7 +487,7 @@ export function ProjectPage() {
           ? `Iteration ${latestIteration.number}/${latestIteration.max_iterations}`
           : `Iteration ${latestIteration.number}`
       : "Iteration n/a"
-  const runtimeLabel = `Running ${formatDuration(stats?.total_duration_seconds ?? 0)}`
+  const runtimeLabel = `Total runtime ${formatDuration(stats?.total_duration_seconds ?? 0)}`
 
   const tokensUsed = stats?.total_tokens ?? 0
   const estimatedCostUsd = stats?.total_cost_usd ?? 0
@@ -499,19 +506,22 @@ export function ProjectPage() {
   // --- Control bar handlers ---
   const handleStart = useCallback(async () => {
     if (!id) return
+    setControlError(null)
     try {
       await apiFetch(`/projects/${id}/start`, { method: "POST", body: JSON.stringify({}) })
-      pushToast({ title: "Loop started", description: "Ralph loop is starting…", tone: "success" })
+      pushToast({ title: "Loop started", description: "Runner is ready", tone: "success" })
       queueOverviewRefresh()
       void fetchActiveProject(id)
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to start loop"
+      setControlError(msg)
       pushToast({ title: "Start failed", description: msg, tone: "error" })
     }
   }, [id, pushToast, queueOverviewRefresh, fetchActiveProject])
 
   const handleStop = useCallback(async () => {
     if (!id) return
+    setControlError(null)
     try {
       const result = await apiFetch<{ stopped: boolean }>(`/projects/${id}/stop`, { method: "POST" })
       if (result.stopped) {
@@ -529,9 +539,10 @@ export function ProjectPage() {
 
   const handlePause = useCallback(async () => {
     if (!id) return
+    setControlError(null)
     try {
       await apiFetch(`/projects/${id}/pause`, { method: "POST" })
-      pushToast({ title: "Loop paused", description: "Will pause after current iteration", tone: "success" })
+      pushToast({ title: "Pause requested", description: "Will pause after current iteration", tone: "success" })
       queueOverviewRefresh()
       void fetchActiveProject(id)
     } catch (error) {
@@ -542,6 +553,7 @@ export function ProjectPage() {
 
   const handleResume = useCallback(async () => {
     if (!id) return
+    setControlError(null)
     try {
       await apiFetch(`/projects/${id}/resume`, { method: "POST" })
       pushToast({ title: "Loop resumed", description: "Resuming iterations", tone: "success" })
@@ -555,12 +567,14 @@ export function ProjectPage() {
 
   const handleInject = useCallback(async (message: string) => {
     if (!id) return
+    setControlError(null)
     try {
       await apiFetch(`/projects/${id}/inject`, { method: "POST", body: JSON.stringify({ message }) })
       pushToast({ title: "Instruction injected", description: "Will be picked up next iteration", tone: "success" })
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to inject message"
       pushToast({ title: "Inject failed", description: msg, tone: "error" })
+      throw error
     }
   }, [id, pushToast])
   const isInitialLoading =
@@ -730,10 +744,20 @@ export function ProjectPage() {
 
       {/* Tab bar */}
       <nav className="-mb-2 overflow-x-auto border-b border-border" aria-label="Project tabs">
-        <div className="flex">
+        <div className="flex" role="tablist">
           {TABS.map((tab) => (
             <button
               key={tab.key}
+              role="tab"
+              id={`tab-${tab.key}`}
+              aria-selected={activeTab === tab.key}
+              aria-controls="project-tab-panel"
+              tabIndex={activeTab === tab.key ? 0 : -1}
+              onKeyDown={(event) => {
+                const index = TABS.findIndex((item) => item.key === tab.key)
+                const next = event.key === "ArrowRight" ? (index + 1) % TABS.length : event.key === "ArrowLeft" ? (index + TABS.length - 1) % TABS.length : event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : null
+                if (next !== null) { event.preventDefault(); handleTabChange(TABS[next].key); document.getElementById(`tab-${TABS[next].key}`)?.focus() }
+              }}
               type="button"
               onClick={() => handleTabChange(tab.key)}
               className={`relative shrink-0 px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 sm:py-2.5 sm:text-sm ${
@@ -753,12 +777,14 @@ export function ProjectPage() {
       </nav>
 
       {/* Active tab content */}
-      <section className="min-h-0 overflow-hidden p-0 pb-4 sm:p-0 sm:pb-4">
+      <section role="tabpanel" id="project-tab-panel" aria-labelledby={`tab-${activeTab}`} className="min-h-0 overflow-hidden p-0 pb-4 sm:p-0 sm:pb-4">
         {renderTabContent()}
       </section>
 
+      {controlError && <p role="alert" className="rounded border border-destructive p-3 text-sm text-destructive">{controlError}</p>}
       {/* Control bar — always visible at bottom */}
       <ProjectControlBar
+        pauseRequested={activeProject?.pause_requested}
         status={status}
         iterationLabel={iterationLabel}
         runtimeLabel={runtimeLabel}

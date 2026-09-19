@@ -2,20 +2,25 @@ services:
   ralph-dashboard:
     build:
       context: .
-      dockerfile: Dockerfile
+      args:
+        RALPH_UID: ${RALPH_UID:-1000}
+        RALPH_GID: ${RALPH_GID:-1000}
     restart: unless-stopped
+    init: true
     ports:
       - "127.0.0.1:8420:8420"
     volumes:
-      - ./data:/data
+      - dashboard-data:/data
+      - agent-home:/home/ralph
+      - ${RALPH_HOST_PROJECT_DIR:?Set RALPH_HOST_PROJECT_DIR to your projects folder}:/projects
     environment:
-      RALPH_CREDENTIALS_FILE: /data/credentials.yaml
-      RALPH_DB_DIR: /data
-      RALPH_PROJECT_DIRS: /projects
-      RALPH_JWT_SECRET: ${RALPH_JWT_SECRET:-}
+      RALPH_SECRET_KEY: ${RALPH_SECRET_KEY:?Set a random RALPH_SECRET_KEY of at least 32 characters}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8420/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
+volumes:
+  dashboard-data:
+  agent-home:

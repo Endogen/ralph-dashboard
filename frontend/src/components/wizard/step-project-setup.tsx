@@ -1,3 +1,5 @@
+import { useCapabilities } from "@/hooks/use-capabilities"
+
 import { type KeyboardEvent, useState } from "react"
 
 import { X } from "lucide-react"
@@ -19,6 +21,7 @@ function deriveProjectNameFromPath(pathValue: string): string {
 }
 
 export function StepProjectSetup() {
+  const capabilities = useCapabilities()
   const projectMode = useWizardStore((s) => s.projectMode)
   const setProjectMode = useWizardStore((s) => s.setProjectMode)
   const existingProjectPath = useWizardStore((s) => s.existingProjectPath)
@@ -74,6 +77,7 @@ export function StepProjectSetup() {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button
               type="button"
+              aria-pressed={projectMode === "new"}
               onClick={() => setProjectMode("new")}
               className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                 projectMode === "new"
@@ -86,6 +90,7 @@ export function StepProjectSetup() {
             </button>
             <button
               type="button"
+              aria-pressed={projectMode === "existing"}
               onClick={() => setProjectMode("existing")}
               className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                 projectMode === "existing"
@@ -184,7 +189,7 @@ export function StepProjectSetup() {
         {projectName.trim() && projectMode === "new" && (
           <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              Target directory: <code className="font-mono text-foreground">~/projects/{normalizedProjectName}</code>
+              Target directory: <code className="font-mono text-foreground">{capabilities?.project_dirs[0] ?? "Configured project directory"}/{normalizedProjectName}</code>
             </p>
           </div>
         )}

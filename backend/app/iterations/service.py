@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from pathlib import Path
 
 from app.iterations.jsonl_parser import ParsedJsonlIteration, parse_iterations_jsonl_file
@@ -45,12 +46,14 @@ def _merge_jsonl(detail: IterationDetail, jsonl_iteration: ParsedJsonlIteration)
     detail.end_timestamp = jsonl_iteration.end
     detail.duration_seconds = jsonl_iteration.duration_seconds
     detail.tokens_used = jsonl_iteration.tokens
+    for field in ("provider", "model", "usage", "cost_usd", "cost_estimated"):
+        setattr(detail, field, getattr(jsonl_iteration, field))
     detail.status = jsonl_iteration.status
     detail.tasks_completed = jsonl_iteration.tasks_completed
     detail.commit = jsonl_iteration.commit
     detail.test_passed = jsonl_iteration.test_passed
     detail.errors = jsonl_iteration.errors or detail.errors
-    detail.has_errors = bool(detail.errors) or detail.has_errors
+    detail.has_errors = bool(detail.errors) or detail.has_errors or detail.status in {"error", "blocked", "cancelled"} or detail.test_passed is False
     return detail
 
 
@@ -112,10 +115,21 @@ def _safe_parse_log(log_file: Path) -> list[ParsedLogIteration]:
     return parse_ralph_log_tail_file(log_file, LARGE_LOG_TAIL_PARSE_BYTES)
 
 
+_summary_cache: OrderedDict = OrderedDict()
+
+
 async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     """List merged iteration summaries for a project."""
     project_path = await _resolve_project_path(project_id)
     ralph_dir = project_path / ".ralph"
+    def signature():
+        return tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size, path.stat().st_ino)
+                     for path in (ralph_dir / "iterations.jsonl", ralph_dir / "ralph.log") if path.exists())
+    version = await asyncio.to_thread(signature)
+    cache_key = str(project_path)
+    cached = _summary_cache.get(cache_key)
+    if cached and cached[0] == version:
+        return [item.model_copy(deep=True) for item in cached[1]]
     jsonl_iterations = await asyncio.to_thread(parse_iterations_jsonl_file, ralph_dir / "iterations.jsonl")
 
     # Prefer jsonl data; only parse log if jsonl is empty and log is small
@@ -127,7 +141,12 @@ async def list_project_iterations(project_id: str) -> list[IterationSummary]:
 
     merged = _build_iteration_map(log_iterations, jsonl_iterations)
     details = [merged[number] for number in sorted(merged)]
-    return [IterationSummary.model_validate(detail.model_dump()) for detail in details]
+    result = [IterationSummary.model_validate(detail.model_dump()) for detail in details]
+    _summary_cache[cache_key] = (version, result)
+    _summary_cache.move_to_end(cache_key)
+    while len(_summary_cache) > 128:
+        _summary_cache.popitem(last=False)
+    return [item.model_copy(deep=True) for item in result]
 
 
 async def get_project_iteration_details(

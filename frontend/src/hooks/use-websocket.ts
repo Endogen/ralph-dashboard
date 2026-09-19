@@ -1,5 +1,7 @@
 import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { freshAccessToken, refreshAccessToken } from "@/api/client"
+
 import { useAuthStore } from "@/stores/auth-store"
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const
@@ -32,11 +34,10 @@ function normalizeProjects(projects: string[] | undefined): string[] {
   return Array.from(new Set(projects.map((item) => item.trim()).filter(Boolean))).sort()
 }
 
-function buildWebSocketUrl(accessToken: string): string {
+function buildWebSocketUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws"
   const host = window.location.host
-  const token = encodeURIComponent(accessToken)
-  return `${protocol}://${host}/api/ws?token=${token}`
+  return `${protocol}://${host}/api/ws`
 }
 
 export function useWebSocket({
@@ -91,14 +92,20 @@ export function useWebSocket({
       }
     }
 
-    const connect = () => {
+    const connect = async () => {
       if (cancelled) {
         return
       }
 
       // Avoid overlapping reconnect timers creating parallel sockets.
       clearReconnectTimer()
-      const socket = new WebSocket(buildWebSocketUrl(accessToken))
+      let token: string | null
+      try { token = await freshAccessToken() } catch {
+        if (!cancelled) reconnectTimerRef.current = window.setTimeout(() => void connect(), 3000)
+        return
+      }
+      if (cancelled || !token) return
+      const socket = new WebSocket(buildWebSocketUrl())
       socketRef.current = socket
 
       socket.onopen = () => {
@@ -106,17 +113,8 @@ export function useWebSocket({
           return
         }
 
-        clearReconnectTimer()
-        reconnectAttemptRef.current = 0
-        setConnected(true)
-        setReconnecting(false)
+        socket.send(JSON.stringify({ action: "authenticate", token }))
 
-        if (projectsRef.current.length > 0) {
-          socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
-          subscribedProjectsRef.current = projectsRef.current
-        } else {
-          subscribedProjectsRef.current = []
-        }
       }
 
       socket.onmessage = (event: MessageEvent<string>) => {
@@ -127,6 +125,24 @@ export function useWebSocket({
         try {
           const parsed = JSON.parse(event.data) as WebSocketEnvelope
 
+          if (parsed.type === "authenticated") {
+            clearReconnectTimer()
+            reconnectAttemptRef.current = 0
+            setConnected(true)
+            setReconnecting(false)
+            window.dispatchEvent(new CustomEvent("ralph-live-event", { detail: { type: "reconnected" } }))
+            onEventRef.current?.({ type: "reconnected" })
+
+            if (projectsRef.current.length > 0) {
+              socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
+              subscribedProjectsRef.current = projectsRef.current
+            } else {
+              subscribedProjectsRef.current = []
+            }
+            return
+          }
+
+          window.dispatchEvent(new CustomEvent("ralph-live-event", { detail: parsed }))
           onEventRef.current?.(parsed)
         } catch {
           // Ignore malformed websocket messages and keep the stream alive.
@@ -153,7 +169,9 @@ export function useWebSocket({
         if (event.code === 1008) {
           // Auth/policy violation from backend — force a re-login instead of
           // reconnecting forever with the same invalid token.
-          useAuthStore.getState().clearTokens()
+          void refreshAccessToken().then(() => { if (!cancelled) void connect() }).catch(() => {
+            if (!cancelled) reconnectTimerRef.current = window.setTimeout(() => void connect(), 3000)
+          })
           setReconnecting(false)
           return
         }

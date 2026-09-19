@@ -31,7 +31,7 @@ async def test_login_success_issues_tokens(monkeypatch: pytest.MonkeyPatch, tmp_
     _write_credentials(credentials_file, "demo", "s3cr3t")
 
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(credentials_file))
-    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret")
+    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret----------------------")
     _clear_settings_cache()
 
     response = await login(LoginRequest(username="demo", password="s3cr3t"))
@@ -76,7 +76,7 @@ async def test_refresh_token_success(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     _write_credentials(credentials_file, "demo", "s3cr3t")
 
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(credentials_file))
-    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret")
+    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret----------------------")
     _clear_settings_cache()
 
     login_response = await login(LoginRequest(username="demo", password="s3cr3t"))
@@ -90,7 +90,7 @@ async def test_refresh_token_success(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 @pytest.mark.anyio
 async def test_refresh_token_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret")
+    monkeypatch.setenv("RALPH_SECRET_KEY", "router-test-secret----------------------")
     _clear_settings_cache()
 
     with pytest.raises(HTTPException) as exc_info:

@@ -7,6 +7,13 @@ type RefreshResponse = {
   token_type: "bearer"
 }
 
+const revisions = new Map<string, string>()
+const responseRevisions = new WeakMap<object, string>()
+
+export function apiRevision(response: object): string {
+  return responseRevisions.get(response) ?? ""
+}
+
 let refreshInFlight: Promise<string | null> | null = null
 
 async function readErrorDetail(response: Response): Promise<string | null> {
@@ -45,7 +52,7 @@ function buildHeaders(initHeaders: HeadersInit | undefined, accessToken: string 
   return headers
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) {
     return refreshInFlight
   }
@@ -62,7 +69,7 @@ async function refreshAccessToken(): Promise<string | null> {
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!response.ok) {
-      clearTokens()
+      if (response.status === 401 || response.status === 403) clearTokens()
       return null
     }
 
@@ -79,10 +86,14 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (!headers.has("If-Match") && ["PUT", "DELETE"].includes(init?.method ?? "") && revisions.has(path)) {
+    headers.set("If-Match", revisions.get(path)!)
+  }
   const request = async (accessToken: string | null): Promise<Response> =>
     fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: buildHeaders(init?.headers, accessToken),
+      headers: buildHeaders(headers, accessToken),
     })
 
   const state = useAuthStore.getState()
@@ -100,8 +111,24 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new Error(detail ? `API request failed (${response.status}): ${detail}` : `API request failed (${response.status})`)
   }
 
+  const revision = response.headers.get("ETag")
+  if (revision) revisions.set(path, revision)
+  if (revisions.size > 500) revisions.delete(revisions.keys().next().value!)
+
   if (response.status === 204) {
     return undefined as T
   }
-  return (await response.json()) as T
+  const payload = await response.json()
+  if (revision && payload && typeof payload === "object") responseRevisions.set(payload, revision)
+  return payload as T
+}
+
+export async function freshAccessToken(): Promise<string | null> {
+  const token = useAuthStore.getState().accessToken
+  if (!token) return null
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")))
+    if (payload.exp * 1000 > Date.now() + 30000) return token
+  } catch { /* Refresh malformed or expired tokens. */ }
+  return refreshAccessToken()
 }

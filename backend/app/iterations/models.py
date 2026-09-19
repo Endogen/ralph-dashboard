@@ -12,6 +12,11 @@ class IterationSummary(BaseModel):
     end_timestamp: str | None = None
     duration_seconds: float | None = None
     tokens_used: float | None = None
+    provider: str | None = None
+    model: str | None = None
+    usage: dict = Field(default_factory=dict)
+    cost_usd: float | None = None
+    cost_estimated: bool = True
     status: str | None = None
     has_errors: bool = False
     errors: list[str] = Field(default_factory=list)

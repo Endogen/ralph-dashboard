@@ -4,7 +4,6 @@ import { ArrowDown, Pin, PinOff } from "lucide-react"
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { type AnsiSegment, ansiStyleToClass, parseAnsiText, stripAnsi } from "@/lib/ansi"
-import type { IterationDetailListResponse, IterationListResponse } from "@/types/project"
 
 type ProjectLogViewerProps = {
   projectId?: string
@@ -32,19 +31,6 @@ const LOG_VIEWPORT_HEIGHT_PX = 520
 const LOG_LINE_HEIGHT_PX = 18
 const LOG_OVERSCAN_LINES = 20
 
-function appendLogChunk(current: string, chunk: string): string {
-  if (!chunk) {
-    return current
-  }
-  if (!current) {
-    return chunk
-  }
-  if (current.endsWith("\n") || chunk.startsWith("\n")) {
-    return `${current}${chunk}`
-  }
-  return `${current}\n${chunk}`
-}
-
 function extractIterationNumber(line: string): number | null {
   const normalized = stripAnsi(line)
   const dashboardMatch = normalized.match(/^\[Iteration\s+(\d+)\]/i)
@@ -52,7 +38,7 @@ function extractIterationNumber(line: string): number | null {
     return Number.parseInt(dashboardMatch[1], 10)
   }
 
-  const streamMatch = normalized.match(/===\s*Iteration\s+(\d+)\/\d+\s*===/i)
+  const streamMatch = normalized.match(/===\s*Iteration\s+(\d+)(?:\/\d+|\s+\(loop[^)]*\))\s*===/i)
   if (streamMatch) {
     return Number.parseInt(streamMatch[1], 10)
   }
@@ -86,8 +72,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
   const [jumpError, setJumpError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
-  const pendingLiveChunkRef = useRef("")
-  const hydratingRef = useRef(false)
+  const refreshLogsRef = useRef<(() => void) | null>(null)
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const viewport = viewportRef.current
@@ -123,90 +108,43 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
 
   useEffect(() => {
     let cancelled = false
-
-    const loadLogs = async () => {
-      if (!projectId) {
-        setIsAutoScroll(true)
-        setIsAtBottom(true)
-        setScrollTop(0)
-        setSearchTerm("")
-        setFilterMode("all")
-        setIterationFrom("")
-        setIterationTo("")
-        setJumpIteration("")
-        setJumpError(null)
-        pendingLiveChunkRef.current = ""
-        hydratingRef.current = false
-        setLogContent("")
-        setIsLoading(false)
-        setError(null)
-        return
-      }
-
-      hydratingRef.current = true
-      setIsLoading(true)
-      setError(null)
+    let loading = false
+    let offset: number | undefined
+    let generation = ""
+    setLogContent("")
+    setIsLoading(true)
+    const load = async () => {
+      if (!projectId || loading || cancelled) return
+      loading = true
       try {
-        const listResponse = await apiFetch<IterationListResponse>(`/projects/${projectId}/iterations?status=all&limit=500`)
-        const ordered = [...listResponse.iterations].sort((left, right) => left.number - right.number)
-        // Only load the last 20 iterations to keep payload size bounded
-        // for large projects.
-        const recentIterations = ordered.slice(-20)
-        const params = new URLSearchParams()
-        for (const iteration of recentIterations) {
-          params.append("numbers", String(iteration.number))
+        let more = true
+        while (more && !cancelled) {
+          const params = new URLSearchParams({ generation })
+          if (offset !== undefined) params.set("offset", String(offset))
+          const result = await apiFetch<{ text: string; offset: number; generation: string; reset: boolean; has_more: boolean }>(
+            `/projects/${projectId}/log?${params}`)
+          if (cancelled) return
+          offset = result.offset
+          generation = result.generation
+          setLogContent((current) => ((result.reset ? "" : current) + result.text).slice(-2 * 1024 * 1024))
+          setError(null)
+          more = result.has_more
         }
-        const detailsResponse = await apiFetch<IterationDetailListResponse>(
-          `/projects/${projectId}/iterations/details?${params.toString()}`,
-        )
-        if (cancelled) {
-          return
-        }
-
-        const merged = [...detailsResponse.iterations]
-          .sort((left, right) => left.number - right.number)
-          .map((detail) => {
-            const body = detail.log_output?.trim() || "(no log output captured)"
-            return `[Iteration ${detail.number}]\n${body}`
-          })
-          .join("\n\n")
-        const pending = pendingLiveChunkRef.current
-        pendingLiveChunkRef.current = ""
-        setLogContent(appendLogChunk(merged, pending))
-      } catch (loadError) {
-        if (cancelled) {
-          return
-        }
-        const message = loadError instanceof Error ? loadError.message : "Failed to load log output"
-        setError(message)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load logs")
       } finally {
-        if (!cancelled) {
-          hydratingRef.current = false
-          setIsLoading(false)
-        }
+        loading = false
+        if (!cancelled) setIsLoading(false)
       }
     }
-
-    void loadLogs()
-
-    return () => {
-      cancelled = true
-    }
+    refreshLogsRef.current = () => void load()
+    void load()
+    // Cursor reconciliation catches missed watcher events and reconnect gaps.
+    const timer = window.setInterval(() => void load(), 2000)
+    return () => { cancelled = true; window.clearInterval(timer); refreshLogsRef.current = null }
   }, [projectId])
 
-  useEffect(() => {
-    if (!projectId || !liveChunk || !liveChunk.lines) {
-      return
-    }
-
-    if (hydratingRef.current) {
-      pendingLiveChunkRef.current = appendLogChunk(pendingLiveChunkRef.current, liveChunk.lines)
-      return
-    }
-
-    setLogContent((current) => appendLogChunk(current, liveChunk.lines))
-    setError(null)
-  }, [liveChunk, projectId])
+  useEffect(() => { refreshLogsRef.current?.() }, [liveChunk])
 
   useEffect(() => {
     if (!projectId) {
@@ -386,7 +324,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
       <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-base font-semibold">Log Viewer</h3>
-          <p className="text-sm text-muted-foreground">Terminal-style log stream with ANSI color rendering.</p>
+          <p className="text-sm text-muted-foreground">Live output. Showing up to the most recent 2 MB.</p>
         </div>
         <Button
           type="button"
@@ -407,6 +345,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
           type="text"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
+          aria-label="Search logs"
           placeholder="Search logs (Ctrl/Cmd+F)..."
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
@@ -425,6 +364,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
           inputMode="numeric"
           value={iterationFrom}
           onChange={(event) => setIterationFrom(event.target.value)}
+          aria-label="First iteration"
           placeholder="Iter from"
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
@@ -434,6 +374,7 @@ export function ProjectLogViewer({ projectId, liveChunk }: ProjectLogViewerProps
           inputMode="numeric"
           value={iterationTo}
           onChange={(event) => setIterationTo(event.target.value)}
+          aria-label="Last iteration"
           placeholder="Iter to"
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />

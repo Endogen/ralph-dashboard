@@ -10,6 +10,7 @@ from app.plan.parser import (
     parse_implementation_plan_file,
 )
 from app.projects.service import get_project_detail
+from app.utils.files import atomic_write, contained_path
 
 
 class PlanServiceError(Exception):
@@ -30,7 +31,7 @@ async def _resolve_project_path(project_id: str) -> Path:
 async def get_project_plan(project_id: str) -> ParsedImplementationPlan:
     """Read and parse a project's implementation plan file."""
     project_path = await _resolve_project_path(project_id)
-    plan_file = project_path / "IMPLEMENTATION_PLAN.md"
+    plan_file = contained_path(project_path, "IMPLEMENTATION_PLAN.md")
     parsed = parse_implementation_plan_file(plan_file)
     if parsed is None:
         return parse_implementation_plan("")
@@ -40,6 +41,6 @@ async def get_project_plan(project_id: str) -> ParsedImplementationPlan:
 async def update_project_plan(project_id: str, content: str) -> ParsedImplementationPlan:
     """Write and parse a project's implementation plan file."""
     project_path = await _resolve_project_path(project_id)
-    plan_file = project_path / "IMPLEMENTATION_PLAN.md"
-    plan_file.write_text(content, encoding="utf-8")
+    plan_file = contained_path(project_path, "IMPLEMENTATION_PLAN.md")
+    atomic_write(plan_file, content)
     return parse_implementation_plan(content)

@@ -1,3 +1,5 @@
+import { ensureGenerationPolling } from "@/api/generation"
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { FolderPlus, MoonStar, Sun } from "lucide-react"
@@ -37,10 +39,11 @@ export function AppLayout() {
         : null
 
       if (
-        (event.type === "iteration_started" ||
+        (event.type === "reconnected" ||
+          event.type === "watcher_projects_refreshed" ||
+          event.type === "iteration_started" ||
           event.type === "iteration_completed" ||
-          event.type === "plan_updated") &&
-        event.project
+          event.type === "plan_updated")
       ) {
         void fetchProjects()
       }
@@ -146,6 +149,7 @@ export function AppLayout() {
 
   useEffect(() => {
     void fetchProjects()
+    ensureGenerationPolling()
   }, [fetchProjects])
 
   return (
@@ -163,7 +167,7 @@ export function AppLayout() {
         />
 
         <main className="flex min-h-[80vh] min-w-0 flex-1 flex-col gap-4 p-0 md:p-2">
-          <section className="flex items-center justify-between gap-2 md:hidden">
+          <section className="flex flex-wrap items-center justify-between gap-2 md:hidden">
             <div className="flex items-center gap-2">
               <NavLink
                 to="/"

@@ -6,6 +6,7 @@ import argparse
 import getpass
 import importlib.util
 import os
+import shlex
 import plistlib
 import re
 import secrets
@@ -119,21 +120,16 @@ def parse_env_file(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if (
-            len(value) >= 2
-            and ((value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'"))
-        ):
-            value = value[1:-1]
+        if value:
+            words = shlex.split(value, comments=True)
+            value = " ".join(words)
         payload[key] = value
     return payload
 
 
 def quote_env_value(value: str) -> str:
     """Quote env values when needed to preserve whitespace/special chars."""
-    if ENV_SAFE_VALUE_RE.fullmatch(value):
-        return value
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return shlex.quote(value)
 
 
 def write_env_file(path: Path, values: dict[str, str]) -> None:
@@ -501,6 +497,9 @@ def run_build_frontend(_: argparse.Namespace) -> int:
         return 1
 
     print(f"{CHECK_MARK} Building frontend assets in {frontend}")
+    install_result = subprocess.run([npm_path, "ci"], cwd=frontend, check=False)
+    if install_result.returncode:
+        return install_result.returncode
     build_result = subprocess.run([npm_path, "run", "build"], cwd=frontend, check=False)
     if build_result.returncode != 0:
         print("Error: `npm run build` failed.")
@@ -533,9 +532,10 @@ def render_systemd_service_unit(
             "",
             "[Service]",
             "Type=simple",
-            f"WorkingDirectory={backend_path}",
-            f"EnvironmentFile={env_file}",
-            f"ExecStart={uvicorn_exec} app.main:app --host 127.0.0.1 --port {port}",
+            f"WorkingDirectory={quote_env_value(str(backend_path))}",
+            f"EnvironmentFile={quote_env_value(str(env_file))}",
+            f'Environment="PATH={os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}"',
+            f"ExecStart={quote_env_value(str(uvicorn_exec))} app.main:app --host 127.0.0.1 --port {port}",
             "Restart=on-failure",
             "RestartSec=3",
             "",
@@ -707,7 +707,7 @@ def render_launchd_service_plist(
     payload = {
         "Label": label,
         "ProgramArguments": program_arguments,
-        "EnvironmentVariables": environment_variables,
+        "EnvironmentVariables": {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"), **environment_variables},
         "WorkingDirectory": str(backend_path),
         "RunAtLoad": True,
         "KeepAlive": True,

@@ -88,6 +88,7 @@ export function StepAgentConfig() {
               <button
                 key={agent.id}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => setCli(agent.id)}
                 className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${
                   isSelected
@@ -122,6 +123,7 @@ export function StepAgentConfig() {
               <button
                 key={mode}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => setAutoApproval(mode)}
                 className={`rounded-xl border-2 p-4 text-left transition-all ${
                   isSelected
@@ -129,10 +131,10 @@ export function StepAgentConfig() {
                     : "border-input hover:border-muted-foreground/40 hover:bg-accent/30"
                 }`}
               >
-                <p className="text-sm font-medium capitalize">{mode === "full-auto" ? "Full Auto" : "Sandboxed"}</p>
+                <p className="text-sm font-medium capitalize">{mode === "full-auto" ? "Full access" : "Restricted"}</p>
                 <p className="text-xs text-muted-foreground">
                   {mode === "sandboxed"
-                    ? "Safer — agent runs in sandboxed mode with restrictions"
+                    ? (cli === "codex" ? "Edits stay within the Codex workspace sandbox" : "Allows project file edits; other tools follow Claude permission rules")
                     : "Agent has full system access with no approval needed"}
                 </p>
               </button>
@@ -215,7 +217,7 @@ function ModelOverrideField({
     if (!value) {
       setIsCustom(false)
     }
-  }, [cli])
+  }, [cli, value])
 
   const activeValue = isCustom ? "__custom__" : presets.find((p) => p.value === value)?.value ?? "__custom__"
 

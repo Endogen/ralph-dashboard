@@ -1,4 +1,7 @@
-import { useCallback, useState } from "react"
+import { useCapabilities } from "@/hooks/use-capabilities"
+import { useProjectsStore } from "@/stores/projects-store"
+
+import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { AlertCircle, FileText, FolderGit2, Loader2, Play, Rocket } from "lucide-react"
@@ -17,6 +20,7 @@ type CreateApiResponse = {
 
 export function StepConfirmLaunch() {
   const navigate = useNavigate()
+  const capabilities = useCapabilities()
   const pushToast = useToastStore((s) => s.pushToast)
 
   const projectName = useWizardStore((s) => s.projectName)
@@ -35,14 +39,29 @@ export function StepConfirmLaunch() {
   const setCreateError = useWizardStore((s) => s.setCreateError)
   const reset = useWizardStore((s) => s.reset)
 
+  const [preview, setPreview] = useState<{ versions: Record<string, string>; files: { path: string; previous: string | null; content: string; action: string }[] } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    setPreview(null)
+    setPreviewError(null)
+    apiFetch<NonNullable<typeof preview>>("/wizard/preview", { method: "POST", body: JSON.stringify({
+      project_name: projectName, project_mode: projectMode, existing_project_path: existingProjectPath,
+      cli, auto_approval: autoApproval, max_iterations: maxIterations, test_command: testCommand,
+      model_override: modelOverride, files: generatedFiles,
+    }) }).then((result) => { if (active) setPreview(result) }).catch((error) => { if (active) setPreviewError(error.message) })
+    return () => { active = false }
+  }, [projectName, projectMode, existingProjectPath, cli, autoApproval, maxIterations, testCommand, modelOverride, generatedFiles])
+
   const [startLoop, setStartLoop] = useState(false)
   const targetPath =
     projectMode === "existing"
       ? existingProjectPath.trim()
-      : `~/projects/${projectName.trim().replace(/\s+/g, "-").toLowerCase()}`
+      : `${capabilities?.project_dirs[0] ?? "Configured project directory"}/${projectName.trim().replace(/\s+/g, "-").toLowerCase()}`
   const fileActionLabel = projectMode === "existing" ? "Files to create/update" : "Files to create"
 
   const handleCreate = useCallback(async () => {
+    if (!preview) return
     setIsCreating(true)
     setCreateError(null)
 
@@ -60,12 +79,14 @@ export function StepConfirmLaunch() {
           model_override: modelOverride,
           files: generatedFiles,
           start_loop: startLoop,
+          expected_versions: preview?.versions ?? {},
         }),
       })
 
+      await useProjectsStore.getState().fetchProjects()
       pushToast({
         title: projectMode === "existing" ? "Project prepared!" : "Project created!",
-        description: `${response.project_path} is ready${response.started ? " and building" : ""}`,
+        description: `${response.project_path} is ready${response.started ? " and running" : ""}`,
         tone: "success",
       })
 
@@ -103,6 +124,7 @@ export function StepConfirmLaunch() {
     modelOverride,
     generatedFiles,
     startLoop,
+    preview,
     setIsCreating,
     setCreateError,
     reset,
@@ -119,6 +141,14 @@ export function StepConfirmLaunch() {
 
   return (
     <div className="space-y-6">
+      {previewError && <p role="alert" className="text-sm text-destructive">{previewError}</p>}
+      {projectMode === "existing" && preview && <div className="space-y-2">
+        <h3 className="font-medium">Review existing file changes</h3>
+        {preview.files.filter((file) => file.previous !== null).map((file) => <details key={file.path} className="rounded border p-3">
+          <summary className="cursor-pointer text-sm">Update {file.path}</summary>
+          <div className="grid gap-3 md:grid-cols-2"><div><p className="my-2 text-xs font-medium">Current file</p><pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">{file.previous}</pre></div><div><p className="my-2 text-xs font-medium">Proposed file</p><pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">{file.content}</pre></div></div>
+        </details>)}
+      </div>}
       <div>
         <h2 className="text-xl font-semibold">Confirm & Launch</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -149,7 +179,7 @@ export function StepConfirmLaunch() {
           </div>
           <div className="rounded-lg border bg-muted/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Mode</p>
-            <p className="text-sm font-medium capitalize">{autoApproval === "full-auto" ? "Full Auto" : "Sandboxed"}</p>
+            <p className="text-sm font-medium capitalize">{autoApproval === "full-auto" ? "Full access" : "Restricted"}</p>
           </div>
           <div className="rounded-lg border bg-muted/20 px-3 py-2">
             <p className="text-xs text-muted-foreground">Max Iterations</p>
@@ -216,7 +246,7 @@ export function StepConfirmLaunch() {
       {/* Create button */}
       <Button
         onClick={handleCreate}
-        disabled={isCreating}
+        disabled={isCreating || !preview}
         className="w-full gap-2"
         size="lg"
       >

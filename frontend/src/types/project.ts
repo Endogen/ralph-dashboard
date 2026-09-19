@@ -8,12 +8,17 @@ export type ProjectSummary = {
 }
 
 export type ProjectDetail = ProjectSummary & {
+  pause_requested: boolean
   ralph_dir: string
   plan_file: string | null
   log_file: string | null
 }
 
 export type IterationSummary = {
+  cost_usd: number | null
+  cost_estimated: boolean
+  provider: string | null
+  model: string | null
   number: number
   max_iterations: number | null
   start_timestamp: string | null
@@ -138,6 +143,9 @@ export type ProjectSystemInfo = {
 }
 
 export type LoopConfig = {
+  model: string
+  approval_mode: "sandboxed" | "full-auto"
+  iteration_timeout_seconds: number
   cli: string
   flags: string
   max_iterations: number

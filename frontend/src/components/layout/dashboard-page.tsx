@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { ProjectGrid, type ProjectGridItem } from "@/components/dashboard/project-grid"
 import { useProjectsStore } from "@/stores/projects-store"
 import { useToastStore } from "@/stores/toast-store"
-import type { IterationListResponse, IterationSummary, ProjectStats } from "@/types/project"
+import type { IterationSummary, ProjectStats } from "@/types/project"
 
 type PerProjectData = {
   stats: ProjectStats | null
@@ -55,20 +55,12 @@ export function DashboardPage() {
   const fetchProjectData = useCallback(async () => {
     if (projects.length === 0) return
     setStatsLoading(true)
-    const entries = await Promise.all(
-      projects.map(async (project) => {
-        try {
-          const [stats, iterResponse] = await Promise.all([
-            apiFetch<ProjectStats>(`/projects/${project.id}/stats`),
-            apiFetch<IterationListResponse>(`/projects/${project.id}/iterations?sort=desc&limit=10`),
-          ])
-          return [project.id, { stats, iterations: iterResponse.iterations }] as const
-        } catch {
-          return [project.id, { stats: null, iterations: [] }] as const
-        }
-      }),
-    )
-    setDataMap(Object.fromEntries(entries))
+    try {
+      const overview = await apiFetch<Record<string, PerProjectData>>("/projects/overview")
+      setDataMap(overview)
+    } finally {
+      setStatsLoading(false)
+    }
     setStatsLoading(false)
   }, [projects])
 
@@ -88,7 +80,7 @@ export function DashboardPage() {
 
       const sorted = [...iterations].sort((a, b) => a.number - b.number)
       const latestIteration = sorted[sorted.length - 1]
-      const lastActivityLabel = relativeTimeLabel(latestIteration?.end_timestamp)
+      const lastActivityLabel = relativeTimeLabel(latestIteration?.end_timestamp ?? latestIteration?.start_timestamp)
 
       const healthStrip = iterations.length > 0 ? buildHealthStrip(iterations) : []
 
@@ -152,7 +144,7 @@ export function DashboardPage() {
       </header>
       <ProjectGrid
         projects={gridItems}
-        isLoading={isLoading || statsLoading}
+        isLoading={(isLoading || statsLoading) && Object.keys(dataMap).length === 0}
         error={error}
         onOpenProject={(projectId) => navigate(`/project/${projectId}`)}
         onArchiveProject={handleArchive}

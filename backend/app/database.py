@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
-import threading
+import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -41,60 +41,18 @@ _persistent_connection: "AsyncSQLiteConnection" | None = None
 _persistent_db_path: Path | None = None
 
 
-class AsyncSQLiteCursor:
-    """Async cursor wrapper around sqlite3 cursor methods."""
-
-    def __init__(self, cursor: sqlite3.Cursor, lock: threading.Lock) -> None:
-        self._cursor = cursor
-        self._lock = lock
-
-    def _call_locked(self, operation, *args):
-        with self._lock:
-            return operation(*args)
-
-    async def fetchone(self) -> sqlite3.Row | None:
-        return self._call_locked(self._cursor.fetchone)
-
-    async def fetchall(self) -> list[sqlite3.Row]:
-        return self._call_locked(self._cursor.fetchall)
-
-    async def close(self) -> None:
-        self._call_locked(self._cursor.close)
+# aiosqlite executes SQLite operations on its own worker thread. Autocommit
+# keeps independent settings/user updates atomic without sharing transactions.
+AsyncSQLiteConnection = aiosqlite.Connection
 
 
-class AsyncSQLiteConnection:
-    """Async connection wrapper over sqlite3 using thread offloading."""
-
-    def __init__(self, connection: sqlite3.Connection) -> None:
-        self._connection = connection
-        self._lock = threading.Lock()
-
-    def _call_locked(self, operation, *args):
-        with self._lock:
-            return operation(*args)
-
-    async def execute(
-        self, sql: str, parameters: tuple[Any, ...] = ()
-    ) -> AsyncSQLiteCursor:
-        cursor = self._call_locked(self._connection.execute, sql, parameters)
-        return AsyncSQLiteCursor(cursor, self._lock)
-
-    async def executescript(self, script: str) -> None:
-        self._call_locked(self._connection.executescript, script)
-
-    async def commit(self) -> None:
-        self._call_locked(self._connection.commit)
-
-    async def close(self) -> None:
-        self._call_locked(self._connection.close)
-
-
-def _open_sqlite_connection(path: Path) -> AsyncSQLiteConnection:
-    """Create a sqlite3 connection configured like the prior aiosqlite setup."""
-    raw = sqlite3.connect(path, check_same_thread=False)
-    raw.row_factory = sqlite3.Row
-    raw.execute("PRAGMA foreign_keys = ON")
-    return AsyncSQLiteConnection(raw)
+async def _open_sqlite_connection(path: Path) -> AsyncSQLiteConnection:
+    connection = await aiosqlite.connect(path, isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    await connection.execute("PRAGMA foreign_keys = ON")
+    await connection.execute("PRAGMA journal_mode = WAL")
+    await connection.execute("PRAGMA busy_timeout = 5000")
+    return connection
 
 
 def resolve_database_path(database_path: Path | None = None) -> Path:
@@ -146,7 +104,7 @@ async def open_database(database_path: Path | None = None) -> AsyncIterator[Asyn
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
     connection: AsyncSQLiteConnection | None = None
     try:
-        connection = _open_sqlite_connection(resolved_path)
+        connection = await _open_sqlite_connection(resolved_path)
         await _ensure_schema(connection)
         await connection.commit()
         yield connection
@@ -178,7 +136,7 @@ async def init_database(database_path: Path | None = None) -> Path:
             pass
         _persistent_connection = None
 
-    connection = _open_sqlite_connection(resolved_path)
+    connection = await _open_sqlite_connection(resolved_path)
     await _ensure_schema(connection)
     await connection.commit()
 

@@ -21,15 +21,9 @@ def test_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("RALPH_CREDENTIALS_FILE", raising=False)
     _clear_settings_cache()
 
-    settings = get_settings()
-
-    assert settings.project_dirs == [(Path.home() / "projects").resolve()]
-    assert settings.port == 8420
-    assert settings.secret_key == "replace-this-secret-key"
-    assert (
-        settings.credentials_file
-        == (Path.home() / ".config" / "ralph-dashboard" / "credentials.yaml").resolve()
-    )
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="secret_key"):
+        get_settings()
 
 
 def test_settings_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -39,7 +33,7 @@ def test_settings_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 
     monkeypatch.setenv("RALPH_PROJECT_DIRS", f"{first}{os.pathsep}{second}")
     monkeypatch.setenv("RALPH_PORT", "9021")
-    monkeypatch.setenv("RALPH_SECRET_KEY", "super-secret-key")
+    monkeypatch.setenv("RALPH_SECRET_KEY", "super-secret-key-test-padding-for-minimum-key-length")
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(credentials_file))
     _clear_settings_cache()
 
@@ -47,7 +41,7 @@ def test_settings_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 
     assert settings.project_dirs == [first.resolve(), second.resolve()]
     assert settings.port == 9021
-    assert settings.secret_key == "super-secret-key"
+    assert settings.secret_key == "super-secret-key-test-padding-for-minimum-key-length"
     assert settings.credentials_file == credentials_file.resolve()
 
 

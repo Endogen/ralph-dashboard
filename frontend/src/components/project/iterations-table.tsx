@@ -167,7 +167,6 @@ export function IterationsTable({
   iterations,
   projectId,
   isLoading = false,
-  tokenPricePer1k = DEFAULT_TOKEN_PRICE_PER_1K,
 }: IterationsTableProps) {
   const [sortKey, setSortKey] = useState<IterationSortKey>("number")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
@@ -354,8 +353,8 @@ export function IterationsTable({
         comparison = compareNullableNumbers(left.tokens_used, right.tokens_used)
       } else if (sortKey === "cost") {
         comparison = compareNullableNumbers(
-          iterationCost(left.tokens_used, tokenPricePer1k),
-          iterationCost(right.tokens_used, tokenPricePer1k),
+          left.cost_usd ?? iterationCost(left.tokens_used, DEFAULT_TOKEN_PRICE_PER_1K),
+          right.cost_usd ?? iterationCost(right.tokens_used, DEFAULT_TOKEN_PRICE_PER_1K),
         )
       } else if (sortKey === "tasks") {
         comparison = left.tasks_completed.length - right.tasks_completed.length
@@ -374,7 +373,7 @@ export function IterationsTable({
       return sortDirection === "asc" ? comparison : -comparison
     })
     return next
-  }, [filteredIterations, sortDirection, sortKey, tokenPricePer1k])
+  }, [filteredIterations, sortDirection, sortKey])
 
   const handleSort = (nextSort: IterationSortKey) => {
     if (sortKey === nextSort) {
@@ -491,7 +490,7 @@ export function IterationsTable({
                 const statusMeta = getStatusMeta(iteration)
                 const healthMeta = evaluateIterationHealth(iteration)
                 const testMeta = getTestMeta(iteration.test_passed)
-                const cost = iterationCost(iteration.tokens_used, tokenPricePer1k)
+                const cost = iteration.cost_usd ?? iterationCost(iteration.tokens_used, DEFAULT_TOKEN_PRICE_PER_1K)
                 const isExpanded = Boolean(expandedRows[iteration.number])
                 const detail = iterationDetails[iteration.number]
                 const detailError = detailErrors[iteration.number]

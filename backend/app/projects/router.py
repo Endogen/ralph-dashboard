@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.projects.archive import (
@@ -105,6 +106,32 @@ async def unarchive_project_endpoint(project_id: str) -> dict:
         )
     was_archived = await unarchive_project(project_id)
     return {"archived": False, "was_archived": was_archived}
+
+
+@router.get("/overview")
+async def get_overview() -> dict:
+    from app.iterations.service import list_project_iterations
+    from app.stats.service import aggregate_project_stats
+    result = {}
+    for project in await get_projects():
+        try:
+            iterations = await list_project_iterations(project.id)
+            stats = await aggregate_project_stats(project.id)
+            result[project.id] = {"stats": stats, "iterations": iterations[-10:]}
+        except Exception:
+            LOGGER.exception("Failed to load overview for %s", project.id)
+            result[project.id] = {"stats": None, "iterations": []}
+    return result
+
+
+@router.get("/{project_id}/log")
+async def get_log(project_id: str, offset: int | None = Query(default=None, ge=0),
+                  generation: str | None = None) -> dict:
+    from app.projects.logs import read_log
+    project = await get_project_detail(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return await asyncio.to_thread(read_log, project.path / ".ralph/ralph.log", offset, generation)
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)

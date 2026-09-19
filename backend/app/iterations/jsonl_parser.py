@@ -15,6 +15,11 @@ class ParsedJsonlIteration(BaseModel):
     end: str | None = None
     duration_seconds: float | None = None
     tokens: float | None = None
+    provider: str | None = None
+    model: str | None = None
+    usage: dict = Field(default_factory=dict)
+    cost_usd: float | None = None
+    cost_estimated: bool = True
     status: str | None = None
     tasks_completed: list[str] = Field(default_factory=list)
     commit: str | None = None

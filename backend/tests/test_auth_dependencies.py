@@ -33,7 +33,7 @@ def test_require_access_token_invalid_token() -> None:
 
 
 def test_require_access_token_valid_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RALPH_SECRET_KEY", "dependency-test-secret")
+    monkeypatch.setenv("RALPH_SECRET_KEY", "dependency-test-secret------------------")
     _clear_settings_cache()
 
     token = create_access_token("demo")

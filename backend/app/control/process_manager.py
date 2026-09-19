@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import signal
 import subprocess
 import time
+import sys
 from pathlib import Path
 
+import psutil
 from pydantic import ValidationError
 
 from app.control.models import LoopConfig, ProcessStartResult
 from app.projects.service import get_project_detail
-from app.utils.process import is_process_alive, read_pid
+from app.utils.process import (
+    is_process_alive, read_pid, owns_process, process_lock, write_process_identity, terminate_group,
+)
+from app.utils.files import atomic_write
 
 
 class ProcessManagerError(Exception):
@@ -54,15 +60,9 @@ def _repo_script_path() -> Path:
 
 
 def _resolve_default_command(project_path: Path) -> list[str]:
-    local_script = project_path / "ralph.sh"
-    if local_script.exists() and local_script.is_file():
-        return [str(local_script)]
-
-    fallback_script = _repo_script_path()
-    if fallback_script.exists() and fallback_script.is_file():
-        return [str(fallback_script)]
-
-    raise ProcessCommandNotFoundError("No ralph.sh found for project start")
+    # Use the installed runner, including in wheels and containers. A project
+    # cannot silently replace the dashboard's lifecycle implementation.
+    return [sys.executable, "-m", "app.runner"]
 
 
 async def _resolve_project_path(project_id: str) -> Path:
@@ -96,32 +96,32 @@ async def start_project_process(
     ralph_dir = project_path / ".ralph"
     ralph_dir.mkdir(parents=True, exist_ok=True)
 
-    pid_file = ralph_dir / "ralph.pid"
-    existing_pid = _read_pid(pid_file)
-    if existing_pid is not None and _is_pid_running(existing_pid):
-        raise ProcessAlreadyRunningError(f"Process already running with pid {existing_pid}")
-    if existing_pid is not None and not _is_pid_running(existing_pid):
-        pid_file.unlink(missing_ok=True)
-
-    resolved_command = command or _resolve_default_command(project_path)
-    log_file = ralph_dir / "ralph.log"
-    launch_env = os.environ.copy()
-    if env_overrides:
-        launch_env.update(env_overrides)
-    with log_file.open("a", encoding="utf-8") as log_handle:
-        process = subprocess.Popen(  # noqa: S603
-            resolved_command,
-            cwd=project_path,
-            stdout=log_handle,
-            stderr=log_handle,
-            start_new_session=True,
-            env=launch_env,
-        )
-
-    # Let ralph.sh manage its own PID file to avoid PID conflicts.
-    # The script writes $$ to ralph.pid on startup; if we also write the
-    # Popen PID, the script finds a running PID and exits immediately.
-    return ProcessStartResult(project_id=project_id, pid=process.pid, command=resolved_command)
+    try:
+        with process_lock(ralph_dir):
+            pid_file = ralph_dir / "ralph.pid"
+            existing_pid = _read_pid(pid_file)
+            if existing_pid and _is_pid_running(existing_pid) and owns_process(ralph_dir, existing_pid):
+                raise ProcessAlreadyRunningError(f"Process already running with pid {existing_pid}")
+            resolved_command = command or _resolve_default_command(project_path)
+            launch_env = os.environ.copy()
+            launch_env.update(env_overrides or {})
+            launch_env["RALPH_MANAGED"] = "1"
+            # Preserve importability in a source checkout as well as an installed wheel.
+            launch_env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2]) + os.pathsep + launch_env.get("PYTHONPATH", "")
+            with (ralph_dir / "launcher.log").open("a") as log_handle:
+                process = subprocess.Popen(
+                    resolved_command, cwd=project_path, stdout=log_handle, stderr=log_handle,
+                    start_new_session=True, env=launch_env,
+                )
+            # Reap children without blocking the event loop, including failed starts.
+            asyncio.create_task(asyncio.to_thread(process.wait))
+            try:
+                write_process_identity(ralph_dir, process.pid)
+            except psutil.NoSuchProcess:
+                raise ProcessCommandNotFoundError("Runner exited during startup; see launcher.log") from None
+            return ProcessStartResult(project_id=project_id, pid=process.pid, command=resolved_command)
+    except BlockingIOError as exc:
+        raise ProcessAlreadyRunningError("A start is already in progress") from exc
 
 
 async def pause_project_process(project_id: str) -> bool:
@@ -161,7 +161,7 @@ async def inject_project_message(project_id: str, message: str) -> str:
         if existing:
             payload = f"{existing}\n\n{content}\n"
 
-    inject_file.write_text(payload, encoding="utf-8")
+    atomic_write(inject_file, payload)
     return payload
 
 
@@ -198,10 +198,7 @@ async def write_project_config(
     ralph_dir = project_path / ".ralph"
     ralph_dir.mkdir(parents=True, exist_ok=True)
     config_file = ralph_dir / "config.json"
-    config_file.write_text(
-        json.dumps(config.model_dump(mode="json"), indent=2) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write(config_file, json.dumps(config.model_dump(mode="json"), indent=2) + "\n")
     return config
 
 
@@ -229,13 +226,37 @@ async def start_project_loop(
     )
 
     project_path = await _resolve_project_path(project_id)
+    from app.runner import preflight
+    try:
+        await asyncio.to_thread(preflight, project_path, merged_config)
+    except (ValueError, OSError) as exc:
+        from app.runner import Runner
+        failed = Runner(project_path, merged_config)
+        failed.notify("ERROR", "Start failed", str(exc))
+        failed.state("error", error=str(exc))
+        raise ProcessCommandNotFoundError(str(exc)) from exc
     command = [*_resolve_default_command(project_path), str(merged_config.max_iterations)]
     env_overrides = {
         "RALPH_CLI": merged_config.cli,
         "RALPH_FLAGS": merged_config.flags,
         "RALPH_TEST": merged_config.test_command,
+        "RALPH_MODEL": merged_config.model,
+        "RALPH_APPROVAL_MODE": merged_config.approval_mode,
     }
-    return await start_project_process(project_id, command=command, env_overrides=env_overrides)
+    state_file = project_path / ".ralph" / "state.json"
+    previous = state_file.stat().st_mtime_ns if state_file.exists() else None
+    result = await start_project_process(project_id, command=command, env_overrides=env_overrides)
+    for _ in range(100):
+        if state_file.exists() and state_file.stat().st_mtime_ns != previous:
+            state = json.loads(state_file.read_text())
+            if state.get("status") == "error":
+                raise ProcessCommandNotFoundError(state.get("error", "Runner startup failed"))
+            return result
+        if not _is_pid_running(result.pid):
+            raise ProcessCommandNotFoundError("Runner exited during startup; see launcher.log")
+        await asyncio.sleep(0.05)
+    await stop_project_process(project_id)
+    raise ProcessCommandNotFoundError("Runner did not become ready within five seconds")
 
 
 def terminate_pid(pid: int) -> None:
@@ -285,30 +306,18 @@ async def stop_project_process(project_id: str, grace_period_seconds: float = 3.
         pid_file.unlink(missing_ok=True)
         return False
 
-    # Kill the entire process group — ralph.sh is started with
-    # start_new_session=True, making it a session leader.
+    if not owns_process(pid_file.parent, pid):
+        raise ProcessManagerError("PID identity does not match this project's runner")
     try:
         pgid = os.getpgid(pid)
-        os.killpg(pgid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
-        # Fallback to single-PID kill if group lookup fails
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pid_file.unlink(missing_ok=True)
-            return True
-
-    exited = await _async_wait_for_exit(pid, grace_period_seconds)
-    if not exited:
-        try:
-            pgid = os.getpgid(pid)
-            os.killpg(pgid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        await _async_wait_for_exit(pid, 1.0)
-
+        await asyncio.to_thread(terminate_group, pgid, grace_period_seconds)
+    except ProcessLookupError:
+        pass
     pid_file.unlink(missing_ok=True)
+    (pid_file.parent / "process.json").unlink(missing_ok=True)
+    from datetime import UTC, datetime
+    atomic_write(pid_file.parent / "state.json", json.dumps({
+        "status": "stopped", "timestamp": datetime.now(UTC).isoformat(),
+    }))
+    (pid_file.parent / "pending-notification.txt").unlink(missing_ok=True)
     return True

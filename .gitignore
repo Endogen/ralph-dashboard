@@ -39,3 +39,11 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# Local credentials, transient compiler and runner state
+data/credentials.yaml
+*.tsbuildinfo
+.ralph/*.lock
+.ralph/state.json
+.ralph/process.json
+.ralph/launcher.log

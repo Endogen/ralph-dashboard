@@ -30,7 +30,7 @@ def discover_project_paths(project_dirs: Iterable[Path] | None = None) -> list[P
             continue
 
         for current_root, dirnames, _ in os.walk(resolved_root):
-            dirnames[:] = [name for name in dirnames if name not in IGNORED_DIRS]
+            dirnames[:] = [name for name in dirnames if name not in IGNORED_DIRS and not name.startswith(".ralph-create-")]
             if ".ralph" in dirnames:
                 discovered.add(Path(current_root).resolve())
                 dirnames.remove(".ralph")

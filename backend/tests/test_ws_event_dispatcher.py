@@ -52,7 +52,7 @@ async def test_log_append_emits_only_new_complete_lines(
         {
             "type": "log_append",
             "project": "demo-project",
-            "data": {"lines": "alpha\n"},
+            "data": {"lines": "alpha\n", "offset": 10},
         }
     ]
 

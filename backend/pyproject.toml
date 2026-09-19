@@ -8,18 +8,20 @@ version = "0.1.0"
 description = "FastAPI backend for Ralph Dashboard"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi==0.129.0",
+  "fastapi==0.141.1",
+  "starlette>=1.3.1,<2.0",
   "uvicorn[standard]==0.38.0",
   "watchdog>=5.0,<7.0",
   "GitPython>=3.1,<4.0",
-  "python-jose[cryptography]>=3.3,<4.0",
-  "passlib[bcrypt]>=1.7,<2.0",
+  "PyJWT>=2.14,<3.0",
+  "bcrypt>=4.3,<6.0",
   "aiosqlite>=0.20,<1.0",
   "pydantic>=2.11,<3.0",
   "psutil>=5.9,<8.0",
 ]
 
 [project.scripts]
+ralph-loop = "app.runner:cli"
 ralph-dashboard = "app.cli.dashboard:cli"
 ralph-dashboard-init-user = "app.auth.setup_user:cli"
 
@@ -27,6 +29,8 @@ ralph-dashboard-init-user = "app.auth.setup_user:cli"
 dev = [
   "ruff>=0.13,<0.15",
   "pytest>=8.4,<9.0",
+  "httpx>=0.28,<1.0",
+  "httpx2>=2.13,<3.0",
   "pytest-timeout>=2.3,<3.0",
 ]
 
@@ -40,4 +44,5 @@ target-version = "py312"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
+timeout = 30
 testpaths = ["tests"]

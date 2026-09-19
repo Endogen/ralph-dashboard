@@ -84,7 +84,9 @@ async def aggregate_project_stats(project_id: str) -> ProjectStats:
     total_iterations = len(iterations)
     total_tokens = float(sum(item.tokens_used or 0.0 for item in iterations))
     total_duration_seconds = float(sum(item.duration_seconds or 0.0 for item in iterations))
-    total_cost_usd = _cost_from_tokens(total_tokens, cost_per_1k)
+    total_cost_usd = sum(item.cost_usd if item.cost_usd is not None else
+                         _cost_from_tokens(item.tokens_used or 0, DEFAULT_COST_PER_1K_TOKENS)
+                         for item in iterations)
 
     avg_duration = total_duration_seconds / total_iterations if total_iterations else 0.0
     avg_tokens = total_tokens / total_iterations if total_iterations else 0.0

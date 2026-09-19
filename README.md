@@ -272,11 +272,11 @@ Everything else is optional — the dashboard gracefully handles missing files a
 | **Editor** | Monaco Editor (via @monaco-editor/react) |
 | **State** | Zustand 5 |
 | **Routing** | React Router 7 |
-| **Backend** | Python 3.12+, FastAPI 0.129, Uvicorn |
+| **Backend** | Python 3.12+, FastAPI 0.141, Uvicorn |
 | **Database** | SQLite (via aiosqlite) — auth & settings only |
 | **File Watching** | watchdog (inotify on Linux) |
 | **Git** | GitPython |
-| **Auth** | JWT (python-jose) + bcrypt (passlib) |
+| **Auth** | JWT (PyJWT) + bcrypt |
 | **System Metrics** | psutil |
 | **Reverse Proxy** | Nginx with Let's Encrypt TLS |
 
@@ -285,13 +285,10 @@ Everything else is optional — the dashboard gracefully handles missing files a
 ### Prerequisites
 - Python 3.12+
 - Git
-- Node.js 22+ and npm (only needed if frontend assets are missing, or when developing the frontend)
+- Node.js 22 LTS and npm (required for source installs)
 - An AI coding CLI if you plan to run loops from this machine ([Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), etc.)
 
-> **Note:** When running as a systemd service, the service gets a minimal `PATH` that may not include user-installed CLIs (e.g. `~/.npm-global/bin`). If the wizard reports that `codex` or `claude` is not found, symlink it into a system-wide path:
-> ```bash
-> sudo ln -sf $(which codex) /usr/local/bin/codex
-> ```
+Service installation captures your current `PATH`. Install and authenticate your chosen agent CLI before installing the service; reinstall the service after changing its executable paths.
 
 ### Step 1: Install CLI and dependencies (once)
 
@@ -301,7 +298,7 @@ cd ralph-dashboard
 ./scripts/install.sh
 ```
 
-`scripts/install.sh` creates/updates `backend/.venv`, installs the `ralph-dashboard` CLI wrapper in `~/.local/bin`, and packages frontend assets when possible.
+`scripts/install.sh` creates/updates `backend/.venv`, installs the `ralph-dashboard` CLI wrapper in `~/.local/bin`, and rebuilds and packages the frontend assets.
 
 If your default `python3` is not 3.12+, choose an interpreter explicitly:
 
@@ -378,7 +375,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 cd ../frontend
-npm install --legacy-peer-deps
+npm ci
 
 # Build frontend and package into backend/app/static/dist
 cd ..
@@ -397,7 +394,7 @@ Use this for a persistent deployment on a Linux host.
 - Linux server (Ubuntu 22.04+ recommended)
 - Python 3.12+
 - Git
-- Node.js 22+ and npm (only needed when frontend assets are not pre-packaged)
+- Node.js 22 LTS and npm (required for source installs)
 
 ### Method 1: Server install + systemd user service
 
@@ -456,6 +453,8 @@ Issue certificates with Let's Encrypt:
 sudo certbot --nginx -d your.domain.com
 ```
 
+See [workflow, permissions, Docker deployment and validation](docs/reliability.md) for the supported lifecycle and deployment contracts.
+
 ## Runtime Configuration (Advanced)
 
 Most users should not set env vars manually. Use `ralph-dashboard init` and let it generate runtime config files:
@@ -481,7 +480,8 @@ Example env file:
 
 ```bash
 # ~/.config/ralph-dashboard/env
-RALPH_SECRET_KEY=replace-with-random-secret
+# Generate once with: python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+RALPH_SECRET_KEY=<your-generated-key-at-least-32-characters>
 RALPH_PROJECT_DIRS=/home/you/projects
 RALPH_PORT=8420
 RALPH_CREDENTIALS_FILE=/home/you/.config/ralph-dashboard/credentials.yaml
@@ -491,12 +491,9 @@ RALPH_CREDENTIALS_FILE=/home/you/.config/ralph-dashboard/credentials.yaml
 
 The dashboard discovers projects under `RALPH_PROJECT_DIRS` that contain a `.ralph/` directory.
 
-### 1. Copy the loop script
+### 1. Install the runner
 
-```bash
-cp scripts/ralph.sh ~/ralph.sh
-chmod +x ~/ralph.sh
-```
+Run `./scripts/install.sh` in this checkout. It installs both `ralph-dashboard` and `ralph-loop` in `~/.local/bin`. Keep that directory on your `PATH`.
 
 ### 2. Create a project
 
@@ -538,10 +535,10 @@ git init && git add -A && git commit -m "initial"
 cd ~/projects/my-project
 
 # Uses Codex by default
-~/ralph.sh 10
+ralph-loop 10
 
 # Example with another CLI
-RALPH_CLI=claude-code ~/ralph.sh 10
+RALPH_CLI=claude-code ralph-loop 10
 ```
 
 The loop creates `.ralph/` automatically. Refresh the dashboard and the project should appear.
@@ -589,6 +586,8 @@ ralph-dashboard/
 
 ## API Overview
 
+Editable plan, prompt, agent and spec files return an `ETag`. Send it as `If-Match` for updates/deletions; stale saves return `412` and missing versions return `428`.
+
 All API endpoints are under `/api/` and require a Bearer JWT token except `/api/health`, `/api/auth/login`, and `/api/auth/refresh`.
 
 | Method | Endpoint | Description |
@@ -632,7 +631,7 @@ All API endpoints are under `/api/` and require a Bearer JWT token except `/api/
 | `GET` | `/api/wizard/generate/status/{request_id}` | Poll wizard generation status |
 | `POST` | `/api/wizard/generate/cancel` | Cancel an in-flight wizard generation request |
 | `POST` | `/api/wizard/create` | Create a project from wizard output |
-| `WS` | `/api/ws?token=...` | WebSocket for real-time events |
+| `WS` | `/api/ws` | WebSocket for real-time events (authenticate in the first message) |
 
 ## Running Tests
 

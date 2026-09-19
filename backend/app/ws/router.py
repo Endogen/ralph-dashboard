@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.auth.service import InvalidTokenError, validate_access_token
@@ -24,21 +26,23 @@ def _normalize_projects(raw: object) -> list[str]:
 
 @router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
-    token = websocket.query_params.get("token")
-    if not token:
-        await websocket.close(code=1008, reason="Not authenticated")
-        return
+    await websocket.accept()
     try:
-        validate_access_token(token)
-    except InvalidTokenError:
+        authentication = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        if not isinstance(authentication, dict):
+            raise ValueError("Expected an authentication object")
+        validate_access_token(authentication.get("token", ""))
+    except (InvalidTokenError, ValueError, asyncio.TimeoutError, WebSocketDisconnect):
         await websocket.close(code=1008, reason="Invalid access token")
         return
-
-    await websocket.accept()
+    await websocket.send_json({"type": "authenticated"})
     hub.register(websocket)
     try:
         while True:
             payload = await websocket.receive_json()
+            if not isinstance(payload, dict):
+                await websocket.send_json({"type": "error", "message": "Expected an action object"})
+                continue
             action = payload.get("action")
 
             if action == "subscribe":

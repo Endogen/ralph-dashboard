@@ -96,33 +96,32 @@ echo "==> Installing backend package"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip
 "$VENV_DIR/bin/pip" install -e "$BACKEND_DIR"
 
-echo "==> Installing CLI wrapper to $WRAPPER_PATH"
+echo "==> Installing CLI wrappers to $WRAPPER_DIR"
 mkdir -p "$WRAPPER_DIR"
-cat > "$WRAPPER_PATH" <<EOF_WRAPPER
+for cli in ralph-dashboard ralph-loop; do
+  cat > "$WRAPPER_DIR/$cli" <<EOF_WRAPPER
 #!/usr/bin/env bash
-exec "$VENV_DIR/bin/ralph-dashboard" "\$@"
+exec "$VENV_DIR/bin/$cli" "\$@"
 EOF_WRAPPER
-chmod +x "$WRAPPER_PATH"
+  chmod +x "$WRAPPER_DIR/$cli"
+done
 
 PACKAGED_DIST="$BACKEND_DIR/app/static/dist"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
 
 echo "==> Preparing frontend assets"
-if [[ -f "$FRONTEND_DIST/index.html" ]]; then
-  "$ROOT_DIR/scripts/package_frontend.sh"
-elif [[ -f "$PACKAGED_DIST/index.html" ]]; then
-  echo "Using packaged frontend assets at $PACKAGED_DIST"
-elif command -v npm >/dev/null 2>&1 && [[ -f "$FRONTEND_DIR/package.json" ]]; then
-  echo "No built frontend assets found; building with npm"
+if command -v npm >/dev/null 2>&1 && [[ -f "$FRONTEND_DIR/package.json" ]]; then
   (
     cd "$FRONTEND_DIR"
-    npm install --legacy-peer-deps
+    npm ci
     npm run build
   )
   "$ROOT_DIR/scripts/package_frontend.sh"
+elif [[ -f "$PACKAGED_DIST/index.html" && ! -f "$FRONTEND_DIR/package.json" ]]; then
+  echo "Using packaged release assets at $PACKAGED_DIST"
 else
-  echo "Warning: frontend assets are missing and npm is unavailable."
-  echo "The API will run, but the web UI cannot be served until assets are provided."
+  echo "Error: Node.js/npm is required to build this source checkout."
+  exit 1
 fi
 
 echo ""

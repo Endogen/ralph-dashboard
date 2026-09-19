@@ -31,8 +31,9 @@ class FakeProcess:
         self._stderr = stderr.encode("utf-8")
         self.returncode = returncode
         self.killed = False
+        self.pid = 99999999
 
-    async def communicate(self) -> tuple[bytes, bytes]:
+    async def communicate(self, input=None) -> tuple[bytes, bytes]:
         return self._stdout, self._stderr
 
     def kill(self) -> None:
@@ -46,7 +47,7 @@ class FakeProcess:
 async def test_generate_codex_success(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: list[tuple[tuple[object, ...], object, object]] = []
 
-    async def _mock_subprocess_exec(*argv, stdout=None, stderr=None):
+    async def _mock_subprocess_exec(*argv, stdout=None, stderr=None, **kwargs):
         captured.append((argv, stdout, stderr))
         output = """[
   {"path":"specs/overview.md","content":"# Overview"},
@@ -75,10 +76,9 @@ async def test_generate_codex_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert files[-1].path == "PROMPT.md"
     assert captured
     argv = captured[0][0]
-    assert argv[0:3] == ("codex", "exec", "--model")
-    assert argv[3] == "codex-5.3"
-    assert isinstance(argv[-1], str)
-    assert "Project Description" in argv[-1]
+    assert argv[:2] == ("codex", "exec")
+    assert "read-only" in argv
+    assert argv[-2:] == ("--model", "codex-5.3")
 
 
 @pytest.mark.anyio
@@ -159,6 +159,7 @@ async def test_generate_kills_process_when_request_is_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     process = FakeProcess(stdout="")
+    monkeypatch.setattr(wizard_generator_module, "terminate_group", lambda *args: process.kill())
 
     async def _mock_subprocess_exec(*_argv, **_kwargs):
         return process
@@ -190,8 +191,9 @@ async def test_generate_kills_process_when_request_is_cancelled(
 
 
 @pytest.mark.anyio
-async def test_cancel_generation_request_kills_registered_process() -> None:
+async def test_cancel_generation_request_kills_registered_process(monkeypatch) -> None:
     process = FakeProcess(stdout="", returncode=None)
+    monkeypatch.setattr(wizard_generator_module, "terminate_group", lambda *args: process.kill())
     request_id = "req-cancel-1"
     wizard_generator_module._ACTIVE_GENERATIONS.clear()
     wizard_generator_module._ACTIVE_GENERATIONS[request_id] = process

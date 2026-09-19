@@ -1,3 +1,4 @@
+import { sampleTimeline } from "@/lib/chart-sampling"
 import { useMemo } from "react"
 
 import { ChartContainer } from "@/components/charts/chart-container"
@@ -137,7 +138,7 @@ function BurndownTooltip({ active, payload }: BurndownTooltipProps) {
 }
 
 export function TaskBurndownChart({ iterations, tasksTotal }: TaskBurndownChartProps) {
-  const data = useMemo(() => buildBurndownData(iterations, tasksTotal), [iterations, tasksTotal])
+  const data = useMemo(() => sampleTimeline(buildBurndownData(iterations, tasksTotal)), [iterations, tasksTotal])
 
   return (
     <section className="max-w-full overflow-hidden p-4">

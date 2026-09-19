@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { Editor } from "@monaco-editor/react"
+import { Editor } from "@/components/ui/code-editor"
 
 import { apiFetch } from "@/api/client"
 import { useToastStore } from "@/stores/toast-store"
@@ -179,6 +179,7 @@ export function ControlFilesPane({ projectId }: ControlFilesPaneProps) {
                   onChange={(next) => setAgentsContent(next ?? "")}
                   theme="vs-dark"
                   options={{
+                    ariaLabel: "Project instructions editor",
                     minimap: { enabled: false },
                     fontSize: 13,
                     wordWrap: "on",
@@ -209,6 +210,7 @@ export function ControlFilesPane({ projectId }: ControlFilesPaneProps) {
                   onChange={(next) => setPromptContent(next ?? "")}
                   theme="vs-dark"
                   options={{
+                    ariaLabel: "Project instructions editor",
                     minimap: { enabled: false },
                     fontSize: 13,
                     wordWrap: "on",

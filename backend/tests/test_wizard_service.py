@@ -199,7 +199,7 @@ async def test_create_project_full_auto_sets_flags(
     config = json.loads(
         (projects_root / "auto-project" / ".ralph" / "config.json").read_text()
     )
-    assert config["flags"] == "-s danger-full-access"
+    assert config["approval_mode"] == "full-auto"
 
     # Test with claude CLI
     request_claude = CreateRequest(
@@ -214,7 +214,7 @@ async def test_create_project_full_auto_sets_flags(
     config_claude = json.loads(
         (projects_root / "auto-project-claude" / ".ralph" / "config.json").read_text()
     )
-    assert config_claude["flags"] == "--dangerously-skip-permissions"
+    assert config_claude["approval_mode"] == "full-auto"
 
 
 @pytest.mark.anyio

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { Editor } from "@monaco-editor/react"
+import { Editor } from "@/components/ui/code-editor"
 
 import { apiFetch } from "@/api/client"
 import { useToastStore } from "@/stores/toast-store"
@@ -417,6 +417,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
                   onChange={(next) => setSelectedContent(next ?? "")}
                   theme="vs-dark"
                   options={{
+                    ariaLabel: "Specification editor",
                     minimap: { enabled: false },
                     fontSize: 13,
                     wordWrap: "on",

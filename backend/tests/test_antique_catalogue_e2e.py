@@ -52,7 +52,7 @@ async def test_antique_catalogue_fixture_end_to_end(
     projects = await get_projects()
     assert len(projects) == 1
     assert projects[0].id == project_id
-    assert projects[0].status.value == "complete"
+    assert projects[0].status.value == "error"  # A complete plan cannot override failed tests.
 
     detail = await get_project(project_id)
     assert detail.path == expected_project_path

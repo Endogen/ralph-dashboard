@@ -30,6 +30,7 @@ function nextPricingRowId(): string {
 
 function cloneConfig(config: LoopConfig): LoopConfig {
   return {
+    ...config,
     cli: config.cli,
     flags: config.flags,
     max_iterations: config.max_iterations,
@@ -71,6 +72,7 @@ function serializeConfig(config: LoopConfig): string {
   )
 
   return JSON.stringify({
+    ...config,
     cli: config.cli,
     flags: config.flags,
     max_iterations: config.max_iterations,
@@ -82,6 +84,8 @@ function serializeConfig(config: LoopConfig): string {
 export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPanelProps) {
   const [cli, setCli] = useState("codex")
   const [flags, setFlags] = useState("")
+  const [model, setModel] = useState("")
+  const [approvalMode, setApprovalMode] = useState<LoopConfig["approval_mode"]>("sandboxed")
   const [maxIterations, setMaxIterations] = useState("20")
   const [testCommand, setTestCommand] = useState("")
   const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
@@ -103,6 +107,8 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
     }
     setCli(normalizedCli)
     setFlags(nextConfig.flags)
+    setModel(nextConfig.model)
+    setApprovalMode(nextConfig.approval_mode)
     setMaxIterations(String(nextConfig.max_iterations))
     setTestCommand(nextConfig.test_command)
     setPricingRows(pricingRowsFromConfig(nextConfig))
@@ -195,13 +201,17 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
     }
 
     return {
+      ...savedConfig,
+      model,
+      approval_mode: approvalMode,
+      iteration_timeout_seconds: savedConfig?.iteration_timeout_seconds ?? 3600,
       cli: normalizedCli,
       flags: flags.trim(),
       max_iterations: parsedMaxIterations,
       test_command: testCommand.trim(),
       model_pricing: modelPricing,
     }
-  }, [cli, flags, maxIterations, pricingRows, testCommand])
+  }, [cli, flags, model, approvalMode, savedConfig, maxIterations, pricingRows, testCommand])
 
   const cliOptions = useMemo(() => [...CLI_OPTIONS], [])
 
@@ -449,9 +459,20 @@ export function ProjectConfigPanel({ projectId, projectPath }: ProjectConfigPane
             )}
           </article>
 
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">Model override
+              <input aria-label="Model override" className="mt-1 w-full rounded border bg-background p-2" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Provider default" />
+            </label>
+            <label className="text-sm">Permissions
+              <select aria-label="Permissions" className="mt-1 w-full rounded border bg-background p-2" value={approvalMode} onChange={(e) => setApprovalMode(e.target.value as LoopConfig["approval_mode"])}>
+                <option value="sandboxed">Restricted — use provider permission rules</option>
+                <option value="full-auto">Full access — bypass restrictions</option>
+              </select>
+            </label>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Config updates are applied on the next loop start unless the loop script hot-reloads settings.
+              Config updates apply on the next loop start.
             </p>
             <button
               type="button"

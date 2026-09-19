@@ -1,21 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
-import { Editor } from "@monaco-editor/react"
+import { Editor } from "@/components/ui/code-editor"
 import { AlertCircle, FileText, Loader2, RefreshCw, Sparkles } from "lucide-react"
 
 import { apiFetch } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { deliverAttentionSignal } from "@/lib/native-notifications"
-import { type GeneratedFile, useWizardStore } from "@/stores/wizard-store"
+import { ensureGenerationPolling } from "@/api/generation"
+import { useWizardStore } from "@/stores/wizard-store"
 
 type StartGenerateApiResponse = {
   request_id: string
-}
-
-type GenerationStatusApiResponse = {
-  status: "pending" | "complete" | "error"
-  files: GeneratedFile[] | null
-  error: string | null
 }
 
 type CancelGenerateApiResponse = {
@@ -50,7 +44,6 @@ export function StepGenerateReview() {
   const generatorAgentLabel = cli === "codex" ? "Codex" : "Claude Code"
 
   const generatedFiles = useWizardStore((s) => s.generatedFiles)
-  const setGeneratedFiles = useWizardStore((s) => s.setGeneratedFiles)
   const updateFileContent = useWizardStore((s) => s.updateFileContent)
   const isGenerating = useWizardStore((s) => s.isGenerating)
   const setIsGenerating = useWizardStore((s) => s.setIsGenerating)
@@ -64,8 +57,6 @@ export function StepGenerateReview() {
 
   const [activeTab, setActiveTab] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const pollTimeoutRef = useRef<number | null>(null)
-  const pollTokenRef = useRef(0)
 
   useEffect(() => {
     if (!isGenerating || !generationStartedAt) {
@@ -85,160 +76,43 @@ export function StepGenerateReview() {
 
   const elapsedLabel = useMemo(() => formatElapsed(elapsedSeconds), [elapsedSeconds])
 
-  const stopPolling = () => {
-    pollTokenRef.current += 1
-    if (pollTimeoutRef.current !== null) {
-      window.clearTimeout(pollTimeoutRef.current)
-      pollTimeoutRef.current = null
-    }
-  }
-
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      pollTokenRef.current += 1
-      if (pollTimeoutRef.current !== null) {
-        window.clearTimeout(pollTimeoutRef.current)
-        pollTimeoutRef.current = null
-      }
-    }
-  }, [])
-
   const handleAbortGeneration = async () => {
-    if (!isGenerating) return
-
     const requestId = useWizardStore.getState().activeGenerationRequestId
-    stopPolling()
-    abortActiveGeneration()
-    if (requestId) {
-      try {
-        await apiFetch<CancelGenerateApiResponse>("/wizard/generate/cancel", {
-          method: "POST",
-          body: JSON.stringify({ request_id: requestId }),
-        })
-      } catch {
-        // Ignore cancellation endpoint errors; local abort already completed.
-      }
+    if (!requestId) return
+    try {
+      await apiFetch<CancelGenerateApiResponse>("/wizard/generate/cancel", {
+        method: "POST", body: JSON.stringify({ request_id: requestId }),
+      })
+      abortActiveGeneration()
+      setGenerateError("Generation cancelled.")
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Cancellation failed; generation is still tracked.")
     }
-    setGenerateError("Generation cancelled.")
   }
 
   const handleGenerate = async () => {
     if (isGenerating) return
-
-    stopPolling()
-    const generationToken = pollTokenRef.current + 1
-    pollTokenRef.current = generationToken
-
+    const requestId = crypto.randomUUID()
     setIsGenerating(true)
     setGenerateError(null)
     setGenerationStartedAt(Date.now())
+    setActiveGenerationRequestId(requestId)
     setActiveGenerateController(null)
-    setActiveGenerationRequestId(null)
-
     try {
-      // Step 1: Start async generation
-      const startResponse = await apiFetch<StartGenerateApiResponse>("/wizard/generate/start", {
+      const draft = useWizardStore.getState()
+      await apiFetch<StartGenerateApiResponse>("/wizard/generate/start", {
         method: "POST",
-        body: JSON.stringify({
-          project_name: projectName,
-          project_description: projectDescription,
-          tech_stack: techStack,
-          cli,
-          auto_approval: autoApproval,
-          max_iterations: maxIterations,
-          test_command: testCommand,
-          model_override: modelOverride,
-        }),
+        body: JSON.stringify({ request_id: requestId, project_name: projectName,
+          project_mode: draft.projectMode, existing_project_path: draft.existingProjectPath,
+          project_description: projectDescription, tech_stack: techStack, cli,
+          auto_approval: autoApproval, max_iterations: maxIterations,
+          test_command: testCommand, model_override: modelOverride }),
       })
-
-      if (pollTokenRef.current !== generationToken || !useWizardStore.getState().isGenerating) {
-        return
-      }
-
-      const requestId = startResponse.request_id
-      setActiveGenerationRequestId(requestId)
-
-      const finishGeneration = () => {
-        setIsGenerating(false)
-        setGenerationStartedAt(null)
-        setActiveGenerateController(null)
-        setActiveGenerationRequestId(null)
-      }
-
-      const scheduleNextPoll = () => {
-        if (pollTokenRef.current !== generationToken) return
-        pollTimeoutRef.current = window.setTimeout(() => {
-          void poll()
-        }, 2000)
-      }
-
-      // Step 2: Poll for status every 2 seconds (no overlap: next poll is scheduled after this one resolves)
-      const poll = async () => {
-        if (pollTokenRef.current !== generationToken) return
-
-        try {
-          const statusResponse = await apiFetch<GenerationStatusApiResponse>(
-            `/wizard/generate/status/${encodeURIComponent(requestId)}`,
-          )
-
-          if (pollTokenRef.current !== generationToken) return
-
-          if (statusResponse.status === "complete") {
-            stopPolling()
-            setGeneratedFiles(statusResponse.files ?? [])
-            setActiveTab(0)
-            finishGeneration()
-            void deliverAttentionSignal({
-              title: "Plan generation complete",
-              description: `${statusResponse.files?.length ?? 0} files ready for review.`,
-              tone: "success",
-              durationMs: 5000,
-              dedupeKey: `wizard-generate-complete:${requestId}`,
-              browserTag: "ralph-wizard-generate",
-              onClick: () => {
-                window.focus()
-              },
-            })
-          } else if (statusResponse.status === "error") {
-            stopPolling()
-            const errorMsg = statusResponse.error ?? "Generation failed"
-            setGenerateError(errorMsg)
-            finishGeneration()
-            void deliverAttentionSignal({
-              title: "Plan generation failed",
-              description: errorMsg,
-              tone: "error",
-              durationMs: 6000,
-              dedupeKey: `wizard-generate-error:${requestId}:${errorMsg}`,
-              browserTag: "ralph-wizard-generate",
-              onClick: () => {
-                window.focus()
-              },
-            })
-          } else {
-            scheduleNextPoll()
-          }
-        } catch (err) {
-          if (pollTokenRef.current !== generationToken) return
-
-          stopPolling()
-          const message = err instanceof Error ? err.message : "Failed to check generation status"
-          setGenerateError(message)
-          finishGeneration()
-        }
-      }
-
-      await poll()
+      ensureGenerationPolling()
     } catch (err) {
-      if (pollTokenRef.current !== generationToken) return
-
-      const message = err instanceof Error ? err.message : "Generation failed"
-      setGenerateError(message)
-      setIsGenerating(false)
-      setGenerationStartedAt(null)
-      setActiveGenerateController(null)
-      setActiveGenerationRequestId(null)
+      setGenerateError(err instanceof Error ? err.message : "Generation failed")
+      // The server may have accepted a request whose response was lost.
+      ensureGenerationPolling()
     }
   }
 
@@ -362,6 +236,7 @@ export function StepGenerateReview() {
             onChange={(value) => updateFileContent(activeFile.path, value ?? "")}
             theme="vs-dark"
             options={{
+                    ariaLabel: "Generated file editor",
               minimap: { enabled: false },
               fontSize: 13,
               wordWrap: "on",

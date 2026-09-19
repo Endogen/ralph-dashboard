@@ -18,7 +18,7 @@ class Settings(BaseModel):
 
     project_dirs: list[Path] = Field(default_factory=lambda: [DEFAULT_PROJECT_DIR])
     port: int = Field(default=8420, ge=1, le=65535)
-    secret_key: str = Field(default="replace-this-secret-key")
+    secret_key: str = Field(min_length=32)
     credentials_file: Path = Field(default=DEFAULT_CREDENTIALS_FILE)
 
     @field_validator("project_dirs", mode="before")
@@ -55,7 +55,7 @@ class Settings(BaseModel):
     def _validate_secret_key(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("secret_key must not be empty")
-        if value == "replace-this-secret-key":
+        if value in {"replace-this-secret-key", "change-me", "changeme"}:
             raise ValueError(
                 "RALPH_SECRET_KEY must be set to a secure random value — "
                 "do not use the default. Generate one with: "

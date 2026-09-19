@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,6 +31,8 @@ WATCHED_RALPH_FILES = {
     "pending-notification.txt",
     "ralph.pid",
     "pause",
+    "state.json",
+    "config.json",
 }
 # Only react to real content changes, not access/attribute metadata events.
 _RELEVANT_EVENT_TYPES = {
@@ -96,7 +97,7 @@ class _ProjectEventHandler(FileSystemEventHandler):
         self._project_path = project_path
         self._queue = queue
         self._loop = loop
-        self._last_event_times: dict[str, float] = {}
+        self._pending: dict[str, FileChangeEvent] = {}
         self._on_subdir_created = on_subdir_created
 
     def on_any_event(self, event: FileSystemEvent) -> None:
@@ -108,7 +109,9 @@ class _ProjectEventHandler(FileSystemEventHandler):
         ):
             dir_name = Path(event.src_path).name
             if dir_name in (".ralph", "specs"):
-                self._on_subdir_created(self._project_id, self._project_path, event.src_path)
+                self._loop.call_soon_threadsafe(
+                    self._on_subdir_created, self._project_id, self._project_path, event.src_path
+                )
             return
 
         if event.is_directory:
@@ -123,24 +126,26 @@ class _ProjectEventHandler(FileSystemEventHandler):
         if not _is_relevant_path(self._project_path, Path(path_str)):
             return
 
-        # Debounce: skip if the same file was queued recently.
-        now = time.monotonic()
-        last = self._last_event_times.get(path_str, 0.0)
-        if now - last < _DEBOUNCE_SECONDS:
-            return
-        self._last_event_times[path_str] = now
+        change = FileChangeEvent(self._project_id, self._project_path, Path(path_str), event.event_type)
+        self._loop.call_soon_threadsafe(self._coalesce, path_str, change)
 
-        # Drop events when queue is full to prevent memory leak.
-        if self._queue.qsize() >= _MAX_QUEUE_SIZE:
-            return
+    def _coalesce(self, key: str, change: FileChangeEvent) -> None:
+        scheduled = key in self._pending
+        self._pending[key] = change
+        if not scheduled:
+            self._loop.call_later(0.1, self._flush, key)
 
-        change = FileChangeEvent(
-            project_id=self._project_id,
-            project_path=self._project_path,
-            path=Path(path_str),
-            event_type=event.event_type,
-        )
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, change)
+    def _flush(self, key: str) -> None:
+        change = self._pending.get(key)
+        if change is None:
+            return
+        try:
+            self._queue.put_nowait(change)
+        except asyncio.QueueFull:
+            # Backpressure retains the final read instead of losing the update.
+            self._loop.call_later(0.1, self._flush, key)
+        else:
+            self._pending.pop(key, None)
 
 
 class FileWatcherService:
@@ -149,7 +154,7 @@ class FileWatcherService:
     def __init__(self, on_change: OnFileChange | None = None) -> None:
         self._on_change = on_change
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._queue: asyncio.Queue[FileChangeEvent] = asyncio.Queue()
+        self._queue: asyncio.Queue[FileChangeEvent] = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
         self._consumer_task: asyncio.Task[None] | None = None
         self._observers: dict[str, Observer] = {}
         self._project_paths: dict[str, Path] = {}
@@ -217,19 +222,13 @@ class FileWatcherService:
             )
 
     async def _consume_events(self) -> None:
-        last_handled: dict[str, float] = {}
         while True:
             change = await self._queue.get()
             try:
                 if self._on_change is not None:
-                    key = f"{change.project_id}:{change.path}"
-                    now = asyncio.get_running_loop().time()
-                    if now - last_handled.get(key, 0.0) < _DEBOUNCE_SECONDS:
-                        continue
-                    last_handled[key] = now
                     await self._on_change(change)
             except Exception:
-                pass  # Don't let a handler error kill the consumer loop.
+                LOGGER.exception("File watcher handler failed")
             finally:
                 self._queue.task_done()
 

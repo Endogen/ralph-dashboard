@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.projects.service import get_project_detail
+from app.utils.files import atomic_write, contained_path
 
 
 class SpecsServiceError(Exception):
@@ -43,7 +44,10 @@ async def _resolve_specs_dir(project_id: str) -> Path:
     project = await get_project_detail(project_id)
     if project is None:
         raise SpecsProjectNotFoundError(f"Project not found: {project_id}")
-    return project.path / "specs"
+    try:
+        return contained_path(project.path, "specs")
+    except ValueError as exc:
+        raise SpecValidationError(str(exc)) from exc
 
 
 def _isoformat_timestamp(value: float) -> str:
@@ -58,6 +62,8 @@ async def list_specs(project_id: str) -> list[dict[str, str | int]]:
 
     items: list[dict[str, str | int]] = []
     for file_path in sorted(specs_dir.glob("*.md")):
+        if not file_path.resolve().is_relative_to(specs_dir.resolve()):
+            continue
         stat = file_path.stat()
         items.append(
             {
@@ -73,7 +79,10 @@ async def read_spec(project_id: str, name: str) -> tuple[str, str]:
     """Read spec file content."""
     specs_dir = await _resolve_specs_dir(project_id)
     valid_name = _validate_spec_name(name)
-    target = specs_dir / valid_name
+    try:
+        target = contained_path(specs_dir, valid_name)
+    except ValueError as exc:
+        raise SpecValidationError(str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise SpecNotFoundError(f"Spec not found: {valid_name}")
     return valid_name, target.read_text(encoding="utf-8")
@@ -84,10 +93,13 @@ async def create_spec(project_id: str, name: str, content: str) -> tuple[str, st
     specs_dir = await _resolve_specs_dir(project_id)
     valid_name = _validate_spec_name(name)
     specs_dir.mkdir(parents=True, exist_ok=True)
-    target = specs_dir / valid_name
+    try:
+        target = contained_path(specs_dir, valid_name)
+    except ValueError as exc:
+        raise SpecValidationError(str(exc)) from exc
     if target.exists():
         raise SpecAlreadyExistsError(f"Spec already exists: {valid_name}")
-    target.write_text(content, encoding="utf-8")
+    atomic_write(target, content)
     return valid_name, content
 
 
@@ -95,10 +107,13 @@ async def update_spec(project_id: str, name: str, content: str) -> tuple[str, st
     """Update an existing spec file."""
     specs_dir = await _resolve_specs_dir(project_id)
     valid_name = _validate_spec_name(name)
-    target = specs_dir / valid_name
+    try:
+        target = contained_path(specs_dir, valid_name)
+    except ValueError as exc:
+        raise SpecValidationError(str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise SpecNotFoundError(f"Spec not found: {valid_name}")
-    target.write_text(content, encoding="utf-8")
+    atomic_write(target, content)
     return valid_name, content
 
 
@@ -106,7 +121,10 @@ async def delete_spec(project_id: str, name: str) -> None:
     """Delete an existing spec file."""
     specs_dir = await _resolve_specs_dir(project_id)
     valid_name = _validate_spec_name(name)
-    target = specs_dir / valid_name
+    try:
+        target = contained_path(specs_dir, valid_name)
+    except ValueError as exc:
+        raise SpecValidationError(str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise SpecNotFoundError(f"Spec not found: {valid_name}")
     target.unlink()

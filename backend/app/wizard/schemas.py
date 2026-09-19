@@ -36,10 +36,12 @@ class GenerateRequest(BaseModel):
     """Request body for LLM-powered spec/plan generation."""
 
     project_name: str = Field(min_length=1, max_length=100)
+    project_mode: Literal["new", "existing"] = "new"
+    existing_project_path: str = ""
     project_description: str = Field(min_length=1, max_length=20000)
     tech_stack: list[str] = Field(default_factory=list)
     cli: str = "claude"
-    auto_approval: str = "sandboxed"
+    auto_approval: Literal["sandboxed", "full-auto"] = "sandboxed"
     # 0 means unlimited iterations.
     max_iterations: int = Field(default=20, ge=0)
     test_command: str = ""
@@ -113,13 +115,14 @@ class CreateRequest(BaseModel):
     project_mode: Literal["new", "existing"] = "new"
     existing_project_path: str = ""
     cli: str = "claude"
-    auto_approval: str = "sandboxed"
+    auto_approval: Literal["sandboxed", "full-auto"] = "sandboxed"
     # 0 means unlimited iterations.
     max_iterations: int = Field(default=20, ge=0)
     test_command: str = ""
     model_override: str = ""
     files: list[GeneratedFile]
     start_loop: bool = False
+    expected_versions: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("project_name")
     @classmethod

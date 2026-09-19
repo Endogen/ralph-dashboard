@@ -1,3 +1,4 @@
+import { sampleTimeline } from "@/lib/chart-sampling"
 import { useMemo } from "react"
 
 import { ChartContainer } from "@/components/charts/chart-container"
@@ -183,7 +184,7 @@ function TimelineTooltip({ active, payload }: TimelineTooltipProps) {
 }
 
 export function ProgressTimelineChart({ iterations, tasksTotal }: ProgressTimelineChartProps) {
-  const data = useMemo(() => buildTimelineData(iterations, tasksTotal), [iterations, tasksTotal])
+  const data = useMemo(() => sampleTimeline(buildTimelineData(iterations, tasksTotal)), [iterations, tasksTotal])
   const tasksUpperBound = useMemo(() => {
     const pointsMax = data.reduce((max, point) => {
       const current = Math.max(point.tasksCumulative ?? 0, point.projectionTasks ?? 0)

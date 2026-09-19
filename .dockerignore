@@ -1,0 +1,13 @@
+.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/*.egg-info
+**/*.tsbuildinfo
+.env*
+data
+.ralph
+graphify-out

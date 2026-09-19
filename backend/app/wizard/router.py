@@ -8,6 +8,7 @@ from app.wizard.generator import (
     cancel_generation_request,
     get_generation_status,
     start_generation,
+    GenerationError,
 )
 from app.wizard.schemas import (
     CancelGenerateRequest,
@@ -25,6 +26,7 @@ from app.wizard.service import (
     ProjectTargetValidationError,
     create_project,
     get_default_templates,
+    preview_project,
 )
 
 router = APIRouter(prefix="/api/wizard", tags=["wizard"])
@@ -40,7 +42,10 @@ async def get_templates() -> TemplatesResponse:
 @router.post("/generate/start", response_model=StartGenerateResponse)
 async def post_generate_start(payload: GenerateRequest) -> StartGenerateResponse:
     """Start async generation. Returns request_id immediately."""
-    request_id = await start_generation(payload)
+    try:
+        request_id = await start_generation(payload)
+    except GenerationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return StartGenerateResponse(request_id=request_id)
 
 
@@ -84,3 +89,11 @@ async def post_create(payload: CreateRequest) -> CreateResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+
+
+@router.post("/preview")
+async def post_preview(payload: CreateRequest) -> dict:
+    try:
+        return await preview_project(payload)
+    except (ProjectTargetValidationError, ProjectDirectoryExistsError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

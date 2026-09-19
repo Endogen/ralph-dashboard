@@ -6,6 +6,14 @@ import asyncio
 import json
 import logging
 import subprocess
+import tempfile
+import shutil
+import os
+import hashlib
+
+from app.control.models import LoopConfig
+from app.utils.files import atomic_write, contained_path
+from app.utils.process import process_lock, read_pid, is_process_alive
 from pathlib import Path
 
 from app.config import get_settings
@@ -76,23 +84,11 @@ def _resolve_target_project_dir(request: CreateRequest) -> tuple[Path, bool]:
 
 def _build_loop_config(request: CreateRequest) -> dict[str, object]:
     """Build .ralph/config.json payload from wizard request."""
-    cli_flags = ""
-    if request.auto_approval == "full-auto":
-        if request.cli == "codex":
-            cli_flags = "-s danger-full-access"
-        elif request.cli in ("claude", "claude-code"):
-            cli_flags = "--dangerously-skip-permissions"
-
-    config: dict[str, object] = {
-        "cli": request.cli,
-        "flags": cli_flags,
-        "max_iterations": request.max_iterations,
-        "test_command": request.test_command,
-        "model_pricing": {"codex": 0.006, "claude": 0.015},
-    }
-    if request.model_override:
-        config["model"] = request.model_override
-    return config
+    return LoopConfig(
+        cli=request.cli, approval_mode=request.auto_approval,
+        model=request.model_override, max_iterations=request.max_iterations,
+        test_command=request.test_command,
+    ).model_dump(mode="json")
 
 
 def get_default_templates() -> dict[str, str]:
@@ -119,93 +115,109 @@ Run lint/tests after each implementation step.
     return {"agents_md": agents_template, "prompt_md": prompt_template}
 
 
-async def create_project(request: CreateRequest) -> CreateResponse:
-    """Create or initialize a wizard target project on disk."""
-    project_dir, is_new_project = _resolve_target_project_dir(request)
-
+def _prepare_project(request: CreateRequest, project_dir: Path, is_new: bool) -> None:
+    # Validate every target before creating directories or replacing any file.
+    payloads: dict[str, str] = {}
+    for entry in request.files:
+        relative = Path(entry.path)
+        if relative.is_absolute() or any(part in {"..", ".git", ".ralph"} for part in relative.parts):
+            raise ProjectTargetValidationError(f"Invalid generated file path: {entry.path}")
+        try:
+            contained_path(project_dir, entry.path)
+        except ValueError as exc:
+            raise ProjectTargetValidationError(str(exc)) from exc
+        name = relative.as_posix()
+        if name in payloads:
+            raise ProjectTargetValidationError(f"Duplicate generated file: {name}")
+        payloads[name] = entry.content
+    payloads[".ralph/config.json"] = json.dumps(_build_loop_config(request), indent=2) + "\n"
+    # Symlink containment applies to the managed config directory too.
     try:
-        if is_new_project:
-            project_dir.mkdir(parents=True, exist_ok=False)
+        contained_path(project_dir, ".ralph/config.json")
+    except ValueError as exc:
+        raise ProjectTargetValidationError(str(exc)) from exc
+    project_dir.parent.mkdir(parents=True, exist_ok=True)
+    if is_new:
+        staging = Path(tempfile.mkdtemp(prefix=".ralph-create-", dir=project_dir.parent))
+        try:
+            for name, content in payloads.items():
+                atomic_write(staging / name, content)
+            _git_init_new_project(staging)
+            if project_dir.exists():
+                raise ProjectDirectoryExistsError(f"Directory already exists: {project_dir}")
+            os.rename(staging, project_dir)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging)
+    else:
+        # Serialize dashboard writers and reject changes to active projects.
+        with process_lock(get_settings().credentials_file.parent / "project-locks",
+                          hashlib.sha256(str(project_dir).encode()).hexdigest() + ".lock"):
+            pid = read_pid(project_dir / ".ralph/ralph.pid")
+            if pid and is_process_alive(pid):
+                raise ProjectTargetValidationError("Stop the loop before replacing project files")
+            for name, expected in request.expected_versions.items():
+                target = contained_path(project_dir, name)
+                actual = hashlib.sha256(target.read_bytes() if target.exists() else b"").hexdigest()
+                if actual != expected:
+                    raise ProjectTargetValidationError(f"{name} changed since preview. Review the files again.")
+            backups = {name: (project_dir / name).read_text() if (project_dir / name).exists() else None
+                       for name in payloads}
+            written = []
+            created_directories = set()
+            try:
+                for name, content in payloads.items():
+                    parent = (project_dir / name).parent
+                    while parent != project_dir and not parent.exists():
+                        created_directories.add(parent)
+                        parent = parent.parent
+                    atomic_write(contained_path(project_dir, name), content)
+                    written.append(name)
+                _ensure_git_repository(project_dir)
+            except Exception:
+                for name in reversed(written):
+                    previous = backups[name]
+                    if previous is None:
+                        (project_dir / name).unlink(missing_ok=True)
+                    else:
+                        atomic_write(project_dir / name, previous)
+                for directory in sorted(created_directories, key=lambda p: len(p.parts), reverse=True):
+                    directory.rmdir()
+                raise
 
-        ralph_dir = project_dir / ".ralph"
-        ralph_dir.mkdir(parents=True, exist_ok=True)
 
-        config = _build_loop_config(request)
-        config_file = ralph_dir / "config.json"
-        config_file.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-
-        # Write all generated files (with path containment check)
-        resolved_project_dir = project_dir.resolve()
-        for file_entry in request.files:
-            file_path = (project_dir / file_entry.path).resolve()
-            if not file_path.is_relative_to(resolved_project_dir):
-                raise ProjectTargetValidationError(
-                    f"File path escapes project directory: {file_entry.path}"
-                )
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(file_entry.content, encoding="utf-8")
-
-        if is_new_project:
-            await asyncio.to_thread(_git_init_new_project, project_dir)
-        else:
-            await asyncio.to_thread(_ensure_git_repository, project_dir)
-
-        project_id = project_id_from_path(project_dir)
-
-        # Optionally start the loop
-        started = False
-        start_error: str | None = None
-        if request.start_loop:
-            started, start_error = await _start_project_loop(project_id)
-
-        LOGGER.info(
-            "%s project '%s' at %s",
-            "Created" if is_new_project else "Prepared",
-            request.project_name,
-            project_dir,
-        )
-        return CreateResponse(
-            project_id=project_id,
-            project_path=str(project_dir),
-            started=started,
-            start_error=start_error,
-        )
-
-    except (ProjectDirectoryExistsError, ProjectCreationError, ProjectTargetValidationError):
+async def create_project(request: CreateRequest) -> CreateResponse:
+    """Validate and stage all files, publish, then reconcile discovery before start."""
+    project_dir, is_new_project = _resolve_target_project_dir(request)
+    try:
+        await asyncio.to_thread(_prepare_project, request, project_dir, is_new_project)
+    except (ProjectDirectoryExistsError, ProjectTargetValidationError):
         raise
     except Exception as exc:
-        LOGGER.error("Failed to create project: %s", exc, exc_info=True)
         raise ProjectCreationError(f"Failed to create project: {exc}") from exc
+    from app.projects.service import invalidate_discovery_cache
+    from app.ws.file_watcher import file_watcher_service
+
+    invalidate_discovery_cache()
+    await file_watcher_service.refresh_projects()
+    project_id = project_id_from_path(project_dir)
+    started, start_error = await _start_project_loop(project_id) if request.start_loop else (False, None)
+    return CreateResponse(project_id=project_id, project_path=str(project_dir),
+                          started=started, start_error=start_error)
 
 
 def _ensure_git_repository(project_dir: Path) -> None:
     """Initialize git repository if project does not already have one."""
     if (project_dir / ".git").exists():
         return
-    try:
-        subprocess.run(
-            ["git", "init"],
-            cwd=project_dir,
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-    except subprocess.CalledProcessError as exc:
-        LOGGER.warning("Git init failed: %s", exc.stderr)
-    except FileNotFoundError:
-        LOGGER.warning("git not found on PATH — skipping git init")
+    subprocess.run(["git", "init"], cwd=project_dir, check=True,
+                   capture_output=True, timeout=30)
 
 
 def _git_init_new_project(project_dir: Path) -> None:
     """Initialize a git repository and make an initial commit."""
+    _ensure_git_repository(project_dir)
     try:
-        subprocess.run(
-            ["git", "init"],
-            cwd=project_dir,
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
         subprocess.run(
             ["git", "add", "-A"],
             cwd=project_dir,
@@ -221,7 +233,7 @@ def _git_init_new_project(project_dir: Path) -> None:
             timeout=30,
         )
     except subprocess.CalledProcessError as exc:
-        LOGGER.warning("Git init failed: %s", exc.stderr)
+        LOGGER.warning("Project created without an initial commit: %s", exc.stderr)
     except FileNotFoundError:
         LOGGER.warning("git not found on PATH — skipping git init")
 
@@ -237,3 +249,21 @@ async def _start_project_loop(project_id: str) -> tuple[bool, str | None]:
         LOGGER.warning("Failed to auto-start loop for %s", project_id, exc_info=True)
         reason = str(exc).strip() or exc.__class__.__name__
         return False, reason
+
+
+async def preview_project(request: CreateRequest) -> dict:
+    project_dir, is_new = _resolve_target_project_dir(request)
+    versions = {}
+    files = []
+    entries = [(entry.path, entry.content) for entry in request.files]
+    entries.append((".ralph/config.json", json.dumps(_build_loop_config(request), indent=2) + "\n"))
+    for name, content in entries:
+        try:
+            target = contained_path(project_dir, name)
+        except ValueError as exc:
+            raise ProjectTargetValidationError(str(exc)) from exc
+        previous = target.read_text() if not is_new and target.is_file() else None
+        versions[name] = hashlib.sha256((previous or "").encode()).hexdigest()
+        files.append({"path": name, "previous": previous, "content": content,
+                      "action": "update" if previous is not None else "create"})
+    return {"files": files, "versions": versions}

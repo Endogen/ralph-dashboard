@@ -85,15 +85,15 @@ async def test_websocket_endpoint_rejects_missing_token(monkeypatch: pytest.Monk
 
     await ws_router.websocket_endpoint(ws)
 
-    assert not ws.accepted
+    assert ws.accepted
     assert ws.closed
     assert ws.close_code == 1008
-    assert ws.close_reason == "Not authenticated"
+    assert ws.close_reason == "Invalid access token"
 
 
 @pytest.mark.anyio
 async def test_websocket_endpoint_rejects_invalid_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    ws = FakeWebSocket(query_params={"token": "bad-token"})
+    ws = FakeWebSocket(incoming=[{"action": "authenticate", "token": "bad-token"}])
     monkeypatch.setattr(ws_router, "hub", WebSocketHub())
 
     def _raise_invalid(_: str) -> None:
@@ -103,7 +103,7 @@ async def test_websocket_endpoint_rejects_invalid_token(monkeypatch: pytest.Monk
 
     await ws_router.websocket_endpoint(ws)
 
-    assert not ws.accepted
+    assert ws.accepted
     assert ws.closed
     assert ws.close_code == 1008
     assert ws.close_reason == "Invalid access token"
@@ -114,6 +114,7 @@ async def test_websocket_endpoint_handles_actions(monkeypatch: pytest.MonkeyPatc
     ws = FakeWebSocket(
         query_params={"token": "ok"},
         incoming=[
+            {"action": "authenticate", "token": "ok"},
             {"action": "subscribe", "projects": ["alpha", "alpha", "  "]},
             {"action": "ping"},
             {"action": "unsubscribe", "projects": ["alpha"]},

@@ -1,4 +1,4 @@
-import { Editor } from "@monaco-editor/react"
+import { Editor } from "@/components/ui/code-editor"
 
 type PlanMarkdownEditorProps = {
   value: string
@@ -40,6 +40,7 @@ export function PlanMarkdownEditor({
           onChange={(nextValue) => onChange(nextValue ?? "")}
           theme="vs-dark"
           options={{
+                    ariaLabel: "Implementation plan editor",
             minimap: { enabled: false },
             fontSize: 13,
             wordWrap: "on",

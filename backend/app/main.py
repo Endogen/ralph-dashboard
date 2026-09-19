@@ -55,6 +55,8 @@ async def _run_auto_archive() -> None:
         activity_map: dict[str, float | None] = {}
 
         for project in projects:
+            if project.status.value in {"running", "paused"}:
+                continue
             try:
                 iterations = await list_project_iterations(project.id)
                 if iterations:
@@ -67,9 +69,15 @@ async def _run_auto_archive() -> None:
                         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                         activity_map[project.id] = dt.timestamp()
                     else:
-                        activity_map[project.id] = None
+                        activity_map[project.id] = max(
+                            path.stat().st_mtime for path in [project.path, project.path / ".ralph"]
+                            if path.exists()
+                        )
                 else:
-                    activity_map[project.id] = None
+                    activity_map[project.id] = max(
+                            path.stat().st_mtime for path in [project.path, project.path / ".ralph"]
+                            if path.exists()
+                        )
             except Exception:
                 activity_map[project.id] = None
 
@@ -105,6 +113,7 @@ async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
 
 async def _reconcile_project_statuses() -> None:
     """Reconcile project statuses and emit websocket updates for drift."""
+    await file_watcher_service.refresh_projects()
     project_paths = await discover_all_project_paths()
     for project_path in project_paths:
         await watcher_event_dispatcher.reconcile_project_status(
@@ -157,6 +166,9 @@ async def _job_cleanup_loop(stop_event: asyncio.Event) -> None:
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
+    from app.config import get_settings
+
+    get_settings()  # Fail startup before serving with incomplete authentication settings.
     await init_database()
     file_watcher_service.set_on_change(watcher_event_dispatcher.handle_change)
     await file_watcher_service.start()
@@ -192,6 +204,8 @@ async def app_lifespan(_: FastAPI):
             await auto_archive_task
         except asyncio.CancelledError:
             pass
+        from app.wizard.generator import shutdown_generation_jobs
+        await shutdown_generation_jobs()
         await file_watcher_service.stop()
         await close_database()
 
@@ -207,6 +221,9 @@ def is_public_api_path(path: str) -> bool:
 def create_app(frontend_dist: Path | None = None) -> FastAPI:
     """Build and configure the FastAPI application instance."""
     app = FastAPI(title="Ralph Dashboard API", version="0.1.0", lifespan=app_lifespan)
+    from app.files.concurrency import protect_file_edit
+    app.middleware("http")(protect_file_edit)
+
     app.include_router(auth_router)
     app.include_router(control_router)
     app.include_router(files_router)
@@ -243,6 +260,13 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     @app.get("/api/health", tags=["health"])
     async def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/capabilities", tags=["system"])
+    async def capabilities() -> dict:
+        import shutil
+        from app.config import get_settings
+        return {"project_dirs": [str(path) for path in get_settings().project_dirs],
+                "agents": {name: bool(shutil.which(name)) for name in ("codex", "claude")}}
 
     resolved_frontend_dist = frontend_dist or _resolve_default_frontend_dist()
     _configure_frontend_static(app, resolved_frontend_dist)

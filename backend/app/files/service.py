@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from app.projects.service import get_project_detail
+from app.utils.files import atomic_write, contained_path
 
 AllowedProjectFile = Literal["agents", "prompt"]
 FILE_NAME_MAP: dict[AllowedProjectFile, str] = {
@@ -38,7 +39,7 @@ async def read_project_file(project_id: str, file_key: AllowedProjectFile) -> tu
     """Read AGENTS.md or PROMPT.md content for a project."""
     project_path = await _resolve_project_path(project_id)
     filename = FILE_NAME_MAP[file_key]
-    target = project_path / filename
+    target = contained_path(project_path, filename)
     if not target.exists() or not target.is_file():
         raise FilesTargetNotFoundError(f"File not found: {filename}")
     content = await asyncio.to_thread(target.read_text, "utf-8")
@@ -51,6 +52,6 @@ async def write_project_file(
     """Write AGENTS.md or PROMPT.md content for a project."""
     project_path = await _resolve_project_path(project_id)
     filename = FILE_NAME_MAP[file_key]
-    target = project_path / filename
-    await asyncio.to_thread(target.write_text, content, "utf-8")
+    target = contained_path(project_path, filename)
+    await asyncio.to_thread(atomic_write, target, content)
     return filename, content

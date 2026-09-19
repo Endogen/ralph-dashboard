@@ -6,8 +6,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
+import hashlib
+
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError as JWTError
 from pydantic import ValidationError
 
 from app.auth.schemas import Credentials, TokenPayload
@@ -86,16 +89,18 @@ def authenticate_user(
     if credentials is None:
         raise CredentialsNotConfiguredError("Credentials are not configured")
 
-    if credentials.username != username:
-        raise InvalidCredentialsError("Invalid username or password")
-    if not verify_password(password, credentials.password_hash):
+    valid_password = verify_password(password, credentials.password_hash)
+    if credentials.username != username or not valid_password:
         raise InvalidCredentialsError("Invalid username or password")
     return credentials
 
 
 def _build_token(subject: str, token_type: Literal["access", "refresh"], expires: timedelta) -> str:
     expires_at = datetime.now(timezone.utc) + expires
+    credentials = load_credentials()
+    version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
     payload = {
+        "credential_version": version,
         "sub": subject,
         "type": token_type,
         "exp": expires_at,
@@ -127,6 +132,12 @@ def decode_token(
         token_payload = TokenPayload.model_validate(payload)
     except ValidationError as exc:
         raise InvalidTokenError("Invalid token payload") from exc
+
+    credentials = load_credentials()
+    if payload.get("credential_version") is not None:
+        current_version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
+        if payload["credential_version"] != current_version or credentials.username != token_payload.sub:
+            raise InvalidTokenError("Credentials changed; sign in again")
 
     if expected_type is not None and token_payload.type != expected_type:
         raise InvalidTokenError("Unexpected token type")

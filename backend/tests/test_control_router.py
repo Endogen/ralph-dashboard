@@ -111,6 +111,18 @@ async def test_start_handler_uses_persisted_config_and_supports_override(
     monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
     get_settings.cache_clear()
 
+    import subprocess
+    import os
+    import sys
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True)
+    (project / "PROMPT.md").write_text("Test fixture")
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    agent = binary / "codex"
+    agent.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
+    agent.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{binary}{os.pathsep}{os.environ['PATH']}")
+
     await put_config(
         project_id,
         LoopConfig(

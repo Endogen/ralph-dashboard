@@ -112,8 +112,8 @@ async def auto_archive_check(
     for project_id, last_ts in project_last_activity.items():
         if project_id in already_archived:
             continue
-        # No activity at all or activity older than threshold
-        if last_ts is None or last_ts < threshold:
+        # Unknown activity is never evidence of inactivity.
+        if last_ts is not None and last_ts < threshold:
             await archive_project(project_id)
             newly_archived.append(project_id)
             LOGGER.info(

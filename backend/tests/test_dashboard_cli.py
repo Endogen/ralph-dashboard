@@ -153,6 +153,7 @@ def test_run_build_frontend_runs_npm_build_then_package(
 
     assert result == 0
     assert calls == [
+        (["/usr/bin/npm", "ci"], frontend, False),
         (["/usr/bin/npm", "run", "build"], frontend, False),
         (["bash", str(scripts / "package_frontend.sh")], tmp_path, False),
     ]
