@@ -38,6 +38,6 @@ Additional changes include async SQLite and bcrypt handling, login throttling, d
 
 The orchestration tests and browser walkthrough use deterministic local agents. They verify the dashboard and runner, not the quality of a paid provider's generated code or account-specific authentication/policy. The installed provider CLIs were checked with `--version`; a live paid-provider project was not run.
 
-The CI workflow is added locally; a hosted GitHub Actions run has not been triggered. Linux validation reports an upstream Starlette/AnyIO deprecation warning. Monaco produces Vite's large optional-chunk advisory. Neither warning is suppressed.
+The first [hosted CI run](https://github.com/Endogen/ralph-dashboard/actions/runs/35458453509) passed Linux tests, frontend checks and the container smoke test, but failed dependency audits. The Python dev dependency pytest 8.4.2 was affected by PYSEC-2026-1845; its minimum is now 9.0.3. The npm registry outage triggered npm 10's retired Quick Audit fallback; the unchanged lockfile subsequently audited cleanly. CI now uses npm 11.19.1 and keeps the backend matrix running independently. Follow-up local checks passed all 223 backend tests on macOS/Linux, all 16 frontend tests and both dependency audits. Linux validation reports an upstream Starlette/AnyIO deprecation warning. Monaco produces Vite's large optional-chunk advisory. Neither warning is suppressed.
 
 See [reliability and deployment contracts](reliability.md) for setup, permissions, storage and runtime limits.

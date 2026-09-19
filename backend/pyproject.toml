@@ -28,7 +28,7 @@ ralph-dashboard-init-user = "app.auth.setup_user:cli"
 [project.optional-dependencies]
 dev = [
   "ruff>=0.13,<0.15",
-  "pytest>=8.4,<9.0",
+  "pytest>=9.0.3,<10.0",
   "httpx>=0.28,<1.0",
   "httpx2>=2.13,<3.0",
   "pytest-timeout>=2.3,<3.0",
