@@ -54,3 +54,24 @@ async def test_aggregate_project_stats(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert stats.projected_completion is not None
     assert len(stats.tokens_by_phase) == 1
     assert stats.tokens_by_phase[0].phase == "Phase 1: Setup"
+
+
+@pytest.mark.anyio
+async def test_aggregate_project_stats_uses_configured_cost_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace, project = _seed_project(tmp_path)
+    project_id = project_id_from_path(project)
+    # No iteration carries an explicit cost_usd, so the fallback must use the
+    # configured per-1k price rather than the hard-coded default.
+    (project / ".ralph" / "config.json").write_text(
+        '{"cli": "codex", "model_pricing": {"codex": 0.012}}', encoding="utf-8"
+    )
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(workspace))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    stats = await aggregate_project_stats(project_id)
+
+    # 100 k-tokens total (50 + 30 + 20) at $0.012/1k = $1.20.
+    assert stats.total_cost_usd == pytest.approx(1.2)
