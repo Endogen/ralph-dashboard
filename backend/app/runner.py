@@ -64,8 +64,17 @@ class Runner:
         self.directory.mkdir(exist_ok=True)
 
     def log(self, text: str) -> None:
+        path = self.directory / "ralph.log"
+        if self._log_handle is not None:
+            try:
+                current = path.stat()
+                opened = os.fstat(self._log_handle.fileno())
+                if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                    self.close_log()
+            except FileNotFoundError:
+                self.close_log()
         if self._log_handle is None:
-            self._log_handle = (self.directory / "ralph.log").open("a", encoding="utf-8")
+            self._log_handle = path.open("a", encoding="utf-8")
         self._log_handle.write(text)
         self._log_handle.flush()
         if os.getenv("RALPH_MANAGED") != "1":

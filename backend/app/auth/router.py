@@ -21,6 +21,7 @@ from app.auth.service import (
 )
 
 _login_attempts: OrderedDict[str, list[float]] = OrderedDict()
+_login_in_flight: dict[str, int] = {}
 _ATTEMPT_WINDOW_SECONDS = 60
 _MAX_ATTEMPTS_PER_WINDOW = 10
 _MAX_TRACKED_CLIENTS = 4096
@@ -62,9 +63,12 @@ def _record_failure(address: str) -> None:
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, request: Request = None) -> TokenResponse:
     address = client_identity(request)
-    if len(_recent_attempts(address)) >= _MAX_ATTEMPTS_PER_WINDOW:
+    if (len(_recent_attempts(address)) + _login_in_flight.get(address, 0) >= _MAX_ATTEMPTS_PER_WINDOW
+            or len(_login_in_flight) >= _MAX_TRACKED_CLIENTS):
         raise HTTPException(status_code=429, detail="Too many login attempts. Try again in one minute.",
                             headers={"Retry-After": str(_ATTEMPT_WINDOW_SECONDS)})
+    # Reserve before yielding to bcrypt so concurrent requests share the budget.
+    _login_in_flight[address] = _login_in_flight.get(address, 0) + 1
     try:
         credentials = await asyncio.to_thread(authenticate_user, payload.username, payload.password)
     except CredentialsNotConfiguredError as exc:
@@ -80,6 +84,10 @@ async def login(payload: LoginRequest, request: Request = None) -> TokenResponse
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         ) from exc
+    finally:
+        _login_in_flight[address] -= 1
+        if not _login_in_flight[address]:
+            del _login_in_flight[address]
 
     _login_attempts.pop(address, None)
     return TokenResponse(

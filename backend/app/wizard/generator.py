@@ -20,19 +20,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def _terminate_generation_process(process) -> None:
-    """Terminate a generation child and everything it spawned.
-
-    The child is a session leader (start_new_session=True), so its PID is also
-    its process-group ID; read it back rather than assuming the two stay equal.
-    """
-    try:
-        pgid = os.getpgid(process.pid)
-    except (ProcessLookupError, PermissionError):
-        return
-    try:
-        await asyncio.to_thread(terminate_group, pgid, 0.5)
-    except (ProcessLookupError, ValueError, RuntimeError) as exc:
-        LOGGER.warning("Could not fully terminate generation process group %s: %s", pgid, exc)
+    """Terminate the original session, including children of an exited leader."""
+    # start_new_session=True establishes this group at launch. Resolving it
+    # through getpgid later fails once the leader exits, even with live children.
+    await asyncio.to_thread(terminate_group, process.pid, 0.5)
 
 _ACTIVE_GENERATIONS: dict[str, asyncio.subprocess.Process] = {}
 _ACTIVE_GENERATIONS_LOCK = asyncio.Lock()
@@ -207,9 +198,6 @@ async def cancel_generation_request(request_id: str) -> bool:
 
     if process is None:
         return False
-
-    if process.returncode is not None:
-        return True
 
     await _terminate_generation_process(process)
 
@@ -466,7 +454,7 @@ async def cleanup_stale_jobs() -> None:
             # Also kill any tracked subprocess for this request.
             async with _ACTIVE_GENERATIONS_LOCK:
                 proc = _ACTIVE_GENERATIONS.pop(rid, None)
-            if proc is not None and proc.returncode is None:
+            if proc is not None:
                 await _terminate_generation_process(proc)
 
 

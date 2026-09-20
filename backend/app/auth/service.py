@@ -98,7 +98,9 @@ def authenticate_user(
 def _build_token(subject: str, token_type: Literal["access", "refresh"], expires: timedelta) -> str:
     expires_at = datetime.now(timezone.utc) + expires
     credentials = load_credentials()
-    version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
+    if credentials is None:
+        raise CredentialsNotConfiguredError("Credentials are not configured")
+    version = hashlib.sha256(credentials.password_hash.encode()).hexdigest()
     payload = {
         "credential_version": version,
         "sub": subject,
@@ -137,10 +139,10 @@ def decode_token(
     # key rotation already invalidated anything older, so a missing claim is
     # rejected rather than waved through.
     credentials = load_credentials()
-    current_version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
-    if payload.get("credential_version") != current_version or (
-        credentials is not None and credentials.username != token_payload.sub
-    ):
+    if credentials is None:
+        raise InvalidTokenError("Credentials are not configured")
+    current_version = hashlib.sha256(credentials.password_hash.encode()).hexdigest()
+    if payload.get("credential_version") != current_version or credentials.username != token_payload.sub:
         raise InvalidTokenError("Credentials changed; sign in again")
 
     if expected_type is not None and token_payload.type != expected_type:

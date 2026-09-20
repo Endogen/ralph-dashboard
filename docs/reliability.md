@@ -60,7 +60,7 @@ Source installs always run `npm ci` and rebuild the frontend. Use Node 22 LTS. S
 scripts/update_locks.sh
 ```
 
-The script needs [uv](https://docs.astral.sh/uv/) and must produce byte-identical output wherever it runs; CI regenerates the locks and fails if they differ from what is committed.
+The script needs [uv](https://docs.astral.sh/uv/). It preserves existing pins where they still satisfy the declared dependencies. Use `scripts/update_locks.sh --upgrade` to intentionally update compatible versions, or `scripts/update_locks.sh --check` to verify both locks without changing them. CI uses the same check, seeded with the committed versions so new upstream releases do not invalidate an unchanged lock.
 
 ## Validation
 

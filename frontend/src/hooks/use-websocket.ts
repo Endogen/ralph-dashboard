@@ -108,7 +108,11 @@ export function useWebSocket({
         if (!cancelled) reconnectTimerRef.current = window.setTimeout(() => void connect(), 3000)
         return
       }
-      if (cancelled || !token) return
+      if (cancelled) return
+      if (!token) {
+        useAuthStore.getState().clearTokens()
+        return
+      }
       const socket = new WebSocket(buildWebSocketUrl())
       socketRef.current = socket
 
@@ -174,7 +178,7 @@ export function useWebSocket({
         if (event.code === 1008) {
           authRetryRef.current += 1
           setReconnecting(true)
-          void planAuthRecovery(authRetryRef.current, MAX_AUTH_RETRIES, refreshAccessToken).then(
+          const recover = () => planAuthRecovery(authRetryRef.current, MAX_AUTH_RETRIES, refreshAccessToken).then(
             (action) => {
               if (cancelled) return
               if (action.kind === "reconnect") {
@@ -189,10 +193,11 @@ export function useWebSocket({
               clearReconnectTimer()
               reconnectTimerRef.current = window.setTimeout(() => {
                 reconnectTimerRef.current = null
-                void connect()
+                void recover()
               }, AUTH_RETRY_DELAY_MS)
             },
           )
+          void recover()
           return
         }
 

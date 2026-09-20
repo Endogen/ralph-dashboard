@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import OrderedDict
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -47,7 +48,7 @@ _MAX_QUEUE_SIZE = 200
 # Trailing-edge coalescing window for repeated writes to one file.
 _COALESCE_SECONDS = 0.1
 
-OnFileChange = Callable[["FileChangeEvent"], Awaitable[None]]
+OnFileChange = Callable[["FileChangeEvent"], Awaitable[bool | None]]
 LOGGER = logging.getLogger(__name__)
 
 
@@ -223,15 +224,28 @@ class FileWatcherService:
             )
 
     async def _consume_events(self) -> None:
+        pending: OrderedDict[tuple[str, Path], FileChangeEvent] = OrderedDict()
+        resume_next = False
         while True:
-            change = await self._queue.get()
+            # Alternate new events with bounded continuation batches. Coalesce
+            # per file so a fast writer cannot grow a second unbounded queue.
+            from_queue = not pending or (not resume_next and not self._queue.empty())
+            if from_queue:
+                change = await self._queue.get()
+            else:
+                _, change = pending.popitem(last=False)
+            key = (change.project_id, change.path)
+            pending.pop(key, None)
             try:
-                if self._on_change is not None:
-                    await self._on_change(change)
+                if self._on_change is not None and await self._on_change(change):
+                    pending[key] = change
             except Exception:
                 LOGGER.exception("File watcher handler failed")
             finally:
-                self._queue.task_done()
+                if from_queue:
+                    self._queue.task_done()
+            resume_next = from_queue
+            await asyncio.sleep(0)
 
     def _handle_subdir_created(
         self, project_id: str, project_path: Path, subdir_path: str

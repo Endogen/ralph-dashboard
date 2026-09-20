@@ -14,3 +14,7 @@ def test_secret(monkeypatch, tmp_path):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+@pytest.fixture
+def configured_credentials(test_secret):
+    get_settings().credentials_file.write_text("username: demo\npassword_hash: test-hash\n")
