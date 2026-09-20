@@ -23,7 +23,6 @@ class WatcherEventDispatcher:
     """Consumes watcher file changes and emits websocket events."""
 
     def __init__(self) -> None:
-        self._started_iterations: dict[str, set[int]] = defaultdict(set)
         self._completed_iterations: dict[str, set[int]] = defaultdict(set)
         self._log_offsets: dict[str, int] = {}
         self._log_mtimes_ns: dict[str, int] = {}
@@ -174,15 +173,19 @@ class WatcherEventDispatcher:
                 },
             )
 
+    # Bound one drain so a fast writer cannot starve other projects' events.
+    # A writer still outrunning this leaves the rest for the next watcher event.
+    _MAX_DRAIN_PASSES = 16
+
     async def _handle_log_change(self, change: FileChangeEvent) -> None:
-        while True:
+        for _ in range(self._MAX_DRAIN_PASSES):
             previous = self._log_offsets.get(change.project_id, 0)
             lines = self._read_log_append_lines(change)
             if lines:
                 await hub.emit("log_append", change.project_id, {"lines": lines,
                     "offset": self._log_offsets.get(change.project_id, 0)})
             if self._log_offsets.get(change.project_id, 0) == previous:
-                break
+                return
             await asyncio.sleep(0)
 
     # Maximum bytes to read in one append chunk.  Prevents reading 200MB+

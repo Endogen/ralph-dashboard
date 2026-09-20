@@ -4,20 +4,36 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import tempfile
+import time
+import uuid
+from asyncio.subprocess import PIPE
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.utils.process import terminate_group
-import logging
-import os
-import time
-import uuid
-from dataclasses import dataclass
-from asyncio.subprocess import PIPE
-
 from app.wizard.schemas import GeneratedFile, GenerateRequest
 
 LOGGER = logging.getLogger(__name__)
+
+
+async def _terminate_generation_process(process) -> None:
+    """Terminate a generation child and everything it spawned.
+
+    The child is a session leader (start_new_session=True), so its PID is also
+    its process-group ID; read it back rather than assuming the two stay equal.
+    """
+    try:
+        pgid = os.getpgid(process.pid)
+    except (ProcessLookupError, PermissionError):
+        return
+    try:
+        await asyncio.to_thread(terminate_group, pgid, 0.5)
+    except (ProcessLookupError, ValueError, RuntimeError) as exc:
+        LOGGER.warning("Could not fully terminate generation process group %s: %s", pgid, exc)
+
 _ACTIVE_GENERATIONS: dict[str, asyncio.subprocess.Process] = {}
 _ACTIVE_GENERATIONS_LOCK = asyncio.Lock()
 
@@ -195,10 +211,7 @@ async def cancel_generation_request(request_id: str) -> bool:
     if process.returncode is not None:
         return True
 
-    try:
-        await asyncio.to_thread(terminate_group, process.pid, 0.5)
-    except ProcessLookupError:
-        return True
+    await _terminate_generation_process(process)
 
     try:
         await asyncio.wait_for(process.wait(), timeout=5)
@@ -341,13 +354,13 @@ async def _generate_project_files(request: GenerateRequest, workspace: Path) -> 
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(input=prompt.encode()), timeout=timeout_seconds)
     except asyncio.TimeoutError as exc:
-        await asyncio.to_thread(terminate_group, process.pid, 0.5)
+        await _terminate_generation_process(process)
         await process.wait()
         raise GenerationError(
             f"{command[0]} CLI generation timed out after {timeout_seconds} seconds."
         ) from exc
     except asyncio.CancelledError:
-        await asyncio.to_thread(terminate_group, process.pid, 0.5)
+        await _terminate_generation_process(process)
         await process.wait()
         LOGGER.info("Wizard generation cancelled by client for project: %s", request.project_name)
         raise
@@ -454,10 +467,8 @@ async def cleanup_stale_jobs() -> None:
             async with _ACTIVE_GENERATIONS_LOCK:
                 proc = _ACTIVE_GENERATIONS.pop(rid, None)
             if proc is not None and proc.returncode is None:
-                try:
-                    await asyncio.to_thread(terminate_group, proc.pid, 0.5)
-                except ProcessLookupError:
-                    pass
+                await _terminate_generation_process(proc)
+
 
 async def shutdown_generation_jobs() -> None:
     tasks = [job.task for job in _GENERATION_JOBS.values() if not job.task.done()]

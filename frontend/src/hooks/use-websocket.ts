@@ -1,10 +1,13 @@
 import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { freshAccessToken, refreshAccessToken } from "@/api/client"
+import { planAuthRecovery } from "@/hooks/websocket-auth-recovery"
 
 import { useAuthStore } from "@/stores/auth-store"
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const
+const MAX_AUTH_RETRIES = 2
+const AUTH_RETRY_DELAY_MS = 3000
 
 export type WebSocketEnvelope = {
   type: string
@@ -49,6 +52,7 @@ export function useWebSocket({
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
   const reconnectAttemptRef = useRef(0)
+  const authRetryRef = useRef(0)
   const projectsRef = useRef<string[]>(normalizeProjects(projects))
   const subscribedProjectsRef = useRef<string[]>([])
   const onEventRef = useRef(onEvent)
@@ -128,6 +132,7 @@ export function useWebSocket({
           if (parsed.type === "authenticated") {
             clearReconnectTimer()
             reconnectAttemptRef.current = 0
+            authRetryRef.current = 0
             setConnected(true)
             setReconnecting(false)
             window.dispatchEvent(new CustomEvent("ralph-live-event", { detail: { type: "reconnected" } }))
@@ -167,12 +172,27 @@ export function useWebSocket({
         }
 
         if (event.code === 1008) {
-          // Auth/policy violation from backend — force a re-login instead of
-          // reconnecting forever with the same invalid token.
-          void refreshAccessToken().then(() => { if (!cancelled) void connect() }).catch(() => {
-            if (!cancelled) reconnectTimerRef.current = window.setTimeout(() => void connect(), 3000)
-          })
-          setReconnecting(false)
+          authRetryRef.current += 1
+          setReconnecting(true)
+          void planAuthRecovery(authRetryRef.current, MAX_AUTH_RETRIES, refreshAccessToken).then(
+            (action) => {
+              if (cancelled) return
+              if (action.kind === "reconnect") {
+                void connect()
+                return
+              }
+              if (action.kind === "sign-out") {
+                useAuthStore.getState().clearTokens()
+                setReconnecting(false)
+                return
+              }
+              clearReconnectTimer()
+              reconnectTimerRef.current = window.setTimeout(() => {
+                reconnectTimerRef.current = null
+                void connect()
+              }, AUTH_RETRY_DELAY_MS)
+            },
+          )
           return
         }
 
@@ -183,12 +203,12 @@ export function useWebSocket({
         clearReconnectTimer()
         reconnectTimerRef.current = window.setTimeout(() => {
           reconnectTimerRef.current = null
-          connect()
+          void connect()
         }, delay)
       }
     }
 
-    connect()
+    void connect()
 
     return () => {
       cancelled = true

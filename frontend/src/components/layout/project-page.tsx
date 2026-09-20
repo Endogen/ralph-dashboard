@@ -1,13 +1,10 @@
 import { fetchIterationHistory } from "@/api/iterations"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { apiFetch, apiRevision } from "@/api/client"
 import { IterationHealthTimeline } from "@/components/charts/iteration-health-timeline"
-import { ProgressTimelineChart } from "@/components/charts/progress-timeline-chart"
-import { TaskBurndownChart } from "@/components/charts/task-burndown-chart"
-import { TokenUsagePhaseChart } from "@/components/charts/token-usage-phase-chart"
 import { ProjectControlBar } from "@/components/layout/project-control-bar"
 import { ProjectTopBar } from "@/components/layout/project-top-bar"
 import { PlanMarkdownEditor } from "@/components/project/plan-markdown-editor"
@@ -25,6 +22,9 @@ import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type WebSocketEnvelope } from "@/hooks/use-websocket"
 import { useActiveProjectStore } from "@/stores/active-project-store"
+
+// Recharts is this route's heaviest dependency; load it with the charts.
+const ProjectChartsPanel = lazy(() => import("@/components/charts/project-charts-panel"))
 import { useToastStore } from "@/stores/toast-store"
 import type {
   IterationSummary,
@@ -623,18 +623,14 @@ export function ProjectPage() {
               successRate={successRate}
             />
 
-            <div className="overflow-hidden">
-              <ProgressTimelineChart iterations={sortedIterations} tasksTotal={tasksTotal} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <div className="overflow-hidden">
-                <TaskBurndownChart iterations={sortedIterations} tasksTotal={tasksTotal} />
-              </div>
-              <div className="overflow-hidden">
-                <TokenUsagePhaseChart data={stats?.tokens_by_phase ?? []} totalTokens={tokensUsed} />
-              </div>
-            </div>
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <ProjectChartsPanel
+                iterations={sortedIterations}
+                tasksTotal={tasksTotal}
+                tokensByPhase={stats?.tokens_by_phase ?? []}
+                tokensUsed={tokensUsed}
+              />
+            </Suspense>
 
             <div className="overflow-hidden">
               <IterationHealthTimeline iterations={sortedIterations} />

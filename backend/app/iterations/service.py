@@ -123,13 +123,20 @@ async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     project_path = await _resolve_project_path(project_id)
     ralph_dir = project_path / ".ralph"
     def signature():
-        return tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size, path.stat().st_ino)
-                     for path in (ralph_dir / "iterations.jsonl", ralph_dir / "ralph.log") if path.exists())
+        entries = []
+        for path in (ralph_dir / "iterations.jsonl", ralph_dir / "ralph.log"):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            entries.append((str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino))
+        return tuple(entries)
     version = await asyncio.to_thread(signature)
     cache_key = str(project_path)
     cached = _summary_cache.get(cache_key)
     if cached and cached[0] == version:
-        return [item.model_copy(deep=True) for item in cached[1]]
+        _summary_cache.move_to_end(cache_key)
+        return list(cached[1])
     jsonl_iterations = await asyncio.to_thread(parse_iterations_jsonl_file, ralph_dir / "iterations.jsonl")
 
     # Prefer jsonl data; only parse log if jsonl is empty and log is small
@@ -146,7 +153,9 @@ async def list_project_iterations(project_id: str) -> list[IterationSummary]:
     _summary_cache.move_to_end(cache_key)
     while len(_summary_cache) > 128:
         _summary_cache.popitem(last=False)
-    return [item.model_copy(deep=True) for item in result]
+    # Callers serialise these straight to JSON and never mutate them, so hand
+    # back the cached models instead of deep-copying hundreds of records per hit.
+    return list(result)
 
 
 async def get_project_iteration_details(

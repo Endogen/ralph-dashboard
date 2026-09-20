@@ -61,12 +61,32 @@ def owns_process(directory: Path, pid: int) -> bool:
         return False
 
 
+def prune_stale_locks(directory: Path, max_age_seconds: float = 7 * 24 * 3600) -> None:
+    """Drop lock files nobody has touched in a week.
+
+    Removing a file does not release a lock another process holds on its open
+    descriptor, so this only reclaims names, never mutual exclusion.
+    """
+    cutoff = time.time() - max_age_seconds
+    try:
+        entries = list(directory.glob("*.lock"))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.stat().st_mtime < cutoff:
+                entry.unlink()
+        except OSError:
+            continue
+
+
 @contextmanager
 def process_lock(directory: Path, name: str = "start.lock"):
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / name).open("a") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         try:
+            os.utime(handle.fileno())  # Keep an in-use lock out of the pruner.
             yield handle
         finally:
             fcntl.flock(handle, fcntl.LOCK_UN)

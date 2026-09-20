@@ -20,6 +20,9 @@ class Settings(BaseModel):
     port: int = Field(default=8420, ge=1, le=65535)
     secret_key: str = Field(min_length=32)
     credentials_file: Path = Field(default=DEFAULT_CREDENTIALS_FILE)
+    # Number of trailing X-Forwarded-For entries a trusted reverse proxy appends.
+    # 0 means the header is untrusted and the socket peer identifies the client.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=8)
 
     @field_validator("project_dirs", mode="before")
     @classmethod
@@ -84,5 +87,9 @@ def get_settings() -> Settings:
     credentials_file = os.getenv("RALPH_CREDENTIALS_FILE")
     if credentials_file is not None:
         payload["credentials_file"] = credentials_file
+
+    trusted_proxy_hops = os.getenv("RALPH_TRUSTED_PROXY_HOPS")
+    if trusted_proxy_hops is not None:
+        payload["trusted_proxy_hops"] = trusted_proxy_hops
 
     return Settings.model_validate(payload)

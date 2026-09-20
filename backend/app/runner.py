@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,13 +59,22 @@ class Runner:
         self.iteration = 0
         self.iteration_deadline: float | None = None
         self.child: subprocess.Popen | None = None
+        # Held open across writes; flushed per write so watchers see output live.
+        self._log_handle = None
         self.directory.mkdir(exist_ok=True)
 
     def log(self, text: str) -> None:
-        with (self.directory / "ralph.log").open("a", encoding="utf-8") as handle:
-            handle.write(text)
+        if self._log_handle is None:
+            self._log_handle = (self.directory / "ralph.log").open("a", encoding="utf-8")
+        self._log_handle.write(text)
+        self._log_handle.flush()
         if os.getenv("RALPH_MANAGED") != "1":
             print(text, end="", flush=True)
+
+    def close_log(self) -> None:
+        if self._log_handle is not None:
+            self._log_handle.close()
+            self._log_handle = None
 
     def state(self, status: str, **extra) -> None:
         atomic_write(self.directory / "state.json", json.dumps({
@@ -122,10 +133,11 @@ class Runner:
         usage: dict = {}
         tail = ""
         buffer = b""
+        # Retains a partial multi-byte character across chunk boundaries.
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
         deadline = self.iteration_deadline or time.monotonic() + self.config.iteration_timeout_seconds
         # A temporary file avoids deadlocking on a large prompt written to a pipe
         # before stdout is drained, and keeps prompts out of process listings.
-        import tempfile
         with tempfile.TemporaryFile() as input_file:
             if prompt is not None:
                 input_file.write(prompt.encode())
@@ -159,20 +171,28 @@ class Runner:
                         if not chunk:
                             selector.unregister(key.fileobj)
                             continue
+                        if not structured:
+                            # Plain output needn't wait for a line break to become
+                            # visible, and one decoder owns the whole stream so a
+                            # character split across reads is never mangled.
+                            text = decoder.decode(chunk)
+                            if text:
+                                self.log(text)
+                                tail = (tail + text)[-65536:]
+                            continue
                         buffer += chunk
                         while b"\n" in buffer:
                             line, buffer = buffer.split(b"\n", 1)
                             consume(line + b"\n")
-                        # Plain output needn't wait for a line break to become visible.
-                        if not structured and buffer:
-                            text = buffer.decode("utf-8", errors="replace")
-                            self.log(text)
-                            tail = (tail + text)[-65536:]
-                            buffer = b""
                         if len(buffer) > 4 * 1024 * 1024:
                             consume(buffer)
                             buffer = b""
-                if buffer:
+                if not structured:
+                    text = decoder.decode(b"", final=True)
+                    if text:
+                        self.log(text)
+                        tail = (tail + text)[-65536:]
+                elif buffer:
                     consume(buffer)
             code = self.child.wait(timeout=5)
             if usage.pop("agent_error", False) and code == 0:
@@ -248,7 +268,8 @@ class Runner:
         except OSError as exc:
             code, output, usage = 127, str(exc), {}
         errors = [f"Agent exited with code {code}"] if code else []
-        blocked = code in {124, 127} or code and re.search(r"usage limit|rate.?limit|quota exceeded|too many requests", output, re.I)
+        blocked = bool(code in {124, 127} or (code and re.search(
+            r"usage limit|rate.?limit|quota exceeded|too many requests", output, re.I)))
         test_passed = None
         test_output = ""
         if self.config.test_command and not self.stopped and not blocked:
@@ -258,7 +279,7 @@ class Runner:
             except OSError as exc:
                 test_code, test_output = 127, str(exc)
             test_passed = test_code == 0
-            blocked = test_code in {124, 127}
+            blocked = test_code in {124, 127}  # Timed out, or the command is missing.
             if not test_passed:
                 errors.append("Tests failed")
         status = "cancelled" if self.stopped else "blocked" if blocked else "error" if errors else "success"
@@ -336,6 +357,7 @@ class Runner:
                 return 1
             finally:
                 self.cleanup_child()
+                self.close_log()
                 (self.directory / "ralph.pid").unlink(missing_ok=True)
                 (self.directory / "process.json").unlink(missing_ok=True)
 

@@ -22,6 +22,10 @@ from app.utils.process import (
 from app.utils.files import atomic_write
 
 
+# Strong references to in-flight child reapers (see start_project_process).
+_REAPERS: set[asyncio.Task] = set()
+
+
 class ProcessManagerError(Exception):
     """Base process manager error."""
 
@@ -55,11 +59,7 @@ _read_pid = read_pid
 _is_pid_running = is_process_alive
 
 
-def _repo_script_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "scripts" / "ralph.sh"
-
-
-def _resolve_default_command(project_path: Path) -> list[str]:
+def _resolve_default_command() -> list[str]:
     # Use the installed runner, including in wheels and containers. A project
     # cannot silently replace the dashboard's lifecycle implementation.
     return [sys.executable, "-m", "app.runner"]
@@ -102,7 +102,7 @@ async def start_project_process(
             existing_pid = _read_pid(pid_file)
             if existing_pid and _is_pid_running(existing_pid) and owns_process(ralph_dir, existing_pid):
                 raise ProcessAlreadyRunningError(f"Process already running with pid {existing_pid}")
-            resolved_command = command or _resolve_default_command(project_path)
+            resolved_command = command or _resolve_default_command()
             launch_env = os.environ.copy()
             launch_env.update(env_overrides or {})
             launch_env["RALPH_MANAGED"] = "1"
@@ -114,7 +114,10 @@ async def start_project_process(
                     start_new_session=True, env=launch_env,
                 )
             # Reap children without blocking the event loop, including failed starts.
-            asyncio.create_task(asyncio.to_thread(process.wait))
+            # asyncio keeps only weak references, so hold one until the task ends.
+            reaper = asyncio.create_task(asyncio.to_thread(process.wait))
+            _REAPERS.add(reaper)
+            reaper.add_done_callback(_REAPERS.discard)
             try:
                 write_process_identity(ralph_dir, process.pid)
             except psutil.NoSuchProcess:
@@ -235,7 +238,7 @@ async def start_project_loop(
         failed.notify("ERROR", "Start failed", str(exc))
         failed.state("error", error=str(exc))
         raise ProcessCommandNotFoundError(str(exc)) from exc
-    command = [*_resolve_default_command(project_path), str(merged_config.max_iterations)]
+    command = [*_resolve_default_command(), str(merged_config.max_iterations)]
     env_overrides = {
         "RALPH_CLI": merged_config.cli,
         "RALPH_FLAGS": merged_config.flags,

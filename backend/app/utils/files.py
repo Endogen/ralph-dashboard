@@ -7,11 +7,12 @@ import tempfile
 from pathlib import Path
 
 
-def atomic_write(path: Path, content: str) -> None:
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Replace a file's exact bytes. Preserves line endings and non-UTF-8 content."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        with os.fdopen(fd, "wb") as handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
@@ -20,6 +21,10 @@ def atomic_write(path: Path, content: str) -> None:
         os.replace(temporary, path)
     finally:
         Path(temporary).unlink(missing_ok=True)
+
+
+def atomic_write(path: Path, content: str) -> None:
+    atomic_write_bytes(path, content.encode("utf-8"))
 
 
 def read_last_jsonl_record(path: Path) -> dict | None:

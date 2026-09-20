@@ -10,9 +10,10 @@ import tempfile
 import shutil
 import os
 import hashlib
+from contextlib import suppress
 
 from app.control.models import LoopConfig
-from app.utils.files import atomic_write, contained_path
+from app.utils.files import atomic_write, atomic_write_bytes, contained_path
 from app.utils.process import process_lock, read_pid, is_process_alive
 from pathlib import Path
 
@@ -143,9 +144,18 @@ def _prepare_project(request: CreateRequest, project_dir: Path, is_new: bool) ->
             for name, content in payloads.items():
                 atomic_write(staging / name, content)
             _git_init_new_project(staging)
-            if project_dir.exists():
-                raise ProjectDirectoryExistsError(f"Directory already exists: {project_dir}")
-            os.rename(staging, project_dir)
+            # mkdir is the atomic claim: a concurrent creator loses here rather
+            # than in a checked rename, which would silently replace an empty directory.
+            try:
+                os.mkdir(project_dir)
+            except FileExistsError:
+                raise ProjectDirectoryExistsError(f"Directory already exists: {project_dir}") from None
+            try:
+                os.rename(staging, project_dir)
+            except OSError:
+                with suppress(OSError):
+                    os.rmdir(project_dir)
+                raise
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
@@ -161,7 +171,7 @@ def _prepare_project(request: CreateRequest, project_dir: Path, is_new: bool) ->
                 actual = hashlib.sha256(target.read_bytes() if target.exists() else b"").hexdigest()
                 if actual != expected:
                     raise ProjectTargetValidationError(f"{name} changed since preview. Review the files again.")
-            backups = {name: (project_dir / name).read_text() if (project_dir / name).exists() else None
+            backups = {name: (project_dir / name).read_bytes() if (project_dir / name).exists() else None
                        for name in payloads}
             written = []
             created_directories = set()
@@ -180,9 +190,10 @@ def _prepare_project(request: CreateRequest, project_dir: Path, is_new: bool) ->
                     if previous is None:
                         (project_dir / name).unlink(missing_ok=True)
                     else:
-                        atomic_write(project_dir / name, previous)
+                        atomic_write_bytes(project_dir / name, previous)
                 for directory in sorted(created_directories, key=lambda p: len(p.parts), reverse=True):
-                    directory.rmdir()
+                    with suppress(OSError):  # Never mask the original failure.
+                        directory.rmdir()
                 raise
 
 
@@ -262,8 +273,10 @@ async def preview_project(request: CreateRequest) -> dict:
             target = contained_path(project_dir, name)
         except ValueError as exc:
             raise ProjectTargetValidationError(str(exc)) from exc
-        previous = target.read_text() if not is_new and target.is_file() else None
-        versions[name] = hashlib.sha256((previous or "").encode()).hexdigest()
+        raw = target.read_bytes() if not is_new and target.is_file() else None
+        # Hash the bytes on disk; _prepare_project re-checks the same value.
+        versions[name] = hashlib.sha256(raw if raw is not None else b"").hexdigest()
+        previous = raw.decode("utf-8", errors="replace") if raw is not None else None
         files.append({"path": name, "previous": previous, "content": content,
                       "action": "update" if previous is not None else "create"})
     return {"files": files, "versions": versions}

@@ -45,6 +45,21 @@ PUBLIC_API_PATHS = {
 }
 
 
+def _filesystem_activity(project_path: Path) -> float | None:
+    """Fall back to directory mtimes when no iteration has recorded a timestamp.
+
+    Returns None only when nothing is readable, so a project whose activity is
+    merely unknown is never treated as inactive.
+    """
+    stamps = []
+    for path in (project_path, project_path / ".ralph"):
+        try:
+            stamps.append(path.stat().st_mtime)
+        except OSError:
+            continue
+    return max(stamps) if stamps else None
+
+
 async def _run_auto_archive() -> None:
     """Check all projects and auto-archive inactive ones based on settings."""
     from app.iterations.service import list_project_iterations
@@ -69,15 +84,9 @@ async def _run_auto_archive() -> None:
                         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                         activity_map[project.id] = dt.timestamp()
                     else:
-                        activity_map[project.id] = max(
-                            path.stat().st_mtime for path in [project.path, project.path / ".ralph"]
-                            if path.exists()
-                        )
+                        activity_map[project.id] = _filesystem_activity(project.path)
                 else:
-                    activity_map[project.id] = max(
-                            path.stat().st_mtime for path in [project.path, project.path / ".ralph"]
-                            if path.exists()
-                        )
+                    activity_map[project.id] = _filesystem_activity(project.path)
             except Exception:
                 activity_map[project.id] = None
 
@@ -109,6 +118,13 @@ async def _auto_archive_loop(stop_event: asyncio.Event) -> None:
             return
         except asyncio.TimeoutError:
             pass
+
+
+def _prune_project_locks() -> None:
+    from app.config import get_settings
+    from app.utils.process import prune_stale_locks
+
+    prune_stale_locks(get_settings().credentials_file.parent / "project-locks")
 
 
 async def _reconcile_project_statuses() -> None:
@@ -154,6 +170,7 @@ async def _job_cleanup_loop(stop_event: asyncio.Event) -> None:
     while not stop_event.is_set():
         try:
             await cleanup_stale_jobs()
+            await asyncio.to_thread(_prune_project_locks)
         except Exception:
             LOGGER.warning("Generation job cleanup failed", exc_info=True)
 

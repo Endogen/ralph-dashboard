@@ -1,2 +1,0 @@
-# Install from the authoritative dependency list in pyproject.toml.
--e .[dev]

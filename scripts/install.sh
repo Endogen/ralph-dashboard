@@ -94,7 +94,10 @@ fi
 
 echo "==> Installing backend package"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip
-"$VENV_DIR/bin/pip" install -e "$BACKEND_DIR"
+# The lock is hash-verified and authoritative; the package is installed on top
+# without re-resolving, so a source install matches the container exactly.
+"$VENV_DIR/bin/pip" install --require-hashes -r "$BACKEND_DIR/requirements.lock"
+"$VENV_DIR/bin/pip" install --no-deps -e "$BACKEND_DIR"
 
 echo "==> Installing CLI wrappers to $WRAPPER_DIR"
 mkdir -p "$WRAPPER_DIR"

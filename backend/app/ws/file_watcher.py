@@ -42,9 +42,10 @@ _RELEVANT_EVENT_TYPES = {
     EVENT_TYPE_MOVED,
 }
 # Minimum seconds between queuing events for the same file.
-_DEBOUNCE_SECONDS = 0.5
 # Hard cap on pending events to prevent unbounded memory growth.
 _MAX_QUEUE_SIZE = 200
+# Trailing-edge coalescing window for repeated writes to one file.
+_COALESCE_SECONDS = 0.1
 
 OnFileChange = Callable[["FileChangeEvent"], Awaitable[None]]
 LOGGER = logging.getLogger(__name__)
@@ -133,7 +134,7 @@ class _ProjectEventHandler(FileSystemEventHandler):
         scheduled = key in self._pending
         self._pending[key] = change
         if not scheduled:
-            self._loop.call_later(0.1, self._flush, key)
+            self._loop.call_later(_COALESCE_SECONDS, self._flush, key)
 
     def _flush(self, key: str) -> None:
         change = self._pending.get(key)
@@ -143,7 +144,7 @@ class _ProjectEventHandler(FileSystemEventHandler):
             self._queue.put_nowait(change)
         except asyncio.QueueFull:
             # Backpressure retains the final read instead of losing the update.
-            self._loop.call_later(0.1, self._flush, key)
+            self._loop.call_later(_COALESCE_SECONDS, self._flush, key)
         else:
             self._pending.pop(key, None)
 

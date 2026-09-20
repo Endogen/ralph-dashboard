@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import suppress
 
 import pytest
@@ -31,7 +32,9 @@ class FakeProcess:
         self._stderr = stderr.encode("utf-8")
         self.returncode = returncode
         self.killed = False
-        self.pid = 99999999
+        # A resolvable PID: termination now looks up the real process group
+        # before signalling, so an invented PID would simply be skipped.
+        self.pid = os.getpid()
 
     async def communicate(self, input=None) -> tuple[bytes, bytes]:
         return self._stdout, self._stderr

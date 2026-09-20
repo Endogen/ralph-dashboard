@@ -40,4 +40,19 @@ The orchestration tests and browser walkthrough use deterministic local agents. 
 
 The first [hosted CI run](https://github.com/Endogen/ralph-dashboard/actions/runs/35458453509) passed Linux tests, frontend checks and the container smoke test, but failed dependency audits. The Python dev dependency pytest 8.4.2 was affected by PYSEC-2026-1845; its minimum is now 9.0.3. The npm registry outage triggered npm 10's retired Quick Audit fallback; the unchanged lockfile subsequently audited cleanly. CI now uses npm 11.19.1 and keeps the backend matrix running independently. Follow-up local checks passed all 223 backend tests on macOS/Linux, all 16 frontend tests and both dependency audits. Linux validation reports an upstream Starlette/AnyIO deprecation warning. Monaco produces Vite's large optional-chunk advisory. Neither warning is suppressed.
 
+## Review follow-ups
+
+A subsequent review of this branch found and fixed the following, each with regression coverage:
+
+| Issue | Fix |
+| --- | --- |
+| Wizard preview hashed decoded text while preparation hashed raw bytes, so a CRLF file could never be prepared and a non-UTF-8 file raised a 500 | Both sides hash the bytes on disk; rollback restores the original bytes |
+| Websocket auth refusal reconnected with a rejected token or dead-ended silently | Bounded refresh retries, then sign-out; the decision is a tested pure function |
+| Log drain looped until the writer stopped, starving other projects | Bounded to 16 passes per watcher event |
+| Login throttle counted successes and trusted `X-Forwarded-For` | Only failures count; the header is honoured only when `RALPH_TRUSTED_PROXY_HOPS` is set |
+| Dependencies resolved freshly on every build | Hash-pinned universal locks, verified in CI against `pyproject.toml` |
+| Recharts loaded with the project route | Moved behind a lazy boundary: 493 kB to 78 kB |
+
+Smaller corrections: dead code removed, child reapers strongly referenced, an empty-sequence crash in the auto-archive fallback, generation termination resolving a real process group, cached summaries no longer deep-copied, stale lock files pruned, incremental UTF-8 decoding for plain output, an atomic directory claim when publishing a new project, and a mandatory `credential_version` claim.
+
 See [reliability and deployment contracts](reliability.md) for setup, permissions, storage and runtime limits.

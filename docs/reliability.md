@@ -11,21 +11,25 @@ The dashboard and `ralph-loop` use the same packaged Python runner and `LoopConf
 - Every attempted iteration, including provider limits, produces a JSONL record. Completion requires an exact plan marker, a successful agent result and passing configured tests. If no test command is configured, completion does not imply independent test verification.
 - Each record stores provider/model, raw usage, cost when provided, and the estimated price used at the time. The legacy `tokens` field remains measured in thousands for compatibility. Old records without usage/cost cannot recover an exact historical bill; their estimates use the legacy baseline.
 
+## Throttling and proxies
+
+Failed sign-ins are limited to ten per minute per client; successful sign-ins do not consume the budget. The client is the socket peer. `X-Forwarded-For` is attacker-controlled, so it is consulted only when `RALPH_TRUSTED_PROXY_HOPS` states how many trailing entries a trusted reverse proxy appends. Leaving it unset behind a proxy means all callers share one bucket.
+
 ## Permissions
 
 Restricted Codex runs use the workspace-write sandbox. Restricted Claude runs use `acceptEdits`: project file edits and common filesystem operations are allowed, while other actions follow configured permission rules. Headless runs deny actions that require an interactive decision. See [Claude permission modes](https://code.claude.com/docs/en/permission-modes) and [programmatic usage](https://code.claude.com/docs/en/headless). Claude permission rules are not an OS sandbox. Full access is an explicit setting. Existing configurations with explicit unrestricted flags migrate to full access; an explicit restricted setting takes precedence.
 
 The wizard generates text in a temporary working directory with restricted/read-only tooling. Existing project context is limited to the repository's README, agent instructions, plan and common package manifests. It cannot edit the selected repository during generation. The confirmation screen previews files that will be replaced. File versions are checked again when applying the preview.
 
-New projects are staged and published before discovery/watchers refresh. Git initialization is required; the optional initial commit is skipped with a logged warning if Git identity is unavailable. Existing projects must be stopped before preparation; writes are atomic per file and rolled back on failure. Browser plan, prompt, agent and spec edits use ETags and reject stale saves with HTTP 412.
+New projects are staged and published before discovery/watchers refresh. The target directory is claimed with an atomic `mkdir`, so a concurrent creator fails rather than replacing it. Git initialization is required; the optional initial commit is skipped with a logged warning if Git identity is unavailable. Existing projects must be stopped before preparation; writes are atomic per file and rolled back on failure. Preview and preparation hash the same raw bytes, so files with CRLF endings or non-UTF-8 content compare correctly, and a rollback restores the original bytes unchanged. Browser plan, prompt, agent and spec edits use ETags and reject stale saves with HTTP 412.
 
 ## Live data and history
 
 Watchers coalesce changes without dropping their final read. Bounded log reads advance by bytes consumed. The log API provides a cursor and generation identifier; the UI reconciles that cursor on updates and periodically after reconnects. The UI retains the most recent 2 MB in its log viewport. Historical iteration details remain available separately.
 
-There is one application websocket. Authentication is the first message, so credentials do not appear in URLs. Reconnection refreshes expired access tokens. Wizard request IDs survive navigation/reload, allowing polling and cancellation to resume. Generation jobs are limited to four concurrent requests and retained for 30 minutes; restarting the server cancels them and the UI offers regeneration.
+There is one application websocket. Authentication is the first message, so credentials do not appear in URLs. Reconnection refreshes expired access tokens. A refused authentication is retried at most twice; a refused refresh signs out rather than reconnecting with a rejected token. Wizard request IDs survive navigation/reload, allowing polling and cancellation to resume. Generation jobs are limited to four concurrent requests and retained for 30 minutes; restarting the server cancels them and the UI offers regeneration.
 
-The dashboard uses one overview request, and iteration parsing is cached by file version. History is paginated without a 500-record cutoff. Cumulative charts sample their computed points to limit rendering cost. Pages and the locally hosted editor load on demand. CI limits initial JavaScript to 350 KiB. Monaco remains a larger optional download (about 2.7 MB before compression), fetched only when an editor opens.
+The dashboard uses one overview request, and iteration parsing is cached by file version. History is paginated without a 500-record cutoff. Cumulative charts sample their computed points to limit rendering cost. Pages, the charts and the locally hosted editor load on demand. CI limits initial JavaScript to 350 KiB and each route chunk to 150 KiB; deliberately large on-demand chunks have their own named caps. Monaco (about 2.7 MB before compression) and the charting library (about 400 KiB) are fetched only when an editor or the overview tab opens.
 
 ## Deployment
 
@@ -46,8 +50,20 @@ The image runs as an unprivileged user and includes pinned Codex and Claude CLIs
 
 Source installs always run `npm ci` and rebuild the frontend. Use Node 22 LTS. Service installation records the current PATH so installed CLIs remain available to launchd/systemd.
 
+## Dependency locks
+
+`backend/requirements.lock` (runtime) and `backend/requirements-dev.lock` (runtime plus test tooling) pin every transitive dependency to an exact version and SHA-256 hash. They are universal resolutions, so one file covers the Linux image, the macOS CI leg and local development. The container, CI and `scripts/install.sh` all install with `--require-hashes` and then add the package itself with `--no-deps`, so nothing is re-resolved and a build cannot silently pick up a different version.
+
+`pyproject.toml` remains the place to declare a dependency. After changing one, regenerate both locks and commit them:
+
+```sh
+scripts/update_locks.sh
+```
+
+The script needs [uv](https://docs.astral.sh/uv/) and must produce byte-identical output wherever it runs; CI regenerates the locks and fails if they differ from what is committed.
+
 ## Validation
 
 Run `python -m pytest -q backend/tests`, `ruff check backend/app backend/tests`, and `npm run lint && npm test && npm run build` in `frontend`. The Python tests include actual subprocess trees and shell entry points, plus an HTTP/WebSocket workflow using a fake agent. `scripts/smoke_container.sh IMAGE` exercises the installed image and both CLI binaries without calling paid providers.
 
-CI runs backend checks on Linux/macOS, frontend checks and an installed-container smoke test. The frontend lockfile includes patched dependency versions; a DOMPurify patch override keeps Monaco's pinned transitive dependency outside known vulnerable ranges. No audit findings are suppressed.
+CI runs backend checks on Linux/macOS, frontend checks and an installed-container smoke test on every push and pull request. Dependency audits run weekly and on demand instead, because advisories are published against unchanged dependencies and would otherwise block unrelated merges. The frontend lockfile includes patched dependency versions; a DOMPurify patch override keeps Monaco's pinned transitive dependency outside known vulnerable ranges. No audit findings are suppressed.

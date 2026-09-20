@@ -133,11 +133,15 @@ def decode_token(
     except ValidationError as exc:
         raise InvalidTokenError("Invalid token payload") from exc
 
+    # Every token this release issues carries the claim, and the required secret
+    # key rotation already invalidated anything older, so a missing claim is
+    # rejected rather than waved through.
     credentials = load_credentials()
-    if payload.get("credential_version") is not None:
-        current_version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
-        if payload["credential_version"] != current_version or credentials.username != token_payload.sub:
-            raise InvalidTokenError("Credentials changed; sign in again")
+    current_version = hashlib.sha256(credentials.password_hash.encode()).hexdigest() if credentials else None
+    if payload.get("credential_version") != current_version or (
+        credentials is not None and credentials.username != token_payload.sub
+    ):
+        raise InvalidTokenError("Credentials changed; sign in again")
 
     if expected_type is not None and token_payload.type != expected_type:
         raise InvalidTokenError("Unexpected token type")

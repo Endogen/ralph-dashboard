@@ -36,7 +36,8 @@ docker run -d --name "$CONTAINER" -p 127.0.0.1::8420 \
   -e RALPH_SECRET_KEY=container-smoke-test-only-key-with-32-characters "$IMAGE" >/dev/null
 PORT="$(docker port "$CONTAINER" 8420/tcp | awk -F: '{print $NF}')"
 for attempt in {1..30}; do
-  if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null; then
+  # Errors are expected while uvicorn is still binding; stay quiet until it answers.
+  if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
     curl -fsS "http://127.0.0.1:$PORT/" >/dev/null
     echo "Container API and frontend passed"
     exit 0

@@ -21,8 +21,13 @@ ARG RALPH_GID=1000
 RUN groupadd -g ${RALPH_GID} ralph && useradd -m -u ${RALPH_UID} -g ralph ralph \
     && mkdir /data /projects && chown ralph:ralph /data /projects
 WORKDIR /app
+# Install the hash-verified dependency set first so the image is reproducible,
+# then the package itself without letting pip re-resolve anything.
+COPY backend/requirements.lock ./backend/requirements.lock
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --require-hashes -r backend/requirements.lock
 COPY backend/ ./backend/
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir ./backend
+RUN pip install --no-cache-dir --no-deps ./backend
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 ENV RALPH_FRONTEND_DIST=/app/frontend/dist \
     RALPH_CREDENTIALS_FILE=/data/credentials.yaml \
