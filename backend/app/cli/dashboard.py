@@ -28,7 +28,6 @@ DEFAULT_PROJECT_DIRS = [Path.home() / "projects"]
 DEFAULT_SERVICE_NAME = "ralph-dashboard"
 DEFAULT_LAUNCHD_LABEL_PREFIX = "io.endogen"
 MIN_PYTHON_VERSION = (3, 12)
-ENV_SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_./:\-]+$")
 CHECK_MARK = "[OK]"
 WARN_MARK = "[WARN]"
 FAIL_MARK = "[FAIL]"
