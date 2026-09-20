@@ -69,8 +69,11 @@ export async function refreshAccessToken(): Promise<string | null> {
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) clearTokens()
-      return null
+      if (response.status === 401 || response.status === 403) {
+        clearTokens()
+        return null
+      }
+      throw new Error(`Token refresh failed (${response.status})`)
     }
 
     const payload = (await response.json()) as RefreshResponse

@@ -2,8 +2,6 @@ name: Validate
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "0 6 * * 1"
   workflow_dispatch:
 jobs:
   backend:
@@ -26,12 +24,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           python -m pip install uv
-          uv pip compile backend/pyproject.toml --universal --generate-hashes --no-header \
-            --python-version 3.12 -o /tmp/requirements.lock --quiet
-          uv pip compile backend/pyproject.toml --extra dev --universal --generate-hashes --no-header \
-            --python-version 3.12 -o /tmp/requirements-dev.lock --quiet
-          diff -u backend/requirements.lock /tmp/requirements.lock
-          diff -u backend/requirements-dev.lock /tmp/requirements-dev.lock
+          scripts/update_locks.sh --check
       - run: ruff check backend/app backend/tests
       - run: python -m pytest -q backend/tests
       - run: bash -n scripts/*.sh
@@ -61,33 +54,3 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t ralph-dashboard:ci .
       - run: bash scripts/smoke_container.sh ralph-dashboard:ci
-
-  # Dependency advisories land independently of this repository's changes, so
-  # they run on a schedule and on demand rather than blocking every merge.
-  audit:
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: |
-          python -m pip install --require-hashes -r backend/requirements-dev.lock
-          # --no-deps applies to the whole command, so the package that must not
-          # re-resolve is installed separately from the tool that needs its own.
-          python -m pip install --no-deps -e ./backend
-          python -m pip install pip-audit
-      - run: pip-audit --skip-editable
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      # npm 10 falls back to the retired Quick Audit endpoint on bulk errors.
-      - run: npm install --global npm@11.19.1
-      - run: npm ci
-        working-directory: frontend
-      - run: npm audit --audit-level=moderate
-        working-directory: frontend

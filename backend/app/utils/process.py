@@ -62,20 +62,16 @@ def owns_process(directory: Path, pid: int) -> bool:
 
 
 def prune_stale_locks(directory: Path, max_age_seconds: float = 7 * 24 * 3600) -> None:
-    """Drop lock files nobody has touched in a week.
-
-    Removing a file does not release a lock another process holds on its open
-    descriptor, so this only reclaims names, never mutual exclusion.
-    """
+    """Remove old, unlocked files while holding their inode lock."""
     cutoff = time.time() - max_age_seconds
-    try:
-        entries = list(directory.glob("*.lock"))
-    except OSError:
-        return
-    for entry in entries:
+    for entry in directory.glob("*.lock"):
         try:
-            if entry.stat().st_mtime < cutoff:
-                entry.unlink()
+            with entry.open("r+") as handle:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                stats = os.fstat(handle.fileno())
+                current = entry.stat()
+                if (stats.st_dev, stats.st_ino) == (current.st_dev, current.st_ino) and stats.st_mtime < cutoff:
+                    entry.unlink()
         except OSError:
             continue
 
@@ -83,13 +79,25 @@ def prune_stale_locks(directory: Path, max_age_seconds: float = 7 * 24 * 3600) -
 @contextmanager
 def process_lock(directory: Path, name: str = "start.lock"):
     directory.mkdir(parents=True, exist_ok=True)
-    with (directory / name).open("a") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        try:
-            os.utime(handle.fileno())  # Keep an in-use lock out of the pruner.
-            yield handle
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    path = directory / name
+    while True:
+        with path.open("a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                # A pruner may have unlinked this inode after we opened it.
+                # Retry on the current name before entering the critical section.
+                stats = os.fstat(handle.fileno())
+                try:
+                    current = path.stat()
+                except FileNotFoundError:
+                    continue
+                if (stats.st_dev, stats.st_ino) != (current.st_dev, current.st_ino):
+                    continue
+                os.utime(handle.fileno())
+                yield handle
+                return
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def terminate_group(pgid: int, grace: float = 3.0) -> None:

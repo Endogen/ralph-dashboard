@@ -40,11 +40,11 @@ class WatcherEventDispatcher:
         # a lock here so direct callers/tests also get deterministic ordering.
         self._dispatch_lock = asyncio.Lock()
 
-    async def handle_change(self, change: FileChangeEvent) -> None:
+    async def handle_change(self, change: FileChangeEvent) -> bool | None:
         """Dispatch a change event sequentially."""
         async with self._dispatch_lock:
             try:
-                await self._dispatch(change)
+                return await self._dispatch(change)
             except Exception:
                 LOGGER.exception(
                     "Error dispatching event for %s (%s)",
@@ -57,7 +57,7 @@ class WatcherEventDispatcher:
         async with self._dispatch_lock:
             await self._emit_status_if_changed(project_id, project_path)
 
-    async def _dispatch(self, change: FileChangeEvent) -> None:
+    async def _dispatch(self, change: FileChangeEvent) -> bool | None:
         if change.path.name == "state.json" and change.path.parent.name == ".ralph":
             try:
                 state = json.loads(change.path.read_text())
@@ -89,8 +89,7 @@ class WatcherEventDispatcher:
             await self._emit_file_changed(change)
             return
         if change.path.parent.name == ".ralph":
-            await self._handle_log_change(change)
-            return
+            return await self._handle_log_change(change)
 
         await self._emit_file_changed(change)
 
@@ -174,10 +173,10 @@ class WatcherEventDispatcher:
             )
 
     # Bound one drain so a fast writer cannot starve other projects' events.
-    # A writer still outrunning this leaves the rest for the next watcher event.
+    # Return a continuation when bytes remain, even if no further write occurs.
     _MAX_DRAIN_PASSES = 16
 
-    async def _handle_log_change(self, change: FileChangeEvent) -> None:
+    async def _handle_log_change(self, change: FileChangeEvent) -> bool:
         for _ in range(self._MAX_DRAIN_PASSES):
             previous = self._log_offsets.get(change.project_id, 0)
             lines = self._read_log_append_lines(change)
@@ -185,8 +184,12 @@ class WatcherEventDispatcher:
                 await hub.emit("log_append", change.project_id, {"lines": lines,
                     "offset": self._log_offsets.get(change.project_id, 0)})
             if self._log_offsets.get(change.project_id, 0) == previous:
-                return
+                return False
             await asyncio.sleep(0)
+        try:
+            return change.path.stat().st_size > self._log_offsets.get(change.project_id, 0)
+        except OSError:
+            return False
 
     # Maximum bytes to read in one append chunk.  Prevents reading 200MB+
     # when the watcher fires for the first time on an existing large log.

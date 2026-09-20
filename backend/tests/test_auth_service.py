@@ -65,7 +65,7 @@ def test_authenticate_raises_for_invalid_password(tmp_path: Path) -> None:
         authenticate_user("demo", "wrong", credentials_file)
 
 
-def test_access_token_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_access_token_roundtrip(monkeypatch: pytest.MonkeyPatch, configured_credentials) -> None:
     monkeypatch.setenv("RALPH_SECRET_KEY", "test-secret-a---------------------------")
     _clear_settings_cache()
 
@@ -79,7 +79,7 @@ def test_access_token_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
         validate_refresh_token(token)
 
 
-def test_refresh_token_invalid_after_secret_rotation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_refresh_token_invalid_after_secret_rotation(monkeypatch: pytest.MonkeyPatch, configured_credentials) -> None:
     monkeypatch.setenv("RALPH_SECRET_KEY", "test-secret-a---------------------------")
     _clear_settings_cache()
     token = create_refresh_token("demo")

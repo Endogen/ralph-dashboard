@@ -32,7 +32,7 @@ def test_require_access_token_invalid_token() -> None:
     assert exc_info.value.status_code == 401
 
 
-def test_require_access_token_valid_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_require_access_token_valid_token(monkeypatch: pytest.MonkeyPatch, configured_credentials) -> None:
     monkeypatch.setenv("RALPH_SECRET_KEY", "dependency-test-secret------------------")
     _clear_settings_cache()
 
