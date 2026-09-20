@@ -12,7 +12,7 @@ import sqlite3
 import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 from app.config import get_settings
 
@@ -21,14 +21,6 @@ LOGGER = logging.getLogger(__name__)
 DEFAULT_DATABASE_NAME = "dashboard.db"
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -156,36 +148,6 @@ async def close_database() -> None:
             pass
         _persistent_connection = None
         _persistent_db_path = None
-
-
-async def get_user_by_username(
-    username: str, database_path: Path | None = None
-) -> dict[str, Any] | None:
-    """Fetch a user record by username."""
-    async with open_database(database_path) as connection:
-        cursor = await connection.execute(
-            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = ?",
-            (username,),
-        )
-        row = await cursor.fetchone()
-        await cursor.close()
-        return dict(row) if row else None
-
-
-async def upsert_user(username: str, password_hash: str, database_path: Path | None = None) -> None:
-    """Create or update a user password hash by username."""
-    async with open_database(database_path) as connection:
-        await connection.execute(
-            """
-            INSERT INTO users (username, password_hash)
-            VALUES (?, ?)
-            ON CONFLICT(username) DO UPDATE SET
-                password_hash = excluded.password_hash,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            (username, password_hash),
-        )
-        await connection.commit()
 
 
 async def get_setting(key: str, database_path: Path | None = None) -> str | None:

@@ -9,11 +9,9 @@ import pytest
 from app.database import (
     open_database,
     get_setting,
-    get_user_by_username,
     init_database,
     resolve_database_path,
     set_setting,
-    upsert_user,
 )
 
 
@@ -28,12 +26,12 @@ async def test_init_database_creates_expected_tables(tmp_path: Path) -> None:
 
     async with open_database(database_path) as connection:
         cursor = await connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'app_settings')"
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_settings'"
         )
         rows = await cursor.fetchall()
         await cursor.close()
 
-    assert {row["name"] for row in rows} == {"users", "app_settings"}
+    assert {row["name"] for row in rows} == {"app_settings"}
 
 
 @pytest.mark.anyio
@@ -47,23 +45,6 @@ async def test_settings_roundtrip(tmp_path: Path) -> None:
     missing = await get_setting("does-not-exist", database_path=database_path)
 
     assert value == "dark"
-    assert missing is None
-
-
-@pytest.mark.anyio
-async def test_user_upsert_roundtrip(tmp_path: Path) -> None:
-    database_path = tmp_path / "users.db"
-    await init_database(database_path)
-
-    await upsert_user("alice", "hash-v1", database_path=database_path)
-    await upsert_user("alice", "hash-v2", database_path=database_path)
-
-    user = await get_user_by_username("alice", database_path=database_path)
-    missing = await get_user_by_username("nobody", database_path=database_path)
-
-    assert user is not None
-    assert user["username"] == "alice"
-    assert user["password_hash"] == "hash-v2"
     assert missing is None
 
 
