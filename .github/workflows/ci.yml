@@ -75,7 +75,10 @@ jobs:
           python-version: '3.12'
       - run: |
           python -m pip install --require-hashes -r backend/requirements-dev.lock
-          python -m pip install --no-deps -e ./backend pip-audit
+          # --no-deps applies to the whole command, so the package that must not
+          # re-resolve is installed separately from the tool that needs its own.
+          python -m pip install --no-deps -e ./backend
+          python -m pip install pip-audit
       - run: pip-audit --skip-editable
       - uses: actions/setup-node@v4
         with:
