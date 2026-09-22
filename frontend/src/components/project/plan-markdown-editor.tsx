@@ -19,7 +19,7 @@ export function PlanMarkdownEditor({
         <div>
           <h3 className="text-base font-semibold">Raw Plan Markdown</h3>
           <p className="text-sm text-muted-foreground">
-            Monaco editor mode for full markdown control over `IMPLEMENTATION_PLAN.md`.
+            Edit the Markdown source of `IMPLEMENTATION_PLAN.md`.
           </p>
         </div>
         <button

@@ -9,8 +9,7 @@ const ROUTE_BUDGET_KIB = 150
 // Deliberately large, loaded only when the feature is opened. The cap still
 // catches an unexpected jump; raise it knowingly, not by accident.
 const ON_DEMAND = [
-  { match: /^monaco-editor-/, budgetKiB: 3000, why: "code editor, opened on demand" },
-  { match: /^editor\.worker-/, budgetKiB: 400, why: "monaco web worker" },
+  { match: /^markdown-editor-/, budgetKiB: 600, why: "Markdown editor, opened on demand" },
   { match: /^project-charts-panel-/, budgetKiB: 500, why: "recharts, rendered on the overview tab" },
 ]
 
