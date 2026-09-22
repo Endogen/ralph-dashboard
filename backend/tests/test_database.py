@@ -11,7 +11,7 @@ from app.database import (
     get_setting,
     init_database,
     resolve_database_path,
-    set_setting,
+    update_setting,
 )
 
 
@@ -39,7 +39,7 @@ async def test_settings_roundtrip(tmp_path: Path) -> None:
     database_path = tmp_path / "settings.db"
     await init_database(database_path)
 
-    await set_setting("theme", "dark", database_path=database_path)
+    await update_setting("theme", lambda _: "dark", database_path=database_path)
 
     value = await get_setting("theme", database_path=database_path)
     missing = await get_setting("does-not-exist", database_path=database_path)

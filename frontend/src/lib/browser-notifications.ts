@@ -10,7 +10,7 @@ function detectSupport(): boolean {
   return typeof window !== "undefined" && "Notification" in window
 }
 
-export async function requestNotificationPermission(): Promise<boolean> {
+async function requestNotificationPermission(): Promise<boolean> {
   if (!detectSupport()) {
     return false
   }
@@ -25,11 +25,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
   const result = await Notification.requestPermission()
   return result === "granted"
-}
-
-export function getPermissionState(): NotificationPermission | "unsupported" {
-  if (!detectSupport()) return "unsupported"
-  return Notification.permission
 }
 
 type BrowserNotificationOptions = {
@@ -47,10 +42,10 @@ export async function showBrowserNotification({
   tag,
   onClick,
 }: BrowserNotificationOptions): Promise<boolean> {
-  const granted = await requestNotificationPermission()
-  if (!granted) return false
-
   try {
+    const granted = await requestNotificationPermission()
+    if (!granted) return false
+
     const notification = new Notification(title, { body, icon, tag })
 
     if (onClick) {

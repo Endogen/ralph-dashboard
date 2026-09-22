@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from app.config import get_settings
-from app.database import get_setting, set_setting
+from app.database import get_setting, update_setting
 from app.projects.discovery import discover_project_paths
 from app.projects.models import ProjectDetail, ProjectSummary, project_id_from_path
 from app.projects.status import build_project_detail, build_project_summary
@@ -60,9 +60,7 @@ def _is_within_project_roots(path: Path) -> bool:
     return any(path == root or path.is_relative_to(root) for root in get_settings().project_dirs)
 
 
-async def get_registered_project_paths() -> list[Path]:
-    """Return manually registered project paths from persistent settings storage."""
-    raw = await get_setting(REGISTERED_PROJECTS_KEY)
+def _parse_registered_project_paths(raw: str | None) -> list[Path]:
     if raw is None:
         return []
 
@@ -80,10 +78,9 @@ async def get_registered_project_paths() -> list[Path]:
     return _normalize_paths(paths)
 
 
-async def _save_registered_project_paths(paths: list[Path]) -> None:
-    normalized = _normalize_paths(paths)
-    serialized = json.dumps([str(path) for path in normalized])
-    await set_setting(REGISTERED_PROJECTS_KEY, serialized)
+async def get_registered_project_paths() -> list[Path]:
+    """Return manually registered project paths from persistent settings storage."""
+    return _parse_registered_project_paths(await get_setting(REGISTERED_PROJECTS_KEY))
 
 
 async def register_project_path(project_path: Path) -> Path:
@@ -95,22 +92,25 @@ async def register_project_path(project_path: Path) -> Path:
             resolved,
             [str(root) for root in get_settings().project_dirs],
         )
-    existing = await get_registered_project_paths()
-    if resolved in existing:
-        return resolved
-
-    await _save_registered_project_paths([*existing, resolved])
+    await update_setting(
+        REGISTERED_PROJECTS_KEY,
+        lambda raw: json.dumps([str(path) for path in
+                               _normalize_paths([*_parse_registered_project_paths(raw), resolved])]),
+    )
     invalidate_discovery_cache()
     return resolved
 
 
 async def unregister_project_by_id(project_id: str) -> bool:
     """Remove a registered project path by computed project id."""
-    existing = await get_registered_project_paths()
-    remaining = [path for path in existing if project_id_from_path(path) != project_id]
-    removed = len(remaining) != len(existing)
+    previous, _ = await update_setting(
+        REGISTERED_PROJECTS_KEY,
+        lambda raw: json.dumps([str(path) for path in _parse_registered_project_paths(raw)
+                               if project_id_from_path(path) != project_id]),
+    )
+    removed = any(project_id_from_path(path) == project_id
+                  for path in _parse_registered_project_paths(previous))
     if removed:
-        await _save_registered_project_paths(remaining)
         invalidate_discovery_cache()
     return removed
 

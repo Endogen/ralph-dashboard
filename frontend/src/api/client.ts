@@ -14,7 +14,7 @@ export function apiRevision(response: object): string {
   return responseRevisions.get(response) ?? ""
 }
 
-let refreshInFlight: Promise<string | null> | null = null
+let refreshInFlight: { sessionVersion: number; promise: Promise<string | null> } | null = null
 
 async function readErrorDetail(response: Response): Promise<string | null> {
   try {
@@ -53,38 +53,43 @@ function buildHeaders(initHeaders: HeadersInit | undefined, accessToken: string 
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  if (refreshInFlight) {
-    return refreshInFlight
-  }
+  const { refreshToken, sessionVersion, clearTokens } = useAuthStore.getState()
+  if (!refreshToken) return null
+  if (refreshInFlight?.sessionVersion === sessionVersion) return refreshInFlight.promise
 
-  const { refreshToken, setTokens, clearTokens } = useAuthStore.getState()
-  if (!refreshToken) {
-    return null
-  }
-
-  refreshInFlight = (async () => {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        clearTokens()
-        return null
+  const isCurrentSession = () => useAuthStore.getState().sessionVersion === sessionVersion
+  const promise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+      if (!isCurrentSession()) return null
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearTokens()
+          return null
+        }
+        throw new Error(`Token refresh failed (${response.status})`)
       }
-      throw new Error(`Token refresh failed (${response.status})`)
+
+      const payload = (await response.json()) as RefreshResponse
+      if (!isCurrentSession()) return null
+      // Refresh the access token within this session; login and logout advance its version.
+      useAuthStore.setState({ accessToken: payload.access_token })
+      return payload.access_token
+    } catch (error) {
+      if (!isCurrentSession()) return null
+      throw error
     }
-
-    const payload = (await response.json()) as RefreshResponse
-    setTokens(payload.access_token, refreshToken)
-    return payload.access_token
   })()
-
+  const pending = { sessionVersion, promise }
+  refreshInFlight = pending
   try {
-    return await refreshInFlight
+    return await promise
   } finally {
-    refreshInFlight = null
+    if (refreshInFlight === pending) refreshInFlight = null
   }
 }
 
@@ -102,7 +107,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const state = useAuthStore.getState()
   let response = await request(state.accessToken)
 
-  if (response.status === 401 && state.refreshToken) {
+  if (response.status === 401 && state.refreshToken &&
+      useAuthStore.getState().sessionVersion === state.sessionVersion) {
     const refreshedToken = await refreshAccessToken()
     if (refreshedToken) {
       response = await request(refreshedToken)

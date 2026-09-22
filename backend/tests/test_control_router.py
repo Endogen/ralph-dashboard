@@ -9,7 +9,6 @@ from fastapi import HTTPException
 
 from app.config import get_settings
 from app.control.models import LoopConfig
-from app.control.process_manager import read_project_pid, terminate_pid
 from app.projects.models import project_id_from_path
 from app.control.router import (
     InjectRequest,
@@ -32,12 +31,6 @@ def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
     script.write_text("#!/usr/bin/env bash\nsleep 30\n", encoding="utf-8")
     script.chmod(0o755)
     return workspace, project
-
-
-async def _cleanup_process(project_id: str) -> None:
-    pid = await read_project_pid(project_id)
-    if pid is not None:
-        terminate_pid(pid)
 
 
 @pytest.mark.anyio
@@ -139,21 +132,18 @@ async def test_start_handler_uses_persisted_config_and_supports_override(
         assert started.command[-1] == "7"
     finally:
         await post_stop(project_id)
-        await _cleanup_process(project_id)
 
     started_override = await post_start(project_id, StartLoopRequest(max_iterations=3))
     try:
         assert started_override.command[-1] == "3"
     finally:
         await post_stop(project_id)
-        await _cleanup_process(project_id)
 
     started_unlimited = await post_start(project_id, StartLoopRequest(max_iterations=0))
     try:
         assert started_unlimited.command[-1] == "0"
     finally:
         await post_stop(project_id)
-        await _cleanup_process(project_id)
 
 
 @pytest.mark.anyio

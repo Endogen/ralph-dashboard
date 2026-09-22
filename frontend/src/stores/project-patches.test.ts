@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 it("only notifies project subscribers when a patch changes their data", () => {
-  useProjectsStore.getState().setProjects([project])
+  useProjectsStore.setState({ projects: [project] })
   useActiveProjectStore.setState({ activeProject: { ...project, pause_requested: false, ralph_dir: "/a/.ralph", plan_file: null, log_file: null } })
   const listChanged = vi.fn()
   const activeChanged = vi.fn()

@@ -8,10 +8,8 @@ type ProjectsState = {
   isLoading: boolean
   error: string | null
   fetchProjects: () => Promise<void>
-  setProjects: (projects: ProjectSummary[]) => void
   patchProject: (projectId: string, patch: Partial<ProjectSummary>) => void
   upsertProject: (project: ProjectSummary) => void
-  removeProject: (projectId: string) => void
 }
 
 export const useProjectsStore = create<ProjectsState>((set) => ({
@@ -29,8 +27,6 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
       set({ isLoading: false, error: message })
     }
   },
-
-  setProjects: (projects: ProjectSummary[]) => set({ projects }),
 
   patchProject: (projectId: string, patch: Partial<ProjectSummary>) =>
     set((state) => {
@@ -52,8 +48,4 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
       return { projects: next }
     }),
 
-  removeProject: (projectId: string) =>
-    set((state) => ({
-      projects: state.projects.filter((project) => project.id !== projectId),
-    })),
 }))
