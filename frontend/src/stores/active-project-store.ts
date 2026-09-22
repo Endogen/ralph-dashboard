@@ -14,24 +14,37 @@ type ActiveProjectState = {
   clearActiveProject: () => void
 }
 
+let requestVersion = 0
+
 export const useActiveProjectStore = create<ActiveProjectState>((set, get) => ({
   activeProjectId: null,
   activeProject: null,
   isLoading: false,
   error: null,
 
-  setActiveProjectId: (projectId: string | null) => set({ activeProjectId: projectId }),
+  setActiveProjectId: (projectId: string | null) => {
+    if (projectId === get().activeProjectId) return
+    requestVersion += 1
+    set({ activeProjectId: projectId, activeProject: null, isLoading: false, error: null })
+  },
 
   fetchActiveProject: async (projectId?: string | null) => {
+    const version = ++requestVersion
     const resolvedProjectId = projectId ?? get().activeProjectId
     if (!resolvedProjectId) {
-      set({ activeProject: null, activeProjectId: null, error: null })
+      set({ activeProject: null, activeProjectId: null, isLoading: false, error: null })
       return
     }
 
-    set({ activeProjectId: resolvedProjectId, isLoading: true, error: null })
+    set((state) => ({
+      activeProjectId: resolvedProjectId,
+      activeProject: state.activeProject?.id === resolvedProjectId ? state.activeProject : null,
+      isLoading: true,
+      error: null,
+    }))
     try {
       const project = await apiFetch<ProjectDetail>(`/projects/${resolvedProjectId}`)
+      if (version !== requestVersion) return
       set({
         activeProject: project,
         activeProjectId: resolvedProjectId,
@@ -39,6 +52,7 @@ export const useActiveProjectStore = create<ActiveProjectState>((set, get) => ({
         error: null,
       })
     } catch (error) {
+      if (version !== requestVersion) return
       const message = error instanceof Error ? error.message : "Failed to load active project"
       set({ activeProject: null, isLoading: false, error: message })
     }
@@ -49,14 +63,20 @@ export const useActiveProjectStore = create<ActiveProjectState>((set, get) => ({
       if (!state.activeProject || state.activeProject.id !== projectId) {
         return state
       }
-      return { activeProject: { ...state.activeProject, ...patch } }
+      const project = state.activeProject
+      if (Object.entries(patch).every(([key, value]) => Object.is(project[key as keyof ProjectDetail], value))) {
+        return state
+      }
+      return { activeProject: { ...project, ...patch } }
     }),
 
-  clearActiveProject: () =>
+  clearActiveProject: () => {
+    requestVersion += 1
     set({
       activeProjectId: null,
       activeProject: null,
       isLoading: false,
       error: null,
-    }),
+    })
+  },
 }))

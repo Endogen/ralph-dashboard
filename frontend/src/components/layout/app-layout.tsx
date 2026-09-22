@@ -10,11 +10,12 @@ import { AppSidebar } from "@/components/layout/app-sidebar"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ToastRegion } from "@/components/ui/toast-region"
 import { useTheme } from "@/hooks/use-theme"
-import { type WebSocketEnvelope, useWebSocket } from "@/hooks/use-websocket"
+import { useWebSocket } from "@/hooks/use-websocket"
+import { useLiveEvent } from "@/hooks/use-live-event"
+import type { LiveEvent } from "@/lib/live-events"
 import { deliverAttentionSignal } from "@/lib/native-notifications"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 import { useProjectsStore } from "@/stores/projects-store"
-import type { ProjectStatus } from "@/types/project"
 export function AppLayout() {
   const navigate = useNavigate()
   const [addProjectOpen, setAddProjectOpen] = useState(false)
@@ -33,7 +34,7 @@ export function AppLayout() {
     return Array.from(ids)
   }, [activeProjectId, projects])
   const handleSocketEvent = useCallback(
-    (event: WebSocketEnvelope) => {
+    (event: LiveEvent) => {
       const projectName = event.project
         ? (projects.find((project) => project.id === event.project)?.name ?? event.project)
         : null
@@ -48,24 +49,15 @@ export function AppLayout() {
         void fetchProjects()
       }
 
-      if (event.type === "notification" && event.project && event.data && typeof event.data === "object") {
-        const data = event.data as {
-          event_id?: unknown
-          prefix?: unknown
-          kind?: unknown
-          severity?: unknown
-          active?: unknown
-          message?: unknown
-          details?: unknown
-          iteration?: unknown
-        }
-        const eventId = typeof data.event_id === "string" ? data.event_id.trim() : ""
-        const prefix = typeof data.prefix === "string" ? data.prefix.trim().toUpperCase() : ""
-        const kind = typeof data.kind === "string" ? data.kind.trim().toLowerCase() : ""
-        const severity = typeof data.severity === "string" ? data.severity.trim().toLowerCase() : ""
-        const message = typeof data.message === "string" ? data.message.trim() : ""
-        const details = typeof data.details === "string" ? data.details.trim() : ""
-        const iteration = typeof data.iteration === "number" ? data.iteration : null
+      if (event.type === "notification") {
+        const data = event.data
+        const eventId = data.event_id.trim()
+        const prefix = (data.prefix ?? "").trim().toUpperCase()
+        const kind = data.kind.trim().toLowerCase()
+        const severity = data.severity.trim().toLowerCase()
+        const message = data.message.trim()
+        const details = (data.details ?? "").trim()
+        const iteration = data.iteration
 
         if (!prefix || !message || prefix === "PROGRESS" || kind === "progress") {
           return
@@ -122,29 +114,17 @@ export function AppLayout() {
         return
       }
 
-      if (event.type !== "status_changed" || !event.project) {
-        return
+      if (event.type === "status_changed") {
+        // The layout owns shared project state; views only refresh their own data.
+        patchProject(event.project, { status: event.data.status })
+        patchActiveProject(event.project, { status: event.data.status })
       }
-      if (!event.data || typeof event.data !== "object") {
-        return
-      }
-      const status = (event.data as { status?: string }).status
-      if (!status) {
-        return
-      }
-
-      const validStatuses = new Set<ProjectStatus>(["running", "paused", "stopped", "complete", "error"])
-      if (!validStatuses.has(status as ProjectStatus)) {
-        return
-      }
-      patchProject(event.project, { status: status as ProjectStatus })
-      patchActiveProject(event.project, { status: status as ProjectStatus })
     },
     [fetchProjects, navigate, patchProject, patchActiveProject, projects],
   )
+  useLiveEvent(handleSocketEvent)
   const { connected, reconnecting } = useWebSocket({
     projects: subscribedProjects,
-    onEvent: handleSocketEvent,
   })
 
   useEffect(() => {

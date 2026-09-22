@@ -219,3 +219,20 @@ async def test_notification_change_emits_once_records_history_and_updates_status
     assert payload["prefix"] == "ERROR"
     assert payload["message"] == "Tests failed"
     assert payload["iteration"] == 4
+
+
+@pytest.mark.anyio
+async def test_invalid_state_still_reconciles_status(monkeypatch, tmp_path):
+    project_path, _ = make_log_change(tmp_path)
+    state_path = project_path / ".ralph/state.json"
+    state_path.write_text("null", encoding="utf-8")
+    fake_hub = CapturingHub()
+    monkeypatch.setattr(event_dispatcher, "hub", fake_hub)
+    dispatcher = event_dispatcher.WatcherEventDispatcher()
+    await dispatcher.handle_change(FileChangeEvent(
+        project_id="demo-project", project_path=project_path,
+        path=state_path, event_type="modified",
+    ))
+    assert fake_hub.events == [{
+        "type": "status_changed", "project": "demo-project", "data": {"status": "stopped"},
+    }]

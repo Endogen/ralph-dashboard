@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from app.projects.models import ProjectDetail, ProjectSummary, project_id_from_p
 from app.projects.status import build_project_detail, build_project_summary
 
 REGISTERED_PROJECTS_KEY = "registered_project_paths"
+
+LOGGER = logging.getLogger(__name__)
 
 # TTL cache for discovered paths to avoid repeated os.walk on every request
 _discovered_paths_cache: list[Path] | None = None
@@ -34,12 +37,27 @@ def _normalize_paths(paths: list[Path]) -> list[Path]:
 
 
 def _validate_project_directory(project_path: Path) -> Path:
+    """Resolve and sanity-check a manually registered project path.
+
+    Unlike the wizard (app/wizard/service.py), manual registration deliberately
+    does NOT require the path to live under ``RALPH_PROJECT_DIRS``. The wizard
+    creates/replaces files and initialises git, so it is confined to the
+    configured roots; registration only tracks an existing ``.ralph``-bearing
+    directory. Both are gated behind the same authenticated-admin trust
+    boundary as ``test_command``: the dashboard login is equivalent to shell
+    access for the service user.
+    """
     resolved = project_path.expanduser().resolve()
     if not resolved.exists() or not resolved.is_dir():
         raise ProjectRegistrationError("Project path does not exist or is not a directory")
     if not (resolved / ".ralph").is_dir():
         raise ProjectRegistrationError("Project path must contain a .ralph directory")
     return resolved
+
+
+def _is_within_project_roots(path: Path) -> bool:
+    """Return True when the path is equal to or nested under a configured root."""
+    return any(path == root or path.is_relative_to(root) for root in get_settings().project_dirs)
 
 
 async def get_registered_project_paths() -> list[Path]:
@@ -71,6 +89,12 @@ async def _save_registered_project_paths(paths: list[Path]) -> None:
 async def register_project_path(project_path: Path) -> Path:
     """Persist a project path for explicit tracking."""
     resolved = _validate_project_directory(project_path)
+    if not _is_within_project_roots(resolved):
+        LOGGER.warning(
+            "Registering project outside configured roots: %s (RALPH_PROJECT_DIRS=%s)",
+            resolved,
+            [str(root) for root in get_settings().project_dirs],
+        )
     existing = await get_registered_project_paths()
     if resolved in existing:
         return resolved

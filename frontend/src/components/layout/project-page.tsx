@@ -20,7 +20,8 @@ import { ProjectConfigPanel } from "@/components/project/project-config-panel"
 import { SystemPanel } from "@/components/project/system-panel"
 import { ProjectLogViewer } from "@/components/project/project-log-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { type WebSocketEnvelope } from "@/hooks/use-websocket"
+import { useLiveEvent } from "@/hooks/use-live-event"
+import type { LiveEvent } from "@/lib/live-events"
 import { useActiveProjectStore } from "@/stores/active-project-store"
 
 // Recharts is this route's heaviest dependency; load it with the charts.
@@ -31,7 +32,6 @@ import type {
   LoopConfig,
   NotificationEntry,
   ParsedImplementationPlan,
-  ProjectStatus,
   ProjectStats,
 } from "@/types/project"
 
@@ -52,13 +52,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "config", label: "Config" },
   { key: "system", label: "System" },
 ]
-const VALID_PROJECT_STATUSES = new Set<ProjectStatus>([
-  "running",
-  "paused",
-  "stopped",
-  "complete",
-  "error",
-])
 
 function parseTabFromSearch(search: string): TabKey | null {
   const value = new URLSearchParams(search).get("tab")
@@ -153,7 +146,6 @@ export function ProjectPage() {
   const navigate = useNavigate()
   const activeProject = useActiveProjectStore((state) => state.activeProject)
   const fetchActiveProject = useActiveProjectStore((state) => state.fetchActiveProject)
-  const patchActiveProject = useActiveProjectStore((state) => state.patchActiveProject)
   const clearActiveProject = useActiveProjectStore((state) => state.clearActiveProject)
   const projectLoading = useActiveProjectStore((state) => state.isLoading)
   const pushToast = useToastStore((state) => state.pushToast)
@@ -237,20 +229,15 @@ export function ProjectPage() {
   }, [location.search])
 
   const handleOverviewSocketEvent = useCallback(
-    (event: WebSocketEnvelope) => {
+    (event: LiveEvent) => {
       if (event.type === "reconnected") { queueOverviewRefresh(); return }
       if (!id || event.project !== id) {
         return
       }
 
       if (event.type === "log_append") {
-        if (!event.data || typeof event.data !== "object") {
-          return
-        }
-        const lines = (event.data as { lines?: unknown }).lines
-        if (typeof lines !== "string" || lines.length === 0) {
-          return
-        }
+        const { lines } = event.data
+        if (!lines) return
         logChunkIdRef.current += 1
         setLiveLogChunk({ id: logChunkIdRef.current, lines })
         if (activeTabRef.current !== "log") {
@@ -269,22 +256,10 @@ export function ProjectPage() {
       if (shouldRefresh) {
         queueOverviewRefresh()
       }
-
-      if (event.type === "status_changed" && event.data && typeof event.data === "object") {
-        const status = (event.data as { status?: string }).status
-        if (status && VALID_PROJECT_STATUSES.has(status as ProjectStatus)) {
-          patchActiveProject(id, { status: status as ProjectStatus })
-        }
-      }
     },
-    [id, queueOverviewRefresh, patchActiveProject],
+    [id, queueOverviewRefresh],
   )
-
-  useEffect(() => {
-    const receive = (event: Event) => handleOverviewSocketEvent((event as CustomEvent<WebSocketEnvelope>).detail)
-    window.addEventListener("ralph-live-event", receive)
-    return () => window.removeEventListener("ralph-live-event", receive)
-  }, [handleOverviewSocketEvent])
+  useLiveEvent(handleOverviewSocketEvent)
 
   useEffect(() => {
     let cancelled = false

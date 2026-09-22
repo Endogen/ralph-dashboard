@@ -27,6 +27,15 @@ def atomic_write(path: Path, content: str) -> None:
     atomic_write_bytes(path, content.encode("utf-8"))
 
 
+def read_json_object(path: Path) -> dict | None:
+    """Read optional runtime metadata, ignoring missing or malformed objects."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def read_last_jsonl_record(path: Path) -> dict | None:
     """Read backwards until a complete JSON record is found, without a line-size cap."""
     try:

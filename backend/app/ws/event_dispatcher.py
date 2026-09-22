@@ -6,7 +6,7 @@ import asyncio
 import json
 import hashlib
 
-from app.utils.files import read_last_jsonl_record
+from app.utils.files import read_json_object, read_last_jsonl_record
 import logging
 from collections import defaultdict
 from pathlib import Path
@@ -59,12 +59,9 @@ class WatcherEventDispatcher:
 
     async def _dispatch(self, change: FileChangeEvent) -> bool | None:
         if change.path.name == "state.json" and change.path.parent.name == ".ralph":
-            try:
-                state = json.loads(change.path.read_text())
-                if state.get("status") == "running":
-                    await hub.emit("iteration_started", change.project_id, state)
-            except (OSError, ValueError):
-                pass
+            state = read_json_object(change.path)
+            if state is not None and state.get("status") == "running":
+                await hub.emit("iteration_started", change.project_id, state)
             await self._emit_status_if_changed(change.project_id, change.project_path)
             return
         if change.path.name == "IMPLEMENTATION_PLAN.md":

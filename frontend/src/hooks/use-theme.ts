@@ -17,9 +17,13 @@ function readStoredPreference(): ThemePreference {
   if (typeof window === "undefined") {
     return "system"
   }
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-  if (stored === "light" || stored === "dark" || stored === "system") {
-    return stored
+  try {
+    const stored = window.localStorage?.getItem(STORAGE_KEY)
+    if (stored === "light" || stored === "dark" || stored === "system") {
+      return stored
+    }
+  } catch {
+    // Storage may be blocked by browser privacy settings.
   }
   return "system"
 }
@@ -66,10 +70,14 @@ export function useTheme() {
   )
 
   useEffect(() => {
-    if (preference === "system") {
-      window.localStorage.removeItem(STORAGE_KEY)
-    } else {
-      window.localStorage.setItem(STORAGE_KEY, preference)
+    try {
+      if (preference === "system") {
+        window.localStorage?.removeItem(STORAGE_KEY)
+      } else {
+        window.localStorage?.setItem(STORAGE_KEY, preference)
+      }
+    } catch {
+      // Keep the current theme usable even when it cannot be persisted.
     }
   }, [preference])
 

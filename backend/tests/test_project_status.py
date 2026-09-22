@@ -120,3 +120,17 @@ def test_build_project_summary(tmp_path: Path) -> None:
     assert summary.name == "My Demo_Project"
     assert summary.path == project.resolve()
     assert summary.id == project_id_from_path(project)
+
+
+def test_invalid_lifecycle_state_does_not_break_project_listing(tmp_path, monkeypatch):
+    from app.projects import status as status_module
+
+    project = _create_project(tmp_path)
+    state = project / ".ralph/state.json"
+    for content in (b"null", b"[]", b'"running"', b"42", b"{partial", b"\xff"):
+        state.write_bytes(content)
+        monkeypatch.setattr(status_module, "_is_running", lambda _: False)
+        assert build_project_summary(project).status == ProjectStatus.stopped
+        (project / ".ralph/pause").touch()
+        monkeypatch.setattr(status_module, "_is_running", lambda _: True)
+        assert build_project_summary(project).status == ProjectStatus.paused

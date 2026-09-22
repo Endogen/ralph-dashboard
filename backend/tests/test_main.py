@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from app import main as main_module
-from app.main import app, create_app
+from app.main import app, create_app, is_public_api_path
 
 
 def test_app_metadata() -> None:
@@ -16,6 +16,14 @@ def test_app_metadata() -> None:
 def test_health_route_registered() -> None:
     registered_paths = {getattr(route, "path", None) for route in app.routes}
     assert "/api/health" in registered_paths
+
+
+def test_is_public_api_path() -> None:
+    assert is_public_api_path("/api/health")
+    assert is_public_api_path("/api/auth/login")
+    assert is_public_api_path("/api/auth/refresh/")
+    assert is_public_api_path("/project/anything")
+    assert not is_public_api_path("/api/projects")
 
 
 def test_static_routes_not_registered_without_dist(tmp_path: Path) -> None:

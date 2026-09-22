@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.projects.models import ProjectDetail, ProjectStatus, ProjectSummary, project_id_from_path
+from app.utils.files import read_json_object
 from app.utils.process import is_process_alive, read_pid
 
 _NOTIFICATION_PREFIX_RE = re.compile(r"^(?P<prefix>[A-Z_]+):")
@@ -113,9 +114,8 @@ def detect_project_status(project_path: Path) -> ProjectStatus:
     if running:
         pause_file = ralph_dir / "pause"
         if pause_file.exists():
-            try:
-                state = json.loads((ralph_dir / "state.json").read_text())
-            except (OSError, ValueError):
+            state = read_json_object(ralph_dir / "state.json")
+            if state is None:
                 state = {"status": "paused"}  # Legacy runners lack lifecycle state.
             if state.get("status") == "paused":
                 return ProjectStatus.paused
@@ -124,16 +124,14 @@ def detect_project_status(project_path: Path) -> ProjectStatus:
     notification_timestamp, notification_prefix = _pending_notification_state(ralph_dir)
     latest_iteration_timestamp, latest_iteration_failed = _latest_iteration_state(ralph_dir)
 
-    try:
-        state = json.loads((ralph_dir / "state.json").read_text())
+    state = read_json_object(ralph_dir / "state.json")
+    if state is not None:
         stopped_at = _parse_timestamp(state.get("timestamp"))
         if state.get("status") == "stopped" and stopped_at and all(
             timestamp is None or timestamp <= stopped_at
             for timestamp in (notification_timestamp, latest_iteration_timestamp)
         ):
             return ProjectStatus.stopped
-    except (OSError, ValueError):
-        pass
 
     if notification_prefix in {"ERROR", "BLOCKED"}:
         if (
