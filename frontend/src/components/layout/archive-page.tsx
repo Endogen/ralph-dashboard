@@ -9,6 +9,7 @@ import {
   updateArchiveSettings,
 } from "@/api/archive"
 import { Button } from "@/components/ui/button"
+import { useProjectsStore } from "@/stores/projects-store"
 import { useToastStore } from "@/stores/toast-store"
 import type { ProjectSummary, ProjectStatus } from "@/types/project"
 
@@ -35,6 +36,7 @@ export function ArchivePage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [unarchiving, setUnarchiving] = useState<string | null>(null)
   const pushToast = useToastStore((state) => state.pushToast)
+  const fetchProjects = useProjectsStore((state) => state.fetchProjects)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -60,6 +62,7 @@ export function ArchivePage() {
     setUnarchiving(projectId)
     try {
       await unarchiveProject(projectId)
+      await fetchProjects()
       setProjects((prev) => prev.filter((p) => p.id !== projectId))
       pushToast({
         title: "Project unarchived",

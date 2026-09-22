@@ -23,6 +23,7 @@ export function ensureGenerationPolling() {
           tone: result.error ? "error" : "success", dedupeKey: `generation:${id}` })
       }
     } catch (err) {
+      if (id !== useWizardStore.getState().activeGenerationRequestId) return
       const message = err instanceof Error ? err.message : "Connection lost; retrying"
       if (message.includes("(404)")) {
         useWizardStore.setState({ isGenerating: false, activeGenerationRequestId: null,

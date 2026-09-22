@@ -42,10 +42,6 @@ export type IterationDetail = IterationSummary & {
   log_output: string
 }
 
-export type IterationDetailListResponse = {
-  iterations: IterationDetail[]
-}
-
 export type GitCommitDiff = {
   hash: string
   diff: string
@@ -77,13 +73,13 @@ export type GitCommitSummary = {
   deletions: number
 }
 
-export type VelocityStats = {
+type VelocityStats = {
   tasks_per_hour: number
   tasks_remaining: number
   hours_remaining: number
 }
 
-export type HealthBreakdown = {
+type HealthBreakdown = {
   productive: number
   partial: number
   failed: number
@@ -112,7 +108,7 @@ export type ProjectStats = {
   cost_per_1k_tokens: number
 }
 
-export type ProcessMetrics = {
+type ProcessMetrics = {
   pid: number | null
   rss_mb: number
   children_rss_mb: number
@@ -121,7 +117,7 @@ export type ProcessMetrics = {
   child_count: number
 }
 
-export type SystemMetrics = {
+type SystemMetrics = {
   ram_total_mb: number
   ram_used_mb: number
   ram_available_mb: number
@@ -167,14 +163,14 @@ export type NotificationEntry = {
   source: string | null
 }
 
-export type ParsedPlanTask = {
+type ParsedPlanTask = {
   id: string | null
   description: string
   done: boolean
   indent: number
 }
 
-export type ParsedPlanPhase = {
+type ParsedPlanPhase = {
   name: string
   tasks: ParsedPlanTask[]
   done_count: number

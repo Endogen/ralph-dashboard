@@ -1,4 +1,4 @@
-"""SQLite setup and persistence helpers for auth and settings data.
+"""SQLite setup and persistence helpers for dashboard settings.
 
 Uses a persistent connection pool (single long-lived connection) to avoid
 opening/closing and running schema checks on every operation.
@@ -13,6 +13,7 @@ import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
+from collections.abc import Callable
 
 from app.config import get_settings
 
@@ -34,7 +35,7 @@ _persistent_db_path: Path | None = None
 
 
 # aiosqlite executes SQLite operations on its own worker thread. Autocommit
-# keeps independent settings/user updates atomic without sharing transactions.
+# keeps independent settings updates atomic without sharing transactions.
 AsyncSQLiteConnection = aiosqlite.Connection
 
 
@@ -161,17 +162,34 @@ async def get_setting(key: str, database_path: Path | None = None) -> str | None
         return str(row["value"])
 
 
-async def set_setting(key: str, value: str, database_path: Path | None = None) -> None:
-    """Create or update a setting value."""
+async def update_setting(
+    key: str, update: Callable[[str | None], str], database_path: Path | None = None,
+) -> tuple[str | None, str]:
+    """Atomically modify a setting and return its previous and stored values.
+
+    The pure callback can run again when another connection wins the write.
+    Compare-and-swap keeps each statement in autocommit, so callers sharing
+    the persistent connection never accidentally join another transaction.
+    """
     async with open_database(database_path) as connection:
-        await connection.execute(
-            """
-            INSERT INTO app_settings (key, value)
-            VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            (key, value),
-        )
-        await connection.commit()
+        while True:
+            async with connection.execute(
+                "SELECT value FROM app_settings WHERE key = ?", (key,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            previous = str(row["value"]) if row is not None else None
+            value = update(previous)
+            if previous is None:
+                cursor = await connection.execute(
+                    "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO NOTHING", (key, value),
+                )
+            else:
+                cursor = await connection.execute(
+                    "UPDATE app_settings SET value = ?, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE key = ? AND value = ?", (value, key, previous),
+                )
+            changed = cursor.rowcount
+            await cursor.close()
+            if changed:
+                return previous, value

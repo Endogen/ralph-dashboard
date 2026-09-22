@@ -10,7 +10,7 @@ import json
 import logging
 import time
 
-from app.database import get_setting, set_setting
+from app.database import get_setting, update_setting
 
 ARCHIVED_PROJECTS_KEY = "archived_project_ids"
 ARCHIVE_SETTINGS_KEY = "archive_settings"
@@ -24,9 +24,7 @@ DEFAULT_ARCHIVE_SETTINGS: dict = {
 }
 
 
-async def get_archived_project_ids() -> set[str]:
-    """Return the set of archived project IDs."""
-    raw = await get_setting(ARCHIVED_PROJECTS_KEY)
+def _parse_archived_project_ids(raw: str | None) -> set[str]:
     if raw is None:
         return set()
     try:
@@ -38,35 +36,36 @@ async def get_archived_project_ids() -> set[str]:
     return {item for item in parsed if isinstance(item, str)}
 
 
-async def _save_archived_project_ids(ids: set[str]) -> None:
-    await set_setting(ARCHIVED_PROJECTS_KEY, json.dumps(sorted(ids)))
+async def get_archived_project_ids() -> set[str]:
+    """Return the set of archived project IDs."""
+    return _parse_archived_project_ids(await get_setting(ARCHIVED_PROJECTS_KEY))
 
 
 async def archive_project(project_id: str) -> bool:
     """Archive a project by ID. Returns True if newly archived."""
-    ids = await get_archived_project_ids()
-    if project_id in ids:
-        return False
-    ids.add(project_id)
-    await _save_archived_project_ids(ids)
-    LOGGER.info("Archived project: %s", project_id)
-    return True
+    previous, _ = await update_setting(
+        ARCHIVED_PROJECTS_KEY,
+        lambda raw: json.dumps(sorted(_parse_archived_project_ids(raw) | {project_id})),
+    )
+    changed = project_id not in _parse_archived_project_ids(previous)
+    if changed:
+        LOGGER.info("Archived project: %s", project_id)
+    return changed
 
 
 async def unarchive_project(project_id: str) -> bool:
     """Unarchive a project by ID. Returns True if was archived."""
-    ids = await get_archived_project_ids()
-    if project_id not in ids:
-        return False
-    ids.discard(project_id)
-    await _save_archived_project_ids(ids)
-    LOGGER.info("Unarchived project: %s", project_id)
-    return True
+    previous, _ = await update_setting(
+        ARCHIVED_PROJECTS_KEY,
+        lambda raw: json.dumps(sorted(_parse_archived_project_ids(raw) - {project_id})),
+    )
+    changed = project_id in _parse_archived_project_ids(previous)
+    if changed:
+        LOGGER.info("Unarchived project: %s", project_id)
+    return changed
 
 
-async def get_archive_settings() -> dict:
-    """Return current archive settings."""
-    raw = await get_setting(ARCHIVE_SETTINGS_KEY)
+def _parse_archive_settings(raw: str | None) -> dict:
     if raw is None:
         return dict(DEFAULT_ARCHIVE_SETTINGS)
     try:
@@ -81,12 +80,18 @@ async def get_archive_settings() -> dict:
     return merged
 
 
+async def get_archive_settings() -> dict:
+    """Return current archive settings."""
+    return _parse_archive_settings(await get_setting(ARCHIVE_SETTINGS_KEY))
+
+
 async def save_archive_settings(settings: dict) -> dict:
-    """Save archive settings. Returns the merged settings."""
-    current = await get_archive_settings()
-    current.update(settings)
-    await set_setting(ARCHIVE_SETTINGS_KEY, json.dumps(current))
-    return current
+    """Atomically apply a settings patch. Returns the merged settings."""
+    _, stored = await update_setting(
+        ARCHIVE_SETTINGS_KEY,
+        lambda raw: json.dumps({**_parse_archive_settings(raw), **settings}),
+    )
+    return _parse_archive_settings(stored)
 
 
 async def auto_archive_check(
@@ -114,7 +119,8 @@ async def auto_archive_check(
             continue
         # Unknown activity is never evidence of inactivity.
         if last_ts is not None and last_ts < threshold:
-            await archive_project(project_id)
+            if not await archive_project(project_id):
+                continue
             newly_archived.append(project_id)
             LOGGER.info(
                 "Auto-archived project %s (last activity: %s, threshold: %s days)",

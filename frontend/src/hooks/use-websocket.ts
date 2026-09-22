@@ -1,4 +1,4 @@
-import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { freshAccessToken, refreshAccessToken } from "@/api/client"
 import { planAuthRecovery } from "@/hooks/websocket-auth-recovery"
@@ -17,10 +17,8 @@ type UseWebSocketOptions = {
 }
 
 type UseWebSocketResult = {
-  socketRef: MutableRefObject<WebSocket | null>
   connected: boolean
   reconnecting: boolean
-  sendJson: (payload: Record<string, unknown>) => boolean
 }
 
 function normalizeProjects(projects: string[] | undefined): string[] {
@@ -53,15 +51,6 @@ export function useWebSocket({
 
   const normalizedProjects = useMemo(() => normalizeProjects(projects), [projects])
   projectsRef.current = normalizedProjects
-
-  const sendJson = useCallback((payload: Record<string, unknown>) => {
-    const socket = socketRef.current
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return false
-    }
-    socket.send(JSON.stringify(payload))
-    return true
-  }, [])
 
   useEffect(() => {
     if (!enabled || !accessToken) {
@@ -234,5 +223,5 @@ export function useWebSocket({
     subscribedProjectsRef.current = normalizedProjects
   }, [connected, normalizedProjects])
 
-  return { socketRef, connected, reconnecting, sendJson }
+  return { connected, reconnecting }
 }

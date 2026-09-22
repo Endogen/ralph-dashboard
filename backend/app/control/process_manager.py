@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -69,20 +68,6 @@ async def _resolve_project_path(project_id: str) -> Path:
     if project is None:
         raise ProcessProjectNotFoundError(f"Project not found: {project_id}")
     return project.path
-
-
-async def read_project_pid(project_id: str) -> int | None:
-    """Read project PID file if present."""
-    project_path = await _resolve_project_path(project_id)
-    return _read_pid(project_path / ".ralph" / "ralph.pid")
-
-
-async def is_project_running(project_id: str) -> bool:
-    """Check running state from project PID file."""
-    pid = await read_project_pid(project_id)
-    if pid is None:
-        return False
-    return _is_pid_running(pid)
 
 
 async def start_project_process(
@@ -259,14 +244,6 @@ async def start_project_loop(
         await asyncio.sleep(0.05)
     await stop_project_process(project_id)
     raise ProcessCommandNotFoundError("Runner did not become ready within five seconds")
-
-
-def terminate_pid(pid: int) -> None:
-    """Best-effort terminate helper for tests/callers."""
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
 
 
 async def stop_project_process(project_id: str, grace_period_seconds: float = 3.0) -> bool:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from pathlib import Path
 
 import pytest
@@ -16,16 +15,15 @@ from app.control.process_manager import (
     ProcessConfigValidationError,
     ProcessInjectionValidationError,
     inject_project_message,
-    is_project_running,
     pause_project_process,
     read_project_config,
     resume_project_process,
     start_project_process,
     stop_project_process,
-    terminate_pid,
     write_project_config,
 )
 from app.projects.models import project_id_from_path
+from app.utils.process import is_process_alive
 
 
 def _seed_project(tmp_path: Path) -> tuple[Path, Path]:
@@ -62,11 +60,7 @@ async def test_start_project_process_returns_pid(
         assert started.pid > 0
         assert _pid_is_alive(started.pid)
     finally:
-        terminate_pid(started.pid)
-        for _ in range(20):
-            if not _pid_is_alive(started.pid):
-                break
-            time.sleep(0.05)
+        await stop_project_process(project_id, grace_period_seconds=0.2)
 
 
 @pytest.mark.anyio
@@ -88,11 +82,7 @@ async def test_start_project_process_rejects_duplicate_start(
         with pytest.raises(ProcessAlreadyRunningError):
             await start_project_process(project_id, command=["sleep", "30"])
     finally:
-        terminate_pid(started.pid)
-        for _ in range(20):
-            if not _pid_is_alive(started.pid):
-                break
-            time.sleep(0.05)
+        await stop_project_process(project_id, grace_period_seconds=0.2)
 
 
 @pytest.mark.anyio
@@ -113,7 +103,7 @@ async def test_stop_project_process_stops_and_cleans_pid(
     stopped = await stop_project_process(project_id, grace_period_seconds=0.2)
 
     assert stopped
-    assert not await is_project_running(project_id)
+    assert not is_process_alive(started.pid)
     assert not (project / ".ralph" / "ralph.pid").exists()
 
 

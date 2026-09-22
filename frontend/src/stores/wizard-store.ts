@@ -1,9 +1,10 @@
+import { browserStorage } from "@/lib/browser-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
 export type AgentChoice = "codex" | "claude"
 export type ApprovalMode = "full-auto" | "sandboxed"
-export type ProjectMode = "new" | "existing"
+type ProjectMode = "new" | "existing"
 
 export type GeneratedFile = {
   path: string
@@ -49,8 +50,6 @@ type WizardState = {
   setIsGenerating: (generating: boolean) => void
   generateError: string | null
   setGenerateError: (error: string | null) => void
-  activeGenerateController: AbortController | null
-  setActiveGenerateController: (controller: AbortController | null) => void
   activeGenerationRequestId: string | null
   setActiveGenerationRequestId: (requestId: string | null) => void
   generationStartedAt: number | null
@@ -82,7 +81,6 @@ const initialState = {
   generatedFiles: [] as GeneratedFile[],
   isGenerating: false,
   generateError: null as string | null,
-  activeGenerateController: null as AbortController | null,
   activeGenerationRequestId: null as string | null,
   generationStartedAt: null as number | null,
   isCreating: false,
@@ -91,7 +89,7 @@ const initialState = {
 
 export const useWizardStore = create<WizardState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       setCurrentStep: (step) => set({ currentStep: step }),
@@ -127,16 +125,10 @@ export const useWizardStore = create<WizardState>()(
         })),
       setIsGenerating: (isGenerating) => set({ isGenerating }),
       setGenerateError: (generateError) => set({ generateError }),
-      setActiveGenerateController: (activeGenerateController) => set({ activeGenerateController }),
       setActiveGenerationRequestId: (activeGenerationRequestId) => set({ activeGenerationRequestId }),
       setGenerationStartedAt: (generationStartedAt) => set({ generationStartedAt }),
       abortActiveGeneration: () => {
-        const controller = get().activeGenerateController
-        if (controller) {
-          controller.abort()
-        }
         set({
-          activeGenerateController: null,
           activeGenerationRequestId: null,
           generationStartedAt: null,
           isGenerating: false,
@@ -147,10 +139,6 @@ export const useWizardStore = create<WizardState>()(
       setCreateError: (createError) => set({ createError }),
 
       reset: () => {
-        const controller = get().activeGenerateController
-        if (controller) {
-          controller.abort()
-        }
         set({
           ...initialState,
         })
@@ -158,7 +146,7 @@ export const useWizardStore = create<WizardState>()(
     }),
     {
       name: "ralph-wizard-draft-v1",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => browserStorage("localStorage")),
       partialize: (state) => ({
         currentStep: state.currentStep,
         projectMode: state.projectMode,

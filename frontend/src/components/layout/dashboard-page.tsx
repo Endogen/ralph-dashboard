@@ -58,11 +58,12 @@ export function DashboardPage() {
     try {
       const overview = await apiFetch<Record<string, PerProjectData>>("/projects/overview")
       setDataMap(overview)
+    } catch {
+      pushToast({ title: "Failed to load project statistics", tone: "error" })
     } finally {
       setStatsLoading(false)
     }
-    setStatsLoading(false)
-  }, [projects])
+  }, [projects, pushToast])
 
   useEffect(() => {
     fetchProjectData()

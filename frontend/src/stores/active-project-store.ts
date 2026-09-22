@@ -8,7 +8,6 @@ type ActiveProjectState = {
   activeProject: ProjectDetail | null
   isLoading: boolean
   error: string | null
-  setActiveProjectId: (projectId: string | null) => void
   fetchActiveProject: (projectId?: string | null) => Promise<void>
   patchActiveProject: (projectId: string, patch: Partial<ProjectDetail>) => void
   clearActiveProject: () => void
@@ -21,12 +20,6 @@ export const useActiveProjectStore = create<ActiveProjectState>((set, get) => ({
   activeProject: null,
   isLoading: false,
   error: null,
-
-  setActiveProjectId: (projectId: string | null) => {
-    if (projectId === get().activeProjectId) return
-    requestVersion += 1
-    set({ activeProjectId: projectId, activeProject: null, isLoading: false, error: null })
-  },
 
   fetchActiveProject: async (projectId?: string | null) => {
     const version = ++requestVersion

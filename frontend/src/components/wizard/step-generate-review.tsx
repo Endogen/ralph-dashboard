@@ -49,7 +49,6 @@ export function StepGenerateReview() {
   const setIsGenerating = useWizardStore((s) => s.setIsGenerating)
   const generateError = useWizardStore((s) => s.generateError)
   const setGenerateError = useWizardStore((s) => s.setGenerateError)
-  const setActiveGenerateController = useWizardStore((s) => s.setActiveGenerateController)
   const setActiveGenerationRequestId = useWizardStore((s) => s.setActiveGenerationRequestId)
   const generationStartedAt = useWizardStore((s) => s.generationStartedAt)
   const setGenerationStartedAt = useWizardStore((s) => s.setGenerationStartedAt)
@@ -97,7 +96,6 @@ export function StepGenerateReview() {
     setGenerateError(null)
     setGenerationStartedAt(Date.now())
     setActiveGenerationRequestId(requestId)
-    setActiveGenerateController(null)
     try {
       const draft = useWizardStore.getState()
       await apiFetch<StartGenerateApiResponse>("/wizard/generate/start", {
