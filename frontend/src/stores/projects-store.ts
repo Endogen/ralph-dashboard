@@ -33,11 +33,13 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
   setProjects: (projects: ProjectSummary[]) => set({ projects }),
 
   patchProject: (projectId: string, patch: Partial<ProjectSummary>) =>
-    set((state) => ({
-      projects: state.projects.map((project) =>
-        project.id === projectId ? { ...project, ...patch } : project,
-      ),
-    })),
+    set((state) => {
+      const project = state.projects.find((item) => item.id === projectId)
+      if (!project || Object.entries(patch).every(([key, value]) => Object.is(project[key as keyof ProjectSummary], value))) {
+        return state
+      }
+      return { projects: state.projects.map((item) => item === project ? { ...item, ...patch } : item) }
+    }),
 
   upsertProject: (project: ProjectSummary) =>
     set((state) => {

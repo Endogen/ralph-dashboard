@@ -3,24 +3,17 @@ import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useStat
 import { freshAccessToken, refreshAccessToken } from "@/api/client"
 import { planAuthRecovery } from "@/hooks/websocket-auth-recovery"
 
+import { liveEvents, parseSocketMessage } from "@/lib/live-events"
+
 import { useAuthStore } from "@/stores/auth-store"
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const
 const MAX_AUTH_RETRIES = 2
 const AUTH_RETRY_DELAY_MS = 3000
 
-export type WebSocketEnvelope = {
-  type: string
-  project?: string
-  timestamp?: string
-  data?: unknown
-  message?: string
-}
-
 type UseWebSocketOptions = {
   enabled?: boolean
   projects?: string[]
-  onEvent?: (event: WebSocketEnvelope) => void
 }
 
 type UseWebSocketResult = {
@@ -46,7 +39,6 @@ function buildWebSocketUrl(): string {
 export function useWebSocket({
   enabled = true,
   projects = [],
-  onEvent,
 }: UseWebSocketOptions = {}): UseWebSocketResult {
   const accessToken = useAuthStore((state) => state.accessToken)
   const socketRef = useRef<WebSocket | null>(null)
@@ -55,14 +47,12 @@ export function useWebSocket({
   const authRetryRef = useRef(0)
   const projectsRef = useRef<string[]>(normalizeProjects(projects))
   const subscribedProjectsRef = useRef<string[]>([])
-  const onEventRef = useRef(onEvent)
 
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
 
   const normalizedProjects = useMemo(() => normalizeProjects(projects), [projects])
   projectsRef.current = normalizedProjects
-  onEventRef.current = onEvent
 
   const sendJson = useCallback((payload: Record<string, unknown>) => {
     const socket = socketRef.current
@@ -130,32 +120,24 @@ export function useWebSocket({
           return
         }
 
-        try {
-          const parsed = JSON.parse(event.data) as WebSocketEnvelope
+        const parsed = parseSocketMessage(event.data)
+        if (!parsed) return
+        if (parsed.type === "authenticated") {
+          clearReconnectTimer()
+          reconnectAttemptRef.current = 0
+          authRetryRef.current = 0
+          setConnected(true)
+          setReconnecting(false)
 
-          if (parsed.type === "authenticated") {
-            clearReconnectTimer()
-            reconnectAttemptRef.current = 0
-            authRetryRef.current = 0
-            setConnected(true)
-            setReconnecting(false)
-            window.dispatchEvent(new CustomEvent("ralph-live-event", { detail: { type: "reconnected" } }))
-            onEventRef.current?.({ type: "reconnected" })
-
-            if (projectsRef.current.length > 0) {
-              socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
-              subscribedProjectsRef.current = projectsRef.current
-            } else {
-              subscribedProjectsRef.current = []
-            }
-            return
+          if (projectsRef.current.length > 0) {
+            socket.send(JSON.stringify({ action: "subscribe", projects: projectsRef.current }))
           }
-
-          window.dispatchEvent(new CustomEvent("ralph-live-event", { detail: parsed }))
-          onEventRef.current?.(parsed)
-        } catch {
-          // Ignore malformed websocket messages and keep the stream alive.
+          subscribedProjectsRef.current = projectsRef.current
+          liveEvents.publish({ type: "reconnected" })
+          return
         }
+
+        liveEvents.publish(parsed)
       }
 
       socket.onerror = () => {
