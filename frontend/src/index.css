@@ -5,6 +5,8 @@
 
 :root {
   --radius: 0.625rem;
+  --editor-code: oklch(0.43 0.09 170);
+  --editor-keyword: oklch(0.48 0.14 300);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -26,6 +28,8 @@
 }
 
 .dark {
+  --editor-code: oklch(0.77 0.11 170);
+  --editor-keyword: oklch(0.78 0.11 300);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

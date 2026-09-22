@@ -174,18 +174,12 @@ export function ControlFilesPane({ projectId }: ControlFilesPaneProps) {
               <div className="h-[420px] overflow-hidden rounded-lg border">
                 <Editor
                   height="100%"
-                  defaultLanguage="markdown"
                   value={agentsContent}
-                  onChange={(next) => setAgentsContent(next ?? "")}
-                  theme="vs-dark"
-                  options={{
-                    ariaLabel: "Project instructions editor",
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    wordWrap: "on",
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                  }}
+                  onChange={(next) => setAgentsContent(next)}
+                  documentId={`${projectId}/AGENTS.md`}
+                  ariaLabel="AGENTS.md editor"
+                  onSave={handleSaveAgents}
+                  saveDisabled={isSavingAgents || !agentsDirty}
                 />
               </div>
             </article>
@@ -205,18 +199,12 @@ export function ControlFilesPane({ projectId }: ControlFilesPaneProps) {
               <div className="h-[420px] overflow-hidden rounded-lg border">
                 <Editor
                   height="100%"
-                  defaultLanguage="markdown"
                   value={promptContent}
-                  onChange={(next) => setPromptContent(next ?? "")}
-                  theme="vs-dark"
-                  options={{
-                    ariaLabel: "Project instructions editor",
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    wordWrap: "on",
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                  }}
+                  documentId={`${projectId}/PROMPT.md`}
+                  onSave={handleSavePrompt}
+                  saveDisabled={isSavingPrompt || !promptDirty}
+                  onChange={(next) => setPromptContent(next)}
+                  ariaLabel="PROMPT.md editor"
                 />
               </div>
             </article>

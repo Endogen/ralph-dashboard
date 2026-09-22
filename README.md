@@ -112,7 +112,7 @@ A real-time web UI for monitoring, controlling, and analyzing [Ralph](https://gh
 ### 📝 Specs & Prompts
 - **Browse, create, edit, delete** spec markdown files in the project's `specs/` directory
 - **Side-by-side editors** for `AGENTS.md` and `PROMPT.md` directly in the Specs tab
-- **Monaco editor** with markdown syntax highlighting
+- **CodeMirror editor** with markdown syntax highlighting
 
 ### 💻 Code
 - **Git history** — browse recent commits with expandable syntax-highlighted diffs
@@ -218,7 +218,7 @@ Everything else is optional — the dashboard gracefully handles missing files a
 ┌──────────────────────────────────────────────┐
 │  Browser (React 19 + Vite 7 + Tailwind 4)    │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────┐   │
-│  │ Zustand  │ │ Recharts │ │   Monaco    │   │
+│  │ Zustand  │ │ Recharts │ │ CodeMirror  │   │
 │  │ stores   │ │ charts   │ │   editor    │   │
 │  └────┬─────┘ └──────────┘ └─────────────┘   │
 │       │  REST + WebSocket                    │
@@ -269,7 +269,7 @@ Everything else is optional — the dashboard gracefully handles missing files a
 |-------|-----------|
 | **Frontend** | React 19, Vite 7, TypeScript 5.9, Tailwind CSS 4, shadcn/ui |
 | **Charts** | Recharts 3 |
-| **Editor** | Monaco Editor (via @monaco-editor/react) |
+| **Editor** | CodeMirror 6 (Markdown, search, undo/redo, dashboard themes) |
 | **State** | Zustand 5 |
 | **Routing** | React Router 7 |
 | **Backend** | Python 3.12+, FastAPI 0.141, Uvicorn |
