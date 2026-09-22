@@ -57,3 +57,18 @@ def test_settings_project_dirs_comma_separated_and_deduped(
     settings = get_settings()
 
     assert settings.project_dirs == [first.resolve(), second.resolve()]
+
+
+def test_settings_rejects_placeholder_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RALPH_PROJECT_DIRS", raising=False)
+    monkeypatch.delenv("RALPH_PORT", raising=False)
+    monkeypatch.delenv("RALPH_CREDENTIALS_FILE", raising=False)
+    # Longer than the 32-char minimum so the placeholder marker (not the length
+    # check) is what rejects it.
+    monkeypatch.setenv("RALPH_SECRET_KEY", "replace-with-random-secret-abcdefghijklmnopqrstuvwxyz")
+    _clear_settings_cache()
+
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="secure random value"):
+        get_settings()

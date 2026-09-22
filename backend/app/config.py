@@ -11,6 +11,9 @@ from pydantic import BaseModel, Field, field_validator
 
 DEFAULT_PROJECT_DIR = Path.home() / "projects"
 DEFAULT_CREDENTIALS_FILE = Path.home() / ".config" / "ralph-dashboard" / "credentials.yaml"
+# Substrings that mark a clearly non-random secret key. ``replace-`` covers the
+# .env.example placeholder and any pasted-from-docs default, whatever its length.
+PLACEHOLDER_SECRET_MARKERS = ("replace-", "change-me", "changeme")
 
 
 class Settings(BaseModel):
@@ -58,10 +61,11 @@ class Settings(BaseModel):
     def _validate_secret_key(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("secret_key must not be empty")
-        if value in {"replace-this-secret-key", "change-me", "changeme"}:
+        lowered = value.lower()
+        if any(marker in lowered for marker in PLACEHOLDER_SECRET_MARKERS):
             raise ValueError(
                 "RALPH_SECRET_KEY must be set to a secure random value — "
-                "do not use the default. Generate one with: "
+                "do not use a placeholder. Generate one with: "
                 "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
             )
         return value

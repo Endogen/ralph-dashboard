@@ -453,6 +453,14 @@ Issue certificates with Let's Encrypt:
 sudo certbot --nginx -d your.domain.com
 ```
 
+> **Security note:** the dashboard login is a powerful credential. The loop
+> configuration (`test_command`) runs arbitrary shell commands as the service
+> user, and any authenticated user can start, stop, or inject instructions into
+> tracked loops. Treat the dashboard password as equivalent to shell access for
+> the user running the service: use a strong, unique password, keep TLS enabled
+> (never expose plaintext HTTP on a public interface), and restrict access with
+> a firewall or VPN if the dashboard must not be public.
+
 See [workflow, permissions, Docker deployment and validation](docs/reliability.md) for the supported lifecycle and deployment contracts.
 
 ## Runtime Configuration (Advanced)

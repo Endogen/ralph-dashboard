@@ -7,7 +7,6 @@ import json
 import os
 import signal
 import subprocess
-import time
 import sys
 from pathlib import Path
 
@@ -268,27 +267,6 @@ def terminate_pid(pid: int) -> None:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         return
-
-
-def _wait_for_exit(pid: int, timeout_seconds: float) -> bool:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        if not _is_pid_running(pid):
-            return True
-        time.sleep(0.05)
-    return not _is_pid_running(pid)
-
-
-async def _async_wait_for_exit(pid: int, timeout_seconds: float) -> bool:
-    """Non-blocking version of _wait_for_exit for async callers."""
-    import asyncio
-
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        if not _is_pid_running(pid):
-            return True
-        await asyncio.sleep(0.1)
-    return not _is_pid_running(pid)
 
 
 async def stop_project_process(project_id: str, grace_period_seconds: float = 3.0) -> bool:

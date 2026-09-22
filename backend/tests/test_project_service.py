@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,24 @@ async def test_register_project_path_persists(
 
     assert registered == project.resolve()
     assert all_paths == [project.resolve()]
+
+
+@pytest.mark.anyio
+async def test_register_project_path_outside_roots_logs_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    roots = tmp_path / "workspace"
+    project = tmp_path / "outside-project"
+    (project / ".ralph").mkdir(parents=True)
+
+    monkeypatch.setenv("RALPH_PROJECT_DIRS", str(roots))
+    monkeypatch.setenv("RALPH_CREDENTIALS_FILE", str(tmp_path / "credentials.yaml"))
+    get_settings.cache_clear()
+
+    with caplog.at_level(logging.WARNING, logger="app.projects.service"):
+        await register_project_path(project)
+
+    assert any("outside configured roots" in record.message for record in caplog.records)
 
 
 @pytest.mark.anyio
