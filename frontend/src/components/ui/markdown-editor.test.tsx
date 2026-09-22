@@ -3,7 +3,6 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { EditorView } from "@codemirror/view"
 import { undo, redo } from "@codemirror/commands"
-import { openSearchPanel } from "@codemirror/search"
 import { syntaxTree } from "@codemirror/language"
 import { Editor } from "./markdown-editor"
 
@@ -49,7 +48,7 @@ it("replaces external content without mixing undo history or emitting edits", as
   expect(undo(view())).toBe(false)
   expect(changed).not.toHaveBeenCalled()
   expect(syntaxTree(view().state).toString()).toContain("ATXHeading1")
-  expect(openSearchPanel(view())).toBe(true)
+  await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Find in markdown editor"]')!.click())
   expect(container.querySelector('input[name="search"]')).not.toBeNull()
 })
 
