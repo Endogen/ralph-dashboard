@@ -1,6 +1,7 @@
 import { Editor } from "@/components/ui/code-editor"
 
 type PlanMarkdownEditorProps = {
+  documentId: string
   value: string
   onChange: (value: string) => void
   onSave: () => void
@@ -8,6 +9,7 @@ type PlanMarkdownEditorProps = {
 }
 
 export function PlanMarkdownEditor({
+  documentId,
   value,
   onChange,
   onSave,
@@ -35,18 +37,12 @@ export function PlanMarkdownEditor({
       <div className="h-[520px] overflow-hidden rounded-lg border">
         <Editor
           height="100%"
-          defaultLanguage="markdown"
           value={value}
-          onChange={(nextValue) => onChange(nextValue ?? "")}
-          theme="vs-dark"
-          options={{
-                    ariaLabel: "Implementation plan editor",
-            minimap: { enabled: false },
-            fontSize: 13,
-            wordWrap: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-          }}
+          onChange={(nextValue) => onChange(nextValue)}
+          ariaLabel="Implementation plan editor"
+          documentId={documentId}
+          onSave={onSave}
+          saveDisabled={isSaving}
         />
       </div>
     </section>

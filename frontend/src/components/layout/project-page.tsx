@@ -639,6 +639,7 @@ export function ProjectPage() {
 
             {isRawPlanMode ? (
               <PlanMarkdownEditor
+                documentId={`${id}/IMPLEMENTATION_PLAN.md`}
                 value={planDraft}
                 onChange={setPlanDraft}
                 onSave={handleSavePlanRaw}

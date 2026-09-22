@@ -229,18 +229,10 @@ export function StepGenerateReview() {
         <div className="h-[480px] overflow-hidden rounded-lg border">
           <Editor
             height="100%"
-            defaultLanguage="markdown"
             value={activeFile.content}
-            onChange={(value) => updateFileContent(activeFile.path, value ?? "")}
-            theme="vs-dark"
-            options={{
-                    ariaLabel: "Generated file editor",
-              minimap: { enabled: false },
-              fontSize: 13,
-              wordWrap: "on",
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-            }}
+            onChange={(value) => updateFileContent(activeFile.path, value)}
+            ariaLabel="Generated file editor"
+            documentId={`wizard/${activeFile.path}`}
           />
         </div>
       )}

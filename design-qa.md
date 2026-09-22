@@ -29,3 +29,7 @@ Full-view evidence covers integration with the dashboard; the search screenshot 
 Residual scope: no screen-reader session or mobile-device session performed. The sample project is disposable. This is a local review preview, not a deployment.
 
 final result: passed
+
+## Adoption follow-up
+
+The user approved the design and requested production integration. See `docs/editor-integration.md` for the final component API, document/shortcut protections and final validation. The earlier statement about an isolated candidate describes the visual review stage.

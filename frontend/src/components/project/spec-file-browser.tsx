@@ -288,26 +288,7 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
 
   const hasUnsavedChanges = Boolean(selectedFileName) && selectedContent !== lastSavedContent
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") {
-        return
-      }
-      if (!selectedFileName) {
-        return
-      }
-      if (selectedContent === lastSavedContent) {
-        return
-      }
-      event.preventDefault()
-      void handleSaveSpec()
-    }
 
-    window.addEventListener("keydown", onKeyDown)
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-    }
-  }, [handleSaveSpec, lastSavedContent, selectedContent, selectedFileName])
 
   return (
     <section className="rounded-xl p-4">
@@ -412,18 +393,12 @@ export function SpecFileBrowser({ projectId }: SpecFileBrowserProps) {
               <div className="h-[420px] overflow-hidden rounded-lg border">
                 <Editor
                   height="100%"
-                  defaultLanguage="markdown"
                   value={selectedContent}
-                  onChange={(next) => setSelectedContent(next ?? "")}
-                  theme="vs-dark"
-                  options={{
-                    ariaLabel: "Specification editor",
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    wordWrap: "on",
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                  }}
+                  onChange={(next) => setSelectedContent(next)}
+                  ariaLabel="Specification editor"
+                  documentId={`${projectId}/specs/${selectedFileName}`}
+                  onSave={handleSaveSpec}
+                  saveDisabled={isSaving || !hasUnsavedChanges}
                 />
               </div>
 
