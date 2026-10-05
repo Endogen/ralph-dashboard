@@ -13,7 +13,7 @@ dependencies = [
   "uvicorn[standard]==0.38.0",
   "watchdog>=5.0,<7.0",
   "GitPython>=3.1,<4.0",
-  "PyJWT>=2.14,<3.0",
+  "PyJWT>=2.15,<3.0",
   "bcrypt>=4.3,<6.0",
   "aiosqlite>=0.20,<1.0",
   "pydantic>=2.11,<3.0",
